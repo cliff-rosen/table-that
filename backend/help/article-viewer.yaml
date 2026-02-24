@@ -1,0 +1,118 @@
+sections:
+  - category: article-viewer
+    topic: overview
+    title: Article Viewer Overview
+    summary: Full article details, analysis, notes, and links
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      The Article Viewer provides a detailed view of a single research article.
+
+      **Accessing the Article Viewer:**
+      Click any article card in a report to open the full article viewer.
+
+      **What You'll See:**
+      - Full title and complete author list
+      - Publication details (journal, date, PMID)
+      - Complete abstract
+      - AI-generated summary
+      - Links to PubMed and DOI
+      - Star button to add to your favorites
+
+      **Workspace Tabs:**
+      - **Analysis** - Stance analysis results (if configured)
+      - **Notes** - Notes attached to the article
+      - **Links** - Full text links and external resources
+
+      **Navigation:**
+      - Use Previous/Next buttons to move between articles
+      - Press Escape or click outside to close
+      - Use the chat button to ask questions about the article
+
+  - category: article-viewer
+    topic: stance-analysis
+    title: Stance Analysis
+    summary: AI-powered analysis of article positions and perspectives
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      Stance analysis uses AI to evaluate an article's position on a topic.
+
+      **What it shows:**
+      - **Stance** - The article's position: Pro-Defense, Pro-Plaintiff, Neutral, or Mixed
+      - **Confidence** - How confident the AI is in its assessment (percentage)
+      - **Analysis** - Explanation of why this stance was determined
+      - **Key Factors** - Specific elements that influenced the stance
+      - **Relevant Quotes** - Direct quotes from the article supporting the analysis
+
+      **How it's generated:**
+      - Stance analysis is configured at the stream level by admins
+      - The AI analyzes the article's abstract using customized prompts
+      - Results may be pre-computed or generated on-demand
+      - Click "Run AI Analysis" to generate stance for articles without it
+
+      **Use cases:**
+      - Quickly identify which articles support or challenge a position
+      - Find neutral articles for balanced perspectives
+      - Understand the reasoning behind stance classifications
+
+  - category: article-viewer
+    topic: notes
+    title: Article Notes
+    summary: Adding and managing notes on articles
+    roles: [member, org_admin, platform_admin]
+    order: 30
+    content: |
+      Notes let you capture thoughts and observations about specific articles.
+
+      **Adding Notes:**
+      1. Open the article in the Article Viewer
+      2. Click the **Notes** tab
+      3. Click the **Add Note** button
+      4. Type your note in the text area
+      5. Choose **Personal** or **Shared** visibility
+      6. Click **Save Note** to store the note
+
+      **Personal vs Shared:**
+      - **Personal notes** are private — only you can see them. Use these for your own working thoughts, draft observations, or reminders.
+      - **Shared notes** are visible to all members of your organization. Use these to flag findings for colleagues, record team decisions, or share analysis.
+      - New notes default to Personal.
+      - You can change a note's visibility at any time by editing it.
+
+      **Editing and Deleting:**
+      - Only the author of a note can edit or delete it.
+      - Click the pencil icon on your note to edit its content or change its visibility.
+      - Click the trash icon to delete a note (you'll be asked to confirm).
+
+      **Tips:**
+      - Use personal notes for preliminary thoughts you're not ready to share
+      - Use shared notes to flag important findings for your team
+      - Notes persist across sessions and are saved per article
+
+  - category: article-viewer
+    topic: using-chat
+    title: Chat in Article Viewer
+    summary: Ask questions about the specific article you're viewing
+    roles: [member, org_admin, platform_admin]
+    order: 40
+    content: |
+      The chat assistant in the Article Viewer focuses on the specific article you're viewing.
+
+      **What You Can Ask:**
+      - "Explain the methodology used in this study"
+      - "What are the main findings?"
+      - "How does this relate to [topic]?"
+      - "Summarize the limitations mentioned"
+      - "What population was studied?"
+
+      **Context Available:**
+      The assistant has access to:
+      - The article's title, authors, and abstract
+      - AI-generated summary
+      - Stance analysis results (if available)
+      - Notes attached to the article
+
+      **Tips:**
+      - Be specific in your questions
+      - The assistant cannot access the full paper text, only the abstract
+      - Ask follow-up questions to explore details

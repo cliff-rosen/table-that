@@ -1,0 +1,81 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(python -c \"from database import engine; from sqlalchemy import inspect; inspector = inspect(engine); print(''Columns in reports table:''); print([col[''name''] for col in inspector.get_columns(''reports'')])\")",
+      "Bash(python:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "WebFetch(domain:www.ncbi.nlm.nih.gov)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(for service in article_group_detail_service article_group_service hop_service concept_proposal_service feature_preset_service iterative_answer_service smart_search_session_service broad_search_service extraction_service google_scholar_enrichment google_scholar_service search_service web_retrieval_service refinement_workbench_service retrieval_query_service)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(done)",
+      "Bash(dir \"C:\\\\code\\\\kh\\\\frontend\\\\src\")",
+      "Bash(cat:*)",
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "Bash(xargs ls:*)",
+      "Bash(curl:*)",
+      "Bash(powershell -Command \"cd C:\\\\code\\\\kh\\\\backend; python test_imports.py\")",
+      "Bash(powershell -Command:*)",
+      "WebSearch",
+      "WebFetch(domain:clinicaltrials.gov)",
+      "WebFetch(domain:biomcp.org)",
+      "Bash(copy \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialsTablizer\\\\TrialViewerModal.tsx\" \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialScoutTable\\\\TrialViewerModal.tsx\")",
+      "WebFetch(domain:leapcell.io)",
+      "WebFetch(domain:docs.sqlalchemy.org)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(sort:*)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:www.nlm.nih.gov)",
+      "WebFetch(domain:pubmed.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:nsaunders.wordpress.com)",
+      "WebFetch(domain:www.linkedin.com)",
+      "Bash(\"C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe\" \"C:\\\\code\\\\kh\\\\backend\\\\migrations\\\\add_summary_to_help_override.py\")",
+      "Bash(./venv/Scripts/python:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(PYTHONPATH=. ./venv/Scripts/python.exe:*)",
+      "Bash(venvScriptspython.exe scriptsanalyze_last_chat.py)",
+      "Bash(C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe:*)",
+      "Bash(cmd /c:*)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")",
+      "Bash(eb status:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "C:\\c\\code\\jam-bot"
+    ]
+  },
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo %date% %time% Notification hook fired >> C:\\code\\kh\\.claude\\hooks.log && curl -s -d \"Claude Code needs your attention\" ntfy.sh/claude_code_ready"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo %date% %time% Stop hook fired >> C:\\code\\kh\\.claude\\hooks.log && curl -s -d \"Claude Code finished\" ntfy.sh/claude_code_ready"
+          }
+        ]
+      }
+    ]
+  }
+}

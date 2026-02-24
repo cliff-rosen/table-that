@@ -1,0 +1,136 @@
+sections:
+  - category: streams
+    topic: overview
+    title: Understanding Streams
+    summary: What research streams are and how they work
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      Research streams are configured pipelines that automatically find and curate relevant research.
+
+      **How Streams Work:**
+      1. **Search** - Queries run against PubMed and other sources
+      2. **Filter** - Results are filtered by relevance criteria
+      3. **Enrich** - AI generates summaries and analysis
+      4. **Categorize** - Articles are organized into themes
+      5. **Report** - A report is generated on schedule
+
+      **Stream Scope:**
+      Streams have different visibility levels:
+      - **Personal** - Only visible to the creator
+      - **Organization** - Shared with your organization
+      - **Global** - Platform-wide, managed by platform admins
+
+      **Viewing Streams:**
+      Go to the Streams page to see all streams you have access to.
+      Click a stream to see its details, recent reports, and configuration.
+
+  - category: streams
+    topic: creating
+    title: Creating Streams
+    summary: How to create a new research stream
+    roles: [org_admin, platform_admin]
+    order: 21
+    content: |
+      Create streams to monitor specific research areas.
+
+      **To Create a Stream:**
+      1. Go to the Streams page
+      2. Click "Create Stream"
+      3. Enter stream name and purpose
+      4. Choose scope (personal, organization, or global)
+      5. Configure the four layers (see below)
+
+      **Four-Layer Architecture:**
+
+      1. **Semantic Space** - Define your research focus
+         - Key concepts and entities
+         - Relationships between concepts
+         - Domain terminology
+
+      2. **Retrieval Config** - How to find articles
+         - PubMed search queries
+         - Date range settings
+         - Semantic filters for relevance
+         - Broad queries for discovery
+
+      3. **Presentation Config** - How to organize results
+         - Define article categories
+         - Set category descriptions
+         - Configure sorting and grouping
+
+      4. **Enrichment Config** - AI enhancement
+         - Executive summary prompts
+         - Category-level analysis
+         - Article enrichment settings
+
+      **Schedule:**
+      Set how often reports generate (daily, weekly, biweekly, monthly).
+
+  - category: streams
+    topic: editing
+    title: Editing Streams
+    summary: How to modify stream configuration
+    roles: [org_admin, platform_admin]
+    order: 22
+    content: |
+      Edit streams to refine search criteria and improve results.
+
+      **Who Can Edit:**
+      - Personal streams: Only the creator
+      - Organization streams: Org admins and platform admins
+      - Global streams: Platform admins only
+
+      **Editing Process:**
+      1. Go to Streams page
+      2. Click the stream you want to edit
+      3. Click "Edit" or the edit icon
+      4. Use the tabbed interface to modify each layer:
+         - Semantic Space
+         - Retrieval Config
+         - Presentation Config
+         - Enrichment Config
+
+      **Testing Changes:**
+      - Use "Test Query" to preview search results
+      - Run a manual pipeline to see full results
+      - Review generated reports before publishing
+
+      **Chat Assistance:**
+      The chat assistant can help with:
+      - Query refinement suggestions
+      - Concept extraction from documents
+      - Category organization recommendations
+
+  - category: streams
+    topic: running
+    title: Running Pipelines
+    summary: How to manually run a stream pipeline
+    roles: [org_admin, platform_admin]
+    order: 23
+    content: |
+      Pipelines can run automatically on schedule or manually on demand.
+
+      **Manual Run:**
+      1. Go to the stream detail page
+      2. Click "Run Pipeline" button
+      3. The pipeline will:
+         - Execute search queries
+         - Apply filters
+         - Generate AI enrichments
+         - Create a draft report
+
+      **Pipeline Stages:**
+      - **Retrieval** - Fetching articles from sources
+      - **Filtering** - Applying relevance criteria
+      - **Enrichment** - AI summary generation
+      - **Report Creation** - Assembling final report
+
+      **Monitoring:**
+      - View pipeline status on the stream page
+      - Platform admins can see all pipelines in Operations
+      - Failed pipelines show error details
+
+      **After Running:**
+      - New report appears in the Reports page
+      - May require approval before publishing (depending on settings)

@@ -1,0 +1,222 @@
+sections:
+  # ===========================================================================
+  # Date Fields
+  # ===========================================================================
+  - category: field-reference
+    topic: date-fields
+    title: Date Field Semantics
+    summary: What date fields mean and how date ranges work (inclusive/exclusive)
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      Understanding date fields in Knowledge Horizon.
+
+      ## Report Date Range
+
+      **Fields:** `start_date`, `end_date`
+
+      **Semantics:**
+      - Both dates are **INCLUSIVE** (articles on start_date AND end_date are included)
+      - Dates refer to when the article became available (electronic publication preferred over print)
+      - Articles with publication_date >= start_date AND <= end_date are included
+
+      **Example:**
+      - Report range: Jan 1, 2026 to Jan 7, 2026
+      - Article published Jan 1 → INCLUDED
+      - Article published Jan 7 → INCLUDED
+      - Article published Jan 8 → NOT included
+
+      ## Article Publication Date
+
+      **Field:** `publication_date`
+
+      **Semantics:**
+      - When the article first became available to readers
+      - Prefers electronic publication date (ArticleDate) over print date (PubDate)
+      - For articles published online ahead of print, this is the online date
+
+      **Why this matters:**
+      When you search for "January articles", you want articles that were readable in January,
+      even if the print issue says "February".
+
+      ## Other Article Dates
+
+      | Field | Meaning |
+      |-------|---------|
+      | `date_entered` | When PubMed added this article to their database |
+      | `date_completed` | When MEDLINE finished indexing (adding MeSH terms, etc.) |
+      | `date_revised` | When PubMed last updated the record |
+
+      ## Pipeline Date Type Setting
+
+      When configuring a stream's retrieval pipeline, you can choose which date field to filter on:
+
+      | Option | Searches By | Use When |
+      |--------|-------------|----------|
+      | `publication` | Publication date | You want articles by when they were published |
+      | `entry` | Entrez date | You want articles by when PubMed added them (useful for catching backfills) |
+
+  # ===========================================================================
+  # Filter Fields
+  # ===========================================================================
+  - category: field-reference
+    topic: filter-fields
+    title: Filter and Relevance Fields
+    summary: What filter_score, threshold, and passed_semantic_filter mean
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      Understanding how articles are filtered for relevance.
+
+      ## Filter Score
+
+      **Field:** `filter_score`
+
+      **Semantics:**
+      - A number from 0.0 to 1.0
+      - Higher scores = more relevant to the stream's focus
+      - Calculated by AI based on the stream's configured filters
+
+      **Interpretation:**
+      | Score Range | Meaning |
+      |-------------|---------|
+      | 0.8 - 1.0 | Highly relevant |
+      | 0.6 - 0.8 | Moderately relevant |
+      | 0.4 - 0.6 | Somewhat relevant |
+      | 0.0 - 0.4 | Low relevance |
+
+      ## Filter Threshold
+
+      **Field:** `filter_threshold`
+
+      **Semantics:**
+      - The minimum filter_score required for automatic inclusion
+      - Configured per stream by admins
+      - Articles scoring below threshold are excluded (unless curator overrides)
+
+      **Example:**
+      - Threshold set to 0.6
+      - Article scores 0.72 → Passes filter automatically
+      - Article scores 0.55 → Fails filter, excluded unless curator adds it
+
+      ## Passed Semantic Filter
+
+      **Field:** `passed_semantic_filter`
+
+      **Semantics:**
+      - Boolean: true or false
+      - True if: (filter_score >= threshold) OR (curator manually included it)
+      - This is the computed result, not an override flag
+
+      **Important:** An article can have passed_semantic_filter=true even with a low score
+      if a curator manually included it.
+
+  # ===========================================================================
+  # Inclusion Fields
+  # ===========================================================================
+  - category: field-reference
+    topic: inclusion-fields
+    title: Report Inclusion Fields
+    summary: How included_in_report, curator_included, and curator_excluded work
+    roles: [member, org_admin, platform_admin]
+    order: 30
+    content: |
+      Understanding how articles get included in (or excluded from) reports.
+
+      ## Inclusion Logic Overview
+
+      ```
+      Article retrieved from PubMed
+            ↓
+      Semantic filter applied (filter_score vs threshold)
+            ↓
+      Curator can override (include low-scoring OR exclude high-scoring)
+            ↓
+      Final decision: included_in_report
+      ```
+
+      ## Included in Report (Source of Truth)
+
+      **Field:** `included_in_report`
+
+      **Semantics:**
+      - Boolean: true or false
+      - **This is the SOURCE OF TRUTH** for whether an article appears in a report
+      - Reflects the final decision after all filtering and curation
+
+      ## Curator Included
+
+      **Field:** `curator_included`
+
+      **Semantics:**
+      - Boolean indicating a curator manually added this article
+      - Overrides filter rejection (article appears even with low score)
+      - Set when curator clicks "Include" on a filtered-out article
+
+      **Use case:** Curator sees a relevant article that the AI filter missed.
+
+      ## Curator Excluded
+
+      **Field:** `curator_excluded`
+
+      **Semantics:**
+      - Boolean indicating a curator manually removed this article
+      - Overrides filter pass (article hidden even with high score)
+      - Set when curator clicks "Exclude" on a passing article
+
+      **Use case:** Curator spots an irrelevant article that slipped through the filter.
+
+      ## Decision Matrix
+
+      | filter_score vs threshold | curator_included | curator_excluded | included_in_report |
+      |---------------------------|------------------|------------------|-------------------|
+      | PASS                      | -                | false            | **true** |
+      | PASS                      | -                | true             | **false** |
+      | FAIL                      | false            | -                | **false** |
+      | FAIL                      | true             | -                | **true** |
+
+  # ===========================================================================
+  # Status Fields
+  # ===========================================================================
+  - category: field-reference
+    topic: status-fields
+    title: Pipeline and Report Status Fields
+    summary: What different status values mean for pipelines and reports
+    roles: [org_admin, platform_admin]
+    order: 40
+    content: |
+      Understanding status values throughout the system.
+
+      ## Pipeline Run Status
+
+      The status of a pipeline run (job) that retrieves and processes articles.
+
+      | Status | Meaning |
+      |--------|---------|
+      | `pending` | Job is queued, waiting to start |
+      | `running` | Job is actively processing |
+      | `completed` | Job finished successfully |
+      | `failed` | Job encountered an error |
+      | `cancelled` | Job was stopped by user or system |
+
+      ## Report Status
+
+      The state of a generated report.
+
+      | Status | Meaning |
+      |--------|---------|
+      | `draft` | Report is being generated or reviewed |
+      | `published` | Report is finalized and visible to members |
+      | `archived` | Report is hidden from default views |
+
+      ## Article Processing Status
+
+      During pipeline runs, articles go through stages:
+
+      | Stage | What Happens |
+      |-------|--------------|
+      | `retrieved` | Article fetched from PubMed |
+      | `filtered` | Semantic filter applied |
+      | `summarized` | AI summary generated |
+      | `categorized` | Article assigned to categories |
+      | `ready` | Processing complete, ready for report |

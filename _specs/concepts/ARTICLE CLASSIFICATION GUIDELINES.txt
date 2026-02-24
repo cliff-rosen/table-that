@@ -1,0 +1,47 @@
+ARTICLE CLASSIFICATION GUIDELINES
+
+When analyzing articles in this genetics stream, classify each article's strategic position in litigation:
+
+## PRO-DEFENSE: PREDISPOSITION
+Classify as pro-defense when the article:
+- Demonstrates mesothelioma/ovarian cancer can occur due to genetics with minimal or no asbestos/talc exposure
+- Documents germline mutations causing disease independently
+- Shows familial clustering without occupational exposure
+- Quantifies penetrance of genetic mutations
+- Provides an alternative causation pathway
+
+Key test: Does this show genetics can cause disease WITHOUT exposure?
+
+## PRO-PLAINTIFF: SUSCEPTIBILITY
+Classify as pro-plaintiff when the article:
+- Demonstrates genetic variants ENHANCE risk FROM asbestos/talc exposure
+- Shows gene-environment interaction requiring BOTH genetics AND exposure
+- Documents differential susceptibility based on genotype
+- Quantifies modified dose-response in genetically susceptible individuals
+
+Key test: Does this show genetics increase risk ONLY when exposed?
+
+## NEUTRAL
+Classify as neutral when the article:
+- Focuses on molecular characterization without causation implications
+- Focuses on treatment or prognosis
+- Describes methodological advances
+- Requires further analysis to determine strategic position
+
+## MIXED
+Classify as mixed when the article:
+- Shows both predisposition and susceptibility mechanisms
+- Contains data that could support either interpretation
+- Has insufficient exposure documentation to distinguish
+
+## EXPOSURE VERIFICATION
+
+For genetic predisposition claims, verify:
+- Was exposure history systematically assessed?
+- Were "minimal exposure" claims documented with industrial hygiene data?
+- Or is "no exposure" assumed without verification?
+
+For genetic susceptibility claims, verify:
+- Was exposure quantified?
+- Was gene-environment interaction statistically tested?
+- Or is interaction merely implied?

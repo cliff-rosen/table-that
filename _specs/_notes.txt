@@ -1,0 +1,89 @@
+
+
+
+Tablizer
+  props
+    data as inputData
+    columns as inputColumns
+  state
+    baseRows (maps from inputData )
+
+
+
+PubMedAppPage
+    <PubMedWorkbench
+        ref={pubMedWorkbenchRef}
+        onStateChange={handleStateChange}
+/>
+        // Search form state
+        const [query, setQuery] = useState('');
+        const [startDate, setStartDate] = useState('');
+        const [endDate, setEndDate] = useState('');
+        const [dateType, setDateType] = useState<'publication' | 'entry'>('publication');
+
+        const [allArticles, setAllArticles] = useState<CanonicalResearchArticle[]>([]);
+        const [snapshots, setSnapshots] = useState<SearchSnapshot[]>([]);
+
+        const displayData = selectedSnapshot ? {
+            articles: selectedSnapshot.articles,
+            totalMatched: selectedSnapshot.totalMatched
+        } : {
+            articles: allArticles,
+            totalMatched: totalMatched
+        };
+
+        const displayArticles = displayData.articles.slice(0, DISPLAY_LIMIT);
+
+
+        const fetchMoreForAI = useCallback(async (): Promise<CanonicalResearchArticle[]> => {
+            // If we already have the full set, return current articles
+            if (hasFetchedFullSet || !lastSearchParams) {
+                return allArticles;
+            }
+
+            setFetchingMore(true);
+            try {
+                const response = await tablizerApi.searchPubMed({
+                    ...lastSearchParams,
+                    maxPmids: 500,
+                    articlesToFetch: AI_FETCH_LIMIT
+                });
+                setAllArticles(response.articles);
+                setHasFetchedFullSet(true);
+                return response.articles;
+            } catch (err) {
+                console.error('Failed to fetch more articles:', err);
+                return allArticles; // Return what we have on error
+            } finally {
+                setFetchingMore(false);
+            }
+        }, [hasFetchedFullSet, lastSearchParams, allArticles]);
+
+
+        <PubMedSearchForm
+            query={query}
+            startDate={startDate}
+            endDate={endDate}
+            dateType={dateType}
+            onQueryChange={setQuery}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            onDateTypeChange={setDateType}
+            onSearch={handleSearch}
+            onClear={handleClearAll}
+            onHelpClick={() => {
+                setShowHelp(true);
+                trackEvent('pubmed_help_open', {});
+            }}
+            loading={loading}
+            showClearButton={hasSearched || snapshots.length > 0 || !!query.trim()}
+            error={error}`
+        />   
+
+        <PubMedTable
+            ref={tablizerRef}
+            articles={displayArticles}
+            onSaveToHistory={handleSaveFilteredToHistory}
+            onFetchMoreForAI={selectedSnapshotId ? undefined : fetchMoreForAI}
+            onColumnsChange={setAiColumns}
+        />
