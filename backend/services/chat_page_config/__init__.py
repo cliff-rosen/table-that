@@ -33,13 +33,7 @@ from .registry import (
 )
 
 # Import all page configurations to register them
-from . import edit_stream
-from . import streams_list
-from . import new_stream
-from . import reports
-from . import tablizer
-from . import article_viewer
-from . import artifacts
+from . import table_view
 
 
 # =============================================================================

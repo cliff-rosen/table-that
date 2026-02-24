@@ -36,11 +36,11 @@ const ChatContext = createContext<ChatContextType | null>(null);
 
 interface ChatProviderProps {
     children: React.ReactNode;
-    /** App identifier for scoping conversations (default: 'kh') */
-    app?: 'kh' | 'tablizer' | 'trialscout';
+    /** App identifier for scoping conversations (default: 'table_that') */
+    app?: 'table_that';
 }
 
-export function ChatProvider({ children, app = 'kh' }: ChatProviderProps) {
+export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [context, setContext] = useState<Record<string, unknown>>({});
     const [isLoading, setIsLoading] = useState(false);

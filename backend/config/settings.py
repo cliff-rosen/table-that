@@ -16,7 +16,7 @@ else:
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "KH"
+    APP_NAME: str = "table.that"
     SETTING_VERSION: str = "0.0.1"
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")  # Dev default
 
@@ -34,24 +34,6 @@ class Settings(BaseSettings):
 
     # API settings
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY")
-    ANTHROPIC_MODEL: str = "claude-3-sonnet-20240229"
-    GOOGLE_SEARCH_API_KEY: str = os.getenv("GOOGLE_SEARCH_API_KEY")
-    GOOGLE_SEARCH_ENGINE_ID: str = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
-    GOOGLE_SEARCH_NUM_RESULTS: int = 10
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
-    
-    # SerpAPI settings
-    SERPAPI_KEY: str = os.getenv("SERPAPI_KEY")
-    
-    # Search Provider Limits
-    GOOGLE_SCHOLAR_MAX_RESULTS_PER_CALL: int = int(os.getenv("GOOGLE_SCHOLAR_MAX_RESULTS_PER_CALL", "20"))
-    PUBMED_MAX_RESULTS_PER_CALL: int = int(os.getenv("PUBMED_MAX_RESULTS_PER_CALL", "10000"))
-    
-    # Smart Search Filtering Limits
-    MAX_ARTICLES_TO_FILTER: int = int(os.getenv("MAX_ARTICLES_TO_FILTER", "500"))
-
-    # Worker Service URL (for pipeline execution)
-    WORKER_URL: str = os.getenv("WORKER_URL", "http://localhost:8001")
 
     # Environment
     IS_PRODUCTION: bool = _is_production
@@ -67,7 +49,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI")
-    
+
     # CORS settings
     CORS_ORIGINS: list[str] = ["*"]  # In production, specify exact origins
     CORS_ALLOW_CREDENTIALS: bool = True
@@ -76,7 +58,6 @@ class Settings(BaseSettings):
     CORS_EXPOSE_HEADERS: list[str] = ["Authorization", "X-Request-ID"]
 
     # Logging settings
-    # LOG_LEVEL: str = "DEBUG"
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "logs"
     LOG_FILENAME_PREFIX: str = "app"
@@ -101,7 +82,7 @@ class Settings(BaseSettings):
     @property
     def anthropic_model(self) -> str:
         """Get the default Anthropic model"""
-        return "claude-3-sonnet-20240229"
+        return "claude-sonnet-4-20250514"
 
     @property
     def anthropic_api_key(self) -> str:
@@ -115,16 +96,6 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Ensure API keys are set
-        if not self.OPENAI_API_KEY:
-            raise ValueError(
-                "OPENAI_API_KEY not found in environment variables")
-        if not self.GOOGLE_SEARCH_API_KEY:
-            raise ValueError(
-                "GOOGLE_SEARCH_API_KEY not found in environment variables")
-        if not self.GOOGLE_SEARCH_ENGINE_ID:
-            raise ValueError(
-                "GOOGLE_SEARCH_ENGINE_ID not found in environment variables")
 
         # Validate Google OAuth2 settings
         if not self.GOOGLE_CLIENT_ID:
@@ -136,22 +107,5 @@ class Settings(BaseSettings):
         if not self.FRONTEND_URL:
             raise ValueError("FRONTEND_URL not found in environment variables")
 
-        # Set environment variables
-        os.environ["OPENAI_API_KEY"] = self.OPENAI_API_KEY
-        os.environ["GOOGLE_API_KEY"] = self.GOOGLE_SEARCH_API_KEY
-        os.environ["GOOGLE_CSE_ID"] = self.GOOGLE_SEARCH_ENGINE_ID
-
-
 
 settings = Settings()
-
-# Debug print to verify API keys are loaded
-if __name__ == "__main__":
-    print(f"OpenAI API Key loaded: {bool(settings.OPENAI_API_KEY)}")
-    print(f"Google API Key loaded: {bool(settings.GOOGLE_SEARCH_API_KEY)}")
-    print(f"Google CSE ID loaded: {bool(settings.GOOGLE_SEARCH_ENGINE_ID)}")
-    print(f"Google OAuth2 Client ID loaded: {bool(settings.GOOGLE_CLIENT_ID)}")
-    print(
-        f"First few chars of OpenAI key: {settings.OPENAI_API_KEY[:10] if settings.OPENAI_API_KEY else 'No key found'}")
-    print(
-        f"First few chars of Google key: {settings.GOOGLE_SEARCH_API_KEY[:10] if settings.GOOGLE_SEARCH_API_KEY else 'No key found'}")

@@ -14,7 +14,6 @@ import os
 import logging
 import re
 import uuid
-from utils.date_utils import format_pub_date
 from schemas.chat import (
     ChatResponsePayload,
     AgentTrace,
@@ -72,18 +71,6 @@ class ChatStreamService:
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
         self.chat_service = ChatService(db)
-        self._association_service = None
-
-    @property
-    def association_service(self):
-        """Lazy-load ReportArticleAssociationService."""
-        if self._association_service is None:
-            from services.report_article_association_service import (
-                ReportArticleAssociationService,
-            )
-
-            self._association_service = ReportArticleAssociationService(self.db)
-        return self._association_service
 
     # =========================================================================
     # Public API
@@ -387,16 +374,8 @@ class ChatStreamService:
     # =========================================================================
 
     def _get_app_from_context(self, context: Dict[str, Any]) -> str:
-        """
-        Derive app identifier from context.
-        Maps current_page to app: tablizer -> tablizer, trialscout -> trialscout, else -> kh
-        """
-        current_page = context.get("current_page", "")
-        if current_page == "tablizer":
-            return "tablizer"
-        elif current_page == "trialscout":
-            return "trialscout"
-        return "kh"
+        """Derive app identifier from context."""
+        return "table_that"
 
     async def _setup_chat(self, request) -> Optional[int]:
         """
@@ -625,52 +604,28 @@ class ChatStreamService:
     # ==========================================================================
 
     # Global preamble - explains the overall situation (always included)
-    GLOBAL_PREAMBLE = """You are the AI assistant for Knowledge Horizon, a biomedical research intelligence platform.
+    GLOBAL_PREAMBLE = """You are the AI assistant for table.that, a modern data table builder.
 
-## What Knowledge Horizon Does
-Knowledge Horizon helps researchers stay current with biomedical literature by:
-- Monitoring PubMed for new articles matching configured research streams
-- Generating curated intelligence reports with AI summaries
-- Organizing articles by themes and categories
+## What table.that Does
+table.that helps users build and manage structured data tables:
+- Define custom table schemas with typed columns (text, number, date, boolean, select)
+- Manage records through a clean, spreadsheet-like interface
+- Import and export data via CSV
+- Get AI-powered assistance for data management
 
 ## Your Role
-Users interact with you through the chat function on various pages. When they come to you, they typically have one of two needs:
+Users interact with you through the chat panel while working with their tables. You can help with:
 
 **1. Navigation/How-To Questions** (use the help tool):
 - "How do I..." questions about using the app
-- "What does X mean?" questions about fields or terminology
-- Questions about system behavior or features
+- "What does X mean?" questions about fields or features
 - For these, retrieve relevant help documentation with get_help()
 
-**2. Data/Analysis Questions** (use data tools):
-- Questions about article content in reports
-- Requests to summarize, compare, or find patterns
-- Questions about specific data values
-- For these, use the appropriate data tools (search, get_report_articles, etc.)
-
-**Scoping data questions — always try local first, then escalate:**
-When users ask about articles or research, follow this priority order:
-
-**Level 1 — Local data (use freely, no confirmation needed):**
-- **Current context**: If the answer is already in the system prompt (the current article, report summary, stream info), answer directly. Don't call a tool for data you already have.
-- **Across the stream's reports** (search_articles_in_reports): Even if the user is viewing a single report, the full stream is the local domain. Use search_articles_in_reports to search across all reports in the current stream — this covers everything Knowledge Horizon has already captured and curated.
-- Always start here. Most analysis questions can be answered from the current context or by searching across the stream's reports.
-
-**Level 2 — PubMed search (ask the user first):**
-- **All of PubMed** (search_pubmed): When the question genuinely requires finding literature beyond what's in the stream's reports.
-- This is a **beta** feature. Before calling search_pubmed, end your turn and ask the user: explain that you'd like to search PubMed for additional articles, note that this is a beta capability, and ask if they'd like you to proceed.
-- Only proceed after the user confirms.
-
-**Level 3 — Deep research (ask the user first):**
-- **Deep research** (deep_research): When the question requires synthesizing information from many sources, or goes beyond published articles into guidelines, regulatory info, or cross-source analysis.
-- This is a **beta** feature that takes 1-3 minutes. Before calling deep_research, end your turn and ask the user: explain what you'd research, note that this is a beta capability that may take a few minutes, and ask if they'd like you to proceed.
-- Only proceed after the user confirms.
-
-**Important:** For levels 2 and 3, you MUST end your turn to ask the user — do NOT call the tool in the same turn as the question. Wait for the user's confirmation in the next message before proceeding.
-
-If the scope is ambiguous (e.g., "find me articles about X"), use context clues: if the user is viewing a report, start with local data (level 1). Only suggest escalating to PubMed or deep research if local data is insufficient.
-
-When uncertain which type, default to checking help documentation first.
+**2. Data Questions** (use data tools):
+- Questions about data in their tables
+- Requests to add, update, or delete records
+- Requests to search or analyze their data
+- For these, use the appropriate data tools
 
 ## Style
 Be conversational and helpful. Keep responses concise and factual. Don't over-explain.
@@ -678,19 +633,13 @@ Be conversational and helpful. Keep responses concise and factual. Don't over-ex
 ## Important: You Cannot Pause for User Input
 You are running in an agentic loop — when you call a tool, the result comes back to you automatically and you continue. The user does NOT see your intermediate text until your full response is assembled. This means:
 - NEVER ask "Would you like me to...?" or "Shall I...?" and then call the tool in the same turn. The user cannot answer you.
-- NEVER say "I can't do X" and then proceed to do X with a tool. This creates a contradictory response.
-- Instead: just do the thing and explain what you found. Say "Let me check..." or "Here's what I found..." — not "Would you like me to check?"
-- If you genuinely need user input before proceeding, end your turn WITHOUT calling a tool. Only ask a question when you are truly waiting for the answer.
+- Instead: just do the thing and explain what you found.
+- If you genuinely need user input before proceeding, end your turn WITHOUT calling a tool.
 
 ## Handling Ambiguity
 - For marginally ambiguous queries: State your interpretation, then answer
 - For highly ambiguous queries: Ask for clarification with 2-3 specific options (and do NOT call a tool in the same turn)
-- Leverage context (current page, recent actions) before asking
-
-## Tool Limitations
-If a task requires chaining many tools with fragile parsing, or you're not confident the result will be reliable, be honest:
-- "I can check individual reports, but aggregating across all reports would be unreliable."
-- "I don't have a tool for that specific operation."
+- Leverage context (current page, table data) before asking
 
 ## Page-Specific Instructions
 Users can be on different pages in the app, each with its own context and capabilities. Page-specific instructions (if any) appear in the next section."""
@@ -826,8 +775,8 @@ SUGGESTED_ACTIONS:
 
     # Role descriptions for system prompt context
     ROLE_DESCRIPTIONS = {
-        "member": "Member (can view reports and articles, but cannot configure streams or curate content)",
-        "org_admin": "Organization Admin (can configure streams, curate reports, and manage organization users)",
+        "member": "Member (can create and manage their own tables)",
+        "org_admin": "Organization Admin (can manage organization users and tables)",
         "platform_admin": "Platform Admin (full access to all features including system configuration)",
     }
 
@@ -847,267 +796,18 @@ SUGGESTED_ACTIONS:
         role_description = self.ROLE_DESCRIPTIONS.get(user_role, user_role)
         base_context = f"User role: {role_description}\n\n{base_context}"
 
-        # For reports page, enrich with report data from database
-        if current_page == "reports" and context.get("report_id"):
-            report_id = context.get("report_id")
-            try:
-                report_data = await self._load_report_context(report_id, context)
-                if report_data:
-                    base_context += "\n" + report_data
-                else:
-                    base_context += "\n\n(Unable to load report data - report may not exist or access denied)"
-            except Exception as e:
-                logger.warning(
-                    f"Failed to load report context for report_id={report_id}: {e}"
-                )
-                base_context += f"\n\n(Error loading report data: {str(e)})"
-
         return base_context
 
     async def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
-        """Load stream-specific chat instructions based on stream_id in context (async).
+        """Load context-specific chat instructions (async).
 
-        Instructions are stored in the chat_config table (scope='stream').
+        Instructions are stored in the chat_config table.
         """
-        from models import Report, ChatConfig
-
-        stream_id = context.get("stream_id")
-
-        # Try to get stream_id from report_id if not directly provided
-        if not stream_id and context.get("report_id"):
-            stmt = select(Report).where(
-                Report.report_id == context.get("report_id"),
-                Report.user_id == self.user_id,
-            )
-            result = await self.db.execute(stmt)
-            report = result.scalars().first()
-            if report:
-                stream_id = report.research_stream_id
-
-        if not stream_id:
-            return None
-
-        # Get instructions from chat_config table
-        try:
-            result = await self.db.execute(
-                select(ChatConfig).where(
-                    ChatConfig.scope == "stream", ChatConfig.scope_key == str(stream_id)
-                )
-            )
-            config = result.scalars().first()
-            if config and config.content:
-                return config.content.strip()
-        except Exception as e:
-            logger.warning(f"Failed to load stream instructions: {e}")
-
         return None
 
     async def _get_max_tool_iterations(self) -> int:
         """Get the maximum tool iterations from config, or default."""
         return await self.chat_service.get_max_tool_iterations()
-
-    async def _load_report_context(
-        self, report_id: int, context: Dict[str, Any]
-    ) -> Optional[str]:
-        """Load report data from database and format it for LLM context (async)."""
-        from models import Report
-
-        stmt = select(Report).where(
-            Report.report_id == report_id, Report.user_id == self.user_id
-        )
-        result = await self.db.execute(stmt)
-        report = result.scalars().first()
-
-        if not report:
-            return None
-
-        # Load visible articles (excludes hidden) - association_service uses async
-        visible_associations = await self.association_service.get_visible_for_report(
-            report_id
-        )
-
-        articles_context = []
-        for assoc in visible_associations:
-            article = assoc.article
-            articles_context.append(
-                {
-                    "article_id": article.article_id,
-                    "title": article.title,
-                    "authors": article.authors or [],
-                    "abstract": article.abstract,
-                    "journal": article.journal,
-                    "publication_date": format_pub_date(
-                        article.pub_year, article.pub_month, article.pub_day
-                    )
-                    or None,
-                    "relevance_score": assoc.relevance_score,
-                    "relevance_rationale": assoc.relevance_rationale,
-                    "category": (
-                        assoc.presentation_categories[0]
-                        if assoc.presentation_categories
-                        else None
-                    ),
-                }
-            )
-
-        # Build enrichments context
-        enrichments = report.enrichments or {}
-        executive_summary = enrichments.get("executive_summary", "")
-        category_summaries = enrichments.get("category_summaries", {})
-
-        category_summaries_text = ""
-        if category_summaries:
-            formatted = [
-                f"\n### {cat}\n{summary}" for cat, summary in category_summaries.items()
-            ]
-            category_summaries_text = "\n".join(formatted)
-
-        highlights_text = "No key highlights available."
-        if report.key_highlights:
-            highlights_text = "\n".join(f"- {h}" for h in report.key_highlights)
-
-        current_article = context.get("current_article")
-        current_article_section = (
-            self._format_current_article(current_article) if current_article else ""
-        )
-
-        return f"""
-        === REPORT DATA (loaded from database) ===
-
-        Report Name: {report.report_name}
-        Report Date: {report.report_date}
-        Total Articles: {len(articles_context)}
-        {current_article_section}
-
-        === EXECUTIVE SUMMARY ===
-        {executive_summary if executive_summary else "No executive summary available."}
-
-        === KEY HIGHLIGHTS ===
-        {highlights_text}
-
-        === THEMATIC ANALYSIS ===
-        {report.thematic_analysis if report.thematic_analysis else "No thematic analysis available."}
-
-        === CATEGORY SUMMARIES ===
-        {category_summaries_text if category_summaries_text else "No category summaries available."}
-
-        === ARTICLES IN THIS REPORT ===
-        {self._format_report_articles(articles_context)}
-        """
-
-    def _format_current_article(self, article: Dict[str, Any]) -> str:
-        """Format the currently-viewed article for LLM context."""
-        if not article:
-            return ""
-
-        title = article.get("title", "Unknown Title")
-        authors = article.get("authors", [])
-        authors_str = ", ".join(authors[:3]) if authors else "Unknown"
-        if len(authors) > 3:
-            authors_str += " et al."
-
-        journal = article.get("journal", "Unknown Journal")
-        publication_date = article.get("publication_date", "Unknown")
-        pmid = article.get("pmid")
-        doi = article.get("doi")
-        abstract = article.get("abstract", "No abstract available.")
-        relevance_score = article.get("relevance_score")
-        relevance_rationale = article.get("relevance_rationale")
-        stance = article.get("stance_analysis")
-
-        sections = [
-            f"""
-        === CURRENTLY VIEWING ARTICLE ===
-        The user has this specific article open and is asking about it.
-
-        Title: {title}
-        Authors: {authors_str}
-        Journal: {journal} ({publication_date})"""
-        ]
-
-        if pmid:
-            sections.append(f"        PMID: {pmid}")
-        if doi:
-            sections.append(f"        DOI: {doi}")
-
-        sections.append(
-            f"""
-        Abstract:
-        {abstract}"""
-        )
-
-        if relevance_score is not None:
-            sections.append(
-                f"""
-        Relevance Score: {int(relevance_score * 100)}%"""
-            )
-
-        if relevance_rationale:
-            sections.append(f"""        Why Relevant: {relevance_rationale}""")
-
-        if stance:
-            stance_type = stance.get("stance", "unknown")
-            confidence = stance.get("confidence", 0)
-            analysis = stance.get("analysis", "")
-            key_factors = stance.get("key_factors", [])
-
-            sections.append(
-                f"""
-        === STANCE ANALYSIS (from UI) ===
-        Stance: {stance_type} (Confidence: {int(confidence * 100)}%)
-        Analysis: {analysis}"""
-            )
-
-            if key_factors:
-                factors_str = "\n        - ".join(key_factors)
-                sections.append(
-                    f"""        Key Factors:
-        - {factors_str}"""
-                )
-
-        sections.append(
-            """
-        === END CURRENT ARTICLE ==="""
-        )
-
-        return "\n".join(sections)
-
-    def _format_report_articles(self, articles: List[Dict[str, Any]]) -> str:
-        """Format articles for the prompt, keeping it concise."""
-        if not articles:
-            return "No articles in this report."
-
-        formatted = []
-        for i, article in enumerate(articles[:30], 1):
-            authors_str = ", ".join(article.get("authors", [])[:3])
-            if len(article.get("authors", [])) > 3:
-                authors_str += " et al."
-
-            entry = f"""
-            {i}. "{article.get('title', 'Untitled')}"
-            Authors: {authors_str or 'Unknown'}
-            Journal: {article.get('journal', 'Unknown')} ({article.get('publication_date', 'Unknown')})
-            Relevance: {f"{int(article.get('relevance_score', 0) * 100)}%" if article.get('relevance_score') else 'Not scored'}
-            Category: {article.get('category', 'Uncategorized')}"""
-
-            if article.get("relevance_rationale"):
-                rationale = article["relevance_rationale"][:150]
-                if len(article["relevance_rationale"]) > 150:
-                    rationale += "..."
-                entry += f"\n   Why relevant: {rationale}"
-
-            if article.get("abstract"):
-                abstract = article["abstract"][:200]
-                if len(article["abstract"]) > 200:
-                    abstract += "..."
-                entry += f"\n   Abstract: {abstract}"
-
-            formatted.append(entry)
-
-        result = "\n".join(formatted)
-        if len(articles) > 30:
-            result += f"\n\n... and {len(articles) - 30} more articles"
-        return result
 
     # =========================================================================
     # Response Parsing
