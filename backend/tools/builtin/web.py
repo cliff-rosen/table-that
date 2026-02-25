@@ -281,21 +281,29 @@ async def execute_research_web(
 
     messages: List[Dict[str, Any]] = [{"role": "user", "content": query}]
 
+    system_prompt = (
+        "You are a web research assistant. You MUST use the search_web tool on your "
+        "VERY FIRST turn — NEVER answer from memory or training data. Always search first, "
+        "then optionally use fetch_webpage to read promising results. "
+        "After researching, respond with ONLY the answer — no explanation, no quotes, "
+        "just the raw value. If you cannot determine the answer after searching, "
+        "respond with exactly: Could not determine an answer."
+    )
+
     for _turn in range(max_steps):
         try:
-            response = await client.messages.create(
+            # Force tool use on the first turn so Haiku always searches
+            api_kwargs: Dict[str, Any] = dict(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=1024,
                 messages=messages,
                 tools=_RESEARCH_INNER_TOOLS,
-                system=(
-                    "You are a research assistant. Your job is to answer a specific question "
-                    "by searching the web and reading pages. Be concise. "
-                    "After researching, respond with ONLY the answer — no explanation, no quotes, "
-                    "just the raw value. If you cannot determine the answer, respond with exactly: "
-                    "Could not determine an answer."
-                ),
+                system=system_prompt,
             )
+            if _turn == 0:
+                api_kwargs["tool_choice"] = {"type": "tool", "name": "search_web"}
+
+            response = await client.messages.create(**api_kwargs)
         except Exception as e:
             logger.warning(f"research_web inner LLM call failed: {e}")
             return "Could not determine an answer."
