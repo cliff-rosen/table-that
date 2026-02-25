@@ -639,62 +639,72 @@ async def execute_for_each_row(
             progress=base_progress,
         )
 
-        # Build query from row data + instructions
-        parts = []
-        for col in table.columns:
-            val = row.data.get(col["id"])
-            if val is not None:
-                parts.append(f"{col['name']}: {val}")
-        row_context = ", ".join(parts)
-        built_query = f"Given: {row_context}. {instructions}"
-
-        # Run research loop, forwarding inner steps as ToolProgress
+        # Each row is wrapped in try/except so a single-row failure
+        # doesn't prevent the final ToolResult (with research_log) from emitting
         research_result = None
-        row_steps = []  # Collect steps for this row's trace
+        row_steps = []
 
-        async for step in _research_web_core(built_query, 5, db, user_id):
-            action = step["action"]
+        try:
+            # Build query from row data + instructions
+            parts = []
+            for col in table.columns:
+                val = row.data.get(col["id"])
+                if val is not None:
+                    parts.append(f"{col['name']}: {val}")
+            row_context = ", ".join(parts)
+            built_query = f"Given: {row_context}. {instructions}"
 
-            if action == "search":
-                row_steps.append({
-                    "action": "search",
-                    "query": step["query"],
-                    "detail": step.get("detail", ""),
-                })
-                yield ToolProgress(
-                    stage="searching",
-                    message=f"Searching: {step['query'][:80]}",
-                    progress=base_progress,
-                )
-            elif action == "fetch":
-                url = step["url"]
-                url_short = url[:60] + "..." if len(url) > 60 else url
-                row_steps.append({
-                    "action": "fetch",
-                    "url": url,
-                    "detail": step.get("detail", ""),
-                })
-                yield ToolProgress(
-                    stage="fetching",
-                    message=f"Reading: {url_short}",
-                    progress=base_progress,
-                )
-            elif action == "thinking":
-                row_steps.append({
-                    "action": "thinking",
-                    "text": step["text"],
-                })
-            elif action == "error":
-                row_steps.append({
-                    "action": "error",
-                    "detail": step.get("detail", "Unknown error"),
-                })
-            elif action == "answer":
-                research_result = step.get("text")
-                row_steps.append({
-                    "action": "answer",
-                    "text": research_result,
-                })
+            # Run research loop, forwarding inner steps as ToolProgress
+            async for step in _research_web_core(built_query, 5, db, user_id):
+                action = step["action"]
+
+                if action == "search":
+                    row_steps.append({
+                        "action": "search",
+                        "query": step["query"],
+                        "detail": step.get("detail", ""),
+                    })
+                    yield ToolProgress(
+                        stage="searching",
+                        message=f"Searching: {step['query'][:80]}",
+                        progress=base_progress,
+                    )
+                elif action == "fetch":
+                    url = step["url"]
+                    url_short = url[:60] + "..." if len(url) > 60 else url
+                    row_steps.append({
+                        "action": "fetch",
+                        "url": url,
+                        "detail": step.get("detail", ""),
+                    })
+                    yield ToolProgress(
+                        stage="fetching",
+                        message=f"Reading: {url_short}",
+                        progress=base_progress,
+                    )
+                elif action == "thinking":
+                    row_steps.append({
+                        "action": "thinking",
+                        "text": step["text"],
+                    })
+                elif action == "error":
+                    row_steps.append({
+                        "action": "error",
+                        "detail": step.get("detail", "Unknown error"),
+                    })
+                elif action == "answer":
+                    research_result = step.get("text")
+                    row_steps.append({
+                        "action": "answer",
+                        "text": research_result,
+                    })
+
+        except Exception as e:
+            logger.error(f"for_each_row: row {row.id} ({label}) crashed: {e}", exc_info=True)
+            row_steps.append({
+                "action": "error",
+                "detail": f"Research crashed: {e}",
+            })
 
         # Check if we got a valid result
         is_valid = (
@@ -756,12 +766,19 @@ async def execute_for_each_row(
     # Always emit a data_proposal payload so the user can see research traces,
     # even when no values were found
     found_count = len(operations)
+    log_count = len(research_log)
     summary = (
         f"Researched {total} rows for '{target_col_name}'. "
         f"Found values for {found_count} rows ({skipped} not found)."
     )
     if found_count > 0:
         summary += " Presenting results as a Data Proposal for review."
+
+    logger.info(
+        f"for_each_row: EMITTING ToolResult — ops={found_count}, "
+        f"skipped={skipped}, research_log_entries={log_count}, "
+        f"summary={summary!r}"
+    )
 
     yield ToolResult(
         text=summary,

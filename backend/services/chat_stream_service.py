@@ -200,6 +200,12 @@ class ChatStreamService:
             if parsed.get("custom_payload"):
                 all_payloads.append(parsed["custom_payload"])
 
+            logger.info(
+                f"SSE complete: collected_payloads={len(collected_payloads)}, "
+                f"all_payloads={len(all_payloads)}, "
+                f"types={[p.get('type') for p in all_payloads]}"
+            )
+
             # Assign IDs and summaries to payloads
             payloads_with_ids = self._process_payloads(all_payloads)
 

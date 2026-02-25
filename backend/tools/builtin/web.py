@@ -255,26 +255,31 @@ _RESEARCH_INNER_TOOLS = [
     },
 ]
 
-_RESEARCH_SYSTEM_PROMPT = (
-    "You are a web research assistant. Your job is to answer a question using web search.\n\n"
-    "## Research workflow\n"
-    "1. ALWAYS start by calling search_web with a well-crafted query.\n"
-    "2. Review the search results. If the answer is clearly in the snippets, return it.\n"
-    "3. If the answer is NOT clear from snippets, call fetch_webpage on the most promising URL "
-    "to read the full page content.\n"
-    "4. If the first page didn't have the answer, try fetching another result or refine your "
-    "search query and search again.\n"
-    "5. When you have a confident answer, respond with just the answer text. "
-    "Keep it concise — match the scope of what was asked.\n\n"
-    "## Rules\n"
-    "- NEVER answer from memory or training data. ALWAYS search first.\n"
-    "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
-    "- For URLs/links: fetch the page to verify the URL is correct.\n"
-    "- Do NOT add preambles like 'Based on my research...' or 'Here is what I found...'. "
-    "Just give the answer directly.\n"
-    "- If you truly cannot find the answer after multiple attempts, respond with exactly: "
-    "Could not determine an answer."
-)
+def _build_research_system_prompt() -> str:
+    """Build research system prompt with current date/time."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return (
+        f"You are a web research assistant. Your job is to answer a question using web search.\n\n"
+        f"Current date and time: {now}\n\n"
+        "## Research workflow\n"
+        "1. ALWAYS start by calling search_web with a well-crafted query.\n"
+        "2. Review the search results. If the answer is clearly in the snippets, return it.\n"
+        "3. If the answer is NOT clear from snippets, call fetch_webpage on the most promising URL "
+        "to read the full page content.\n"
+        "4. If the first page didn't have the answer, try fetching another result or refine your "
+        "search query and search again.\n"
+        "5. When you have a confident answer, respond with just the answer text. "
+        "Keep it concise — match the scope of what was asked.\n\n"
+        "## Rules\n"
+        "- NEVER answer from memory or training data. ALWAYS search first.\n"
+        "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
+        "- For URLs/links: fetch the page to verify the URL is correct.\n"
+        "- Do NOT add preambles like 'Based on my research...' or 'Here is what I found...'. "
+        "Just give the answer directly.\n"
+        "- If you truly cannot find the answer after multiple attempts, respond with exactly: "
+        "Could not determine an answer."
+    )
 
 
 async def _research_web_core(
@@ -308,7 +313,7 @@ async def _research_web_core(
                 max_tokens=1024,
                 messages=messages,
                 tools=_RESEARCH_INNER_TOOLS,
-                system=_RESEARCH_SYSTEM_PROMPT,
+                system=_build_research_system_prompt(),
             )
             # Force search_web on the first turn
             if turn == 0:
