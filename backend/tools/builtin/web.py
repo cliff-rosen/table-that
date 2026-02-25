@@ -2,7 +2,7 @@
 Web Tools
 
 Global tools for searching the web and fetching webpage content.
-Uses DuckDuckGo HTML search (no API key required) and httpx for fetching.
+Uses Google Custom Search API for search and httpx for fetching.
 
 Also includes research_web — a mini search agent that loops over search/fetch
 to answer a natural-language question.
@@ -38,52 +38,45 @@ async def execute_search_web(
     user_id: int,
     context: Dict[str, Any],
 ) -> str:
-    """Search the web via DuckDuckGo HTML search."""
+    """Search the web via Google Custom Search API."""
     query = params.get("query", "").strip()
     if not query:
         return "Error: Search query is required."
 
     num_results = min(max(params.get("num_results", 5), 1), 10)
 
+    api_key = os.getenv("GOOGLE_SEARCH_API_KEY")
+    cx = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+
+    if not api_key or not cx:
+        return "Error: Google Search API key or Engine ID not configured."
+
     try:
-        async with httpx.AsyncClient(
-            timeout=15.0,
-            follow_redirects=True,
-            headers={"User-Agent": CHROME_USER_AGENT},
-        ) as client:
-            url = "https://html.duckduckgo.com/html/"
-            resp = await client.post(url, data={"q": query})
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/customsearch/v1",
+                params={
+                    "key": api_key,
+                    "cx": cx,
+                    "q": query,
+                    "num": num_results,
+                },
+            )
             resp.raise_for_status()
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        results = []
+        data = resp.json()
+        items = data.get("items", [])
 
-        for item in soup.select(".result"):
-            if len(results) >= num_results:
-                break
-
-            title_el = item.select_one(".result__title a, .result__a")
-            snippet_el = item.select_one(".result__snippet")
-            url_el = item.select_one(".result__url")
-
-            title = title_el.get_text(strip=True) if title_el else ""
-            snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-            result_url = ""
-
-            if url_el:
-                result_url = url_el.get_text(strip=True)
-            elif title_el and title_el.get("href"):
-                result_url = title_el["href"]
-
-            if title or snippet:
-                results.append({
-                    "title": title,
-                    "url": result_url,
-                    "snippet": snippet,
-                })
-
-        if not results:
+        if not items:
             return f"No results found for: {query}"
+
+        results = []
+        for item in items[:num_results]:
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("link", ""),
+                "snippet": item.get("snippet", ""),
+            })
 
         lines = [f"Search results for: {query}\n"]
         for i, r in enumerate(results, 1):
@@ -96,8 +89,10 @@ async def execute_search_web(
 
         return "\n".join(lines)
 
-    except httpx.HTTPError as e:
+    except httpx.HTTPStatusError as e:
         logger.warning(f"Web search failed: {e}")
+        if e.response.status_code == 429:
+            return "Error: Google Search API rate limit exceeded. Try again later."
         return f"Error: Web search failed — {e}"
     except Exception as e:
         logger.warning(f"Web search error: {e}")
@@ -106,7 +101,7 @@ async def execute_search_web(
 
 register_tool(ToolConfig(
     name="search_web",
-    description="Search the web using DuckDuckGo. Returns titles, URLs, and snippets for matching results. Use this to look up information, find websites, or research topics.",
+    description="Search the web. Returns titles, URLs, and snippets for matching results. Use this to look up information, find websites, or research topics.",
     input_schema={
         "type": "object",
         "properties": {
@@ -291,11 +286,14 @@ async def _research_web_core(
     """
     Core research loop as an async generator.
 
-    Yields step dicts during execution:
-      {"type": "search", "query": "..."}       — about to search
-      {"type": "fetch", "url": "..."}           — about to fetch a page
-      {"type": "thinking", "message": "..."}    — LLM reasoning (between steps)
-      {"type": "result", "value": "..." | None} — final answer (always last)
+    Yields step dicts during execution. Each step has "action" and details:
+      {"action": "search", "query": "...", "detail": "5 results found"}
+      {"action": "fetch", "url": "...", "detail": "Title: ..."}
+      {"action": "thinking", "text": "..."}
+      {"action": "error", "detail": "LLM call failed: ..."}
+      {"action": "answer", "text": "..." | None}  — final answer (always last)
+
+    The "action"/"detail" keys are designed to be collected into a trace log.
     """
     query_short = query[:100] + "..." if len(query) > 100 else query
     logger.info(f"research_web_core: starting, max_steps={max_steps}, query={query_short!r}")
@@ -323,7 +321,8 @@ async def _research_web_core(
             )
         except Exception as e:
             logger.warning(f"research_web_core: LLM call failed (turn {turn}): {e}")
-            yield {"type": "result", "value": None}
+            yield {"action": "error", "detail": f"LLM call failed: {e}"}
+            yield {"action": "answer", "text": None}
             return
 
         # Check for tool use
@@ -339,16 +338,17 @@ async def _research_web_core(
                     f"preview={text[:120]!r}"
                 )
                 if text:
-                    yield {"type": "result", "value": text}
+                    yield {"action": "answer", "text": text}
                     return
             logger.warning("research_web_core: no tool calls and no text in response")
-            yield {"type": "result", "value": None}
+            yield {"action": "error", "detail": "LLM returned empty response (no tools, no text)"}
+            yield {"action": "answer", "text": None}
             return
 
         # Emit any thinking text before tool calls
         for block in text_blocks:
             if block.text.strip():
-                yield {"type": "thinking", "message": block.text.strip()}
+                yield {"action": "thinking", "text": block.text.strip()}
 
         # Execute each tool call
         messages.append({"role": "assistant", "content": response.content})
@@ -357,14 +357,41 @@ async def _research_web_core(
         for tool_use in tool_uses:
             logger.info(f"research_web_core: turn {turn}, calling {tool_use.name}")
             ctx: Dict[str, Any] = {}
+
             if tool_use.name == "search_web":
                 search_query = tool_use.input.get("query", query)
-                yield {"type": "search", "query": search_query}
                 result_text = await execute_search_web(tool_use.input, db, user_id, ctx)
+
+                # Summarize search results for the trace
+                if result_text.startswith("No results found"):
+                    detail = result_text
+                elif result_text.startswith("Error:"):
+                    detail = result_text
+                else:
+                    # Count results lines (lines starting with a digit)
+                    n = sum(1 for line in result_text.splitlines() if line and line[0].isdigit())
+                    detail = f"{n} results found"
+
+                yield {"action": "search", "query": search_query, "detail": detail}
+
             elif tool_use.name == "fetch_webpage":
                 fetch_url = tool_use.input.get("url", "")
-                yield {"type": "fetch", "url": fetch_url}
                 result_text = await execute_fetch_webpage(tool_use.input, db, user_id, ctx)
+
+                # Summarize fetch for the trace
+                if result_text.startswith("Error:"):
+                    detail = result_text[:200]
+                else:
+                    # Extract title line if present
+                    for line in result_text.splitlines():
+                        if line.startswith("Title:"):
+                            detail = line
+                            break
+                    else:
+                        words = len(result_text.split())
+                        detail = f"Fetched ~{words} words"
+
+                yield {"action": "fetch", "url": fetch_url, "detail": detail}
             else:
                 result_text = f"Unknown tool: {tool_use.name}"
 
@@ -381,7 +408,8 @@ async def _research_web_core(
 
     # Exhausted all turns without a final answer
     logger.warning(f"research_web_core: exhausted {max_steps} turns without final answer")
-    yield {"type": "result", "value": None}
+    yield {"action": "error", "detail": f"Exhausted all {max_steps} research turns without reaching an answer"}
+    yield {"action": "answer", "text": None}
 
 
 async def execute_research_web(
@@ -403,8 +431,8 @@ async def execute_research_web(
 
     answer = "Could not determine an answer."
     async for step in _research_web_core(query, max_steps, db, user_id):
-        if step["type"] == "result":
-            answer = step.get("value") or "Could not determine an answer."
+        if step["action"] == "answer":
+            answer = step.get("text") or "Could not determine an answer."
 
     return answer
 

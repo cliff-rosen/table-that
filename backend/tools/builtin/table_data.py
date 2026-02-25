@@ -626,6 +626,7 @@ async def execute_for_each_row(
 
     # Collect results — no DB writes
     operations = []
+    research_log = []  # Per-row trace for frontend visibility
     skipped = 0
 
     for i, row in enumerate(rows):
@@ -649,23 +650,51 @@ async def execute_for_each_row(
 
         # Run research loop, forwarding inner steps as ToolProgress
         research_result = None
+        row_steps = []  # Collect steps for this row's trace
+
         async for step in _research_web_core(built_query, 5, db, user_id):
-            step_type = step["type"]
-            if step_type == "search":
+            action = step["action"]
+
+            if action == "search":
+                row_steps.append({
+                    "action": "search",
+                    "query": step["query"],
+                    "detail": step.get("detail", ""),
+                })
                 yield ToolProgress(
                     stage="searching",
                     message=f"Searching: {step['query'][:80]}",
                     progress=base_progress,
                 )
-            elif step_type == "fetch":
-                url_short = step["url"][:60] + "..." if len(step["url"]) > 60 else step["url"]
+            elif action == "fetch":
+                url = step["url"]
+                url_short = url[:60] + "..." if len(url) > 60 else url
+                row_steps.append({
+                    "action": "fetch",
+                    "url": url,
+                    "detail": step.get("detail", ""),
+                })
                 yield ToolProgress(
                     stage="fetching",
                     message=f"Reading: {url_short}",
                     progress=base_progress,
                 )
-            elif step_type == "result":
-                research_result = step.get("value")
+            elif action == "thinking":
+                row_steps.append({
+                    "action": "thinking",
+                    "text": step["text"],
+                })
+            elif action == "error":
+                row_steps.append({
+                    "action": "error",
+                    "detail": step.get("detail", "Unknown error"),
+                })
+            elif action == "answer":
+                research_result = step.get("text")
+                row_steps.append({
+                    "action": "answer",
+                    "text": research_result,
+                })
 
         # Check if we got a valid result
         is_valid = (
@@ -695,6 +724,13 @@ async def execute_for_each_row(
                 "row_id": row.id,
                 "changes": {target_col_name: research_result},
             })
+            research_log.append({
+                "row_id": row.id,
+                "label": label,
+                "status": "found",
+                "value": research_result,
+                "steps": row_steps,
+            })
         else:
             skipped += 1
             yield ToolProgress(
@@ -702,6 +738,13 @@ async def execute_for_each_row(
                 message=f"No result for {label}",
                 progress=(i + 1) / total,
             )
+            research_log.append({
+                "row_id": row.id,
+                "label": label,
+                "status": "not_found",
+                "value": None,
+                "steps": row_steps,
+            })
 
     # Emit final result
     yield ToolProgress(
@@ -710,26 +753,27 @@ async def execute_for_each_row(
         progress=1.0,
     )
 
-    if not operations:
-        yield ToolResult(
-            text=f"Could not find values for any of the {total} rows.",
-        )
-        return
+    # Always emit a data_proposal payload so the user can see research traces,
+    # even when no values were found
+    found_count = len(operations)
+    summary = (
+        f"Researched {total} rows for '{target_col_name}'. "
+        f"Found values for {found_count} rows ({skipped} not found)."
+    )
+    if found_count > 0:
+        summary += " Presenting results as a Data Proposal for review."
 
     yield ToolResult(
-        text=(
-            f"Researched {total} rows for '{target_col_name}'. "
-            f"Found values for {len(operations)} rows ({skipped} not found). "
-            f"Presenting results as a Data Proposal for review."
-        ),
+        text=summary,
         payload={
             "type": "data_proposal",
             "data": {
                 "reasoning": (
                     f"Web research: {instructions} — "
-                    f"found {len(operations)} of {total} rows"
+                    f"found {found_count} of {total} rows"
                 ),
                 "operations": operations,
+                "research_log": research_log,
             },
         },
     )

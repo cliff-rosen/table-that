@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ExclamationTriangleIcon, ChevronRightIcon, MagnifyingGlassIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 
@@ -25,9 +25,26 @@ interface DataDeleteOperation {
 
 export type DataOperation = DataAddOperation | DataUpdateOperation | DataDeleteOperation;
 
+interface ResearchStep {
+  action: 'search' | 'fetch' | 'thinking' | 'error' | 'answer';
+  query?: string;
+  url?: string;
+  text?: string;
+  detail?: string;
+}
+
+interface ResearchLogEntry {
+  row_id: number;
+  label: string;
+  status: 'found' | 'not_found';
+  value: string | null;
+  steps: ResearchStep[];
+}
+
 export interface DataProposalData {
   reasoning?: string;
   operations: DataOperation[];
+  research_log?: ResearchLogEntry[];
 }
 
 type OpStatus = 'pending' | 'running' | 'success' | 'error';
@@ -196,6 +213,154 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 }
 
 // =============================================================================
+// ResearchStepRow — a single step in the research trace
+// =============================================================================
+
+function ResearchStepRow({ step }: { step: ResearchStep }) {
+  switch (step.action) {
+    case 'search':
+      return (
+        <div className="flex items-start gap-1.5 text-xs">
+          <MagnifyingGlassIcon className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <span className="text-gray-500 dark:text-gray-400">Search: </span>
+            <span className="text-gray-700 dark:text-gray-300">{step.query}</span>
+            {step.detail && (
+              <span className="text-gray-400 dark:text-gray-500"> — {step.detail}</span>
+            )}
+          </div>
+        </div>
+      );
+    case 'fetch':
+      return (
+        <div className="flex items-start gap-1.5 text-xs">
+          <GlobeAltIcon className="h-3.5 w-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <span className="text-gray-500 dark:text-gray-400">Fetch: </span>
+            <span className="text-gray-700 dark:text-gray-300 break-all">{step.url}</span>
+            {step.detail && (
+              <span className="text-gray-400 dark:text-gray-500"> — {step.detail}</span>
+            )}
+          </div>
+        </div>
+      );
+    case 'thinking':
+      return (
+        <div className="flex items-start gap-1.5 text-xs">
+          <span className="text-gray-400 flex-shrink-0 mt-0.5">💭</span>
+          <span className="text-gray-500 dark:text-gray-400 italic">{step.text}</span>
+        </div>
+      );
+    case 'error':
+      return (
+        <div className="flex items-start gap-1.5 text-xs">
+          <ExclamationTriangleIcon className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+          <span className="text-red-600 dark:text-red-400">{step.detail}</span>
+        </div>
+      );
+    case 'answer':
+      return (
+        <div className="flex items-start gap-1.5 text-xs">
+          <CheckIcon className="h-3.5 w-3.5 text-green-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <span className="text-gray-500 dark:text-gray-400">Result: </span>
+            <span className="text-gray-700 dark:text-gray-300 font-medium">
+              {step.text || 'No answer'}
+            </span>
+          </div>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
+// =============================================================================
+// ResearchLogRow — expandable row showing research trace for one table row
+// =============================================================================
+
+function ResearchLogRow({ entry }: { entry: ResearchLogEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const isFound = entry.status === 'found';
+
+  return (
+    <div className="border-b border-gray-100 dark:border-gray-800 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+      >
+        <ChevronRightIcon className={`h-3.5 w-3.5 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        <span className={`text-xs font-medium ${
+          isFound
+            ? 'text-green-700 dark:text-green-400'
+            : 'text-gray-500 dark:text-gray-400'
+        }`}>
+          {isFound ? '✓' : '✗'}
+        </span>
+        <span className="text-xs text-gray-700 dark:text-gray-300 font-medium truncate">
+          {entry.label}
+        </span>
+        {isFound && entry.value && (
+          <span className="text-xs text-gray-500 dark:text-gray-400 truncate ml-auto">
+            → {entry.value.length > 50 ? entry.value.slice(0, 50) + '...' : entry.value}
+          </span>
+        )}
+        <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+          {entry.steps.length} step{entry.steps.length !== 1 ? 's' : ''}
+        </span>
+      </button>
+      {expanded && (
+        <div className="pl-8 pr-3 pb-2 space-y-1.5">
+          {entry.steps.map((step, i) => (
+            <ResearchStepRow key={i} step={step} />
+          ))}
+          {entry.steps.length === 0 && (
+            <span className="text-xs text-gray-400 italic">No research steps recorded</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// ResearchLog — the full research trace section
+// =============================================================================
+
+function ResearchLog({ log, defaultExpanded = false }: { log: ResearchLogEntry[]; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const foundCount = log.filter(e => e.status === 'found').length;
+  const notFoundCount = log.filter(e => e.status === 'not_found').length;
+
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-700">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+      >
+        <ChevronRightIcon className={`h-3.5 w-3.5 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        <MagnifyingGlassIcon className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+          Research Log
+        </span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+          {foundCount} found, {notFoundCount} not found
+        </span>
+      </button>
+      {expanded && (
+        <div className="max-h-[400px] overflow-y-auto">
+          {log.map((entry, i) => (
+            <ResearchLogRow key={i} entry={entry} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
 // DataProposalCard
 // =============================================================================
 
@@ -293,12 +458,18 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
     onReject?.();
   };
 
+  const hasResearchLog = data.research_log && data.research_log.length > 0;
+
   // Summary line
   const parts: string[] = [];
   if (adds.length > 0) parts.push(`${adds.length} addition${adds.length > 1 ? 's' : ''}`);
   if (updates.length > 0) parts.push(`${updates.length} update${updates.length > 1 ? 's' : ''}`);
   if (deletes.length > 0) parts.push(`${deletes.length} deletion${deletes.length > 1 ? 's' : ''}`);
-  const summaryText = parts.join(', ');
+  const summaryText = parts.length > 0
+    ? parts.join(', ')
+    : hasResearchLog
+      ? 'No results found'
+      : '';
 
   // Result for a given global index (only shown during/after execution)
   const getOpResult = (globalIndex: number): OpResult | undefined => {
@@ -323,7 +494,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Data Proposal
+            {totalCount === 0 && hasResearchLog ? 'Research Results' : 'Data Proposal'}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {summaryText}
@@ -408,6 +579,11 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
         )}
       </div>
 
+      {/* Research log (when present) */}
+      {hasResearchLog && (
+        <ResearchLog log={data.research_log!} defaultExpanded={totalCount === 0} />
+      )}
+
       {/* Progress bar (when running) */}
       {phase === 'running' && (
         <ProgressBar current={completedCount} total={runningTotal} />
@@ -449,7 +625,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
       )}
 
       {/* Actions (only when idle) */}
-      {phase === 'idle' && (
+      {phase === 'idle' && totalCount > 0 && (
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={handleReject}>
             Cancel
@@ -463,6 +639,15 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
               ? `All ${totalCount} ${parts.length === 1 ? parts[0].replace(/^\d+ /, '') : 'Changes'}`
               : `${selectedCount} of ${totalCount} Changes`
             }
+          </Button>
+        </div>
+      )}
+
+      {/* Dismiss button when no operations but research log exists */}
+      {phase === 'idle' && totalCount === 0 && hasResearchLog && (
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-end">
+          <Button variant="outline" size="sm" onClick={handleReject}>
+            Dismiss
           </Button>
         </div>
       )}
