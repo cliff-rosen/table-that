@@ -27,6 +27,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           type="checkbox"
           checked={checked}
           onChange={(e) => onCheckedChange?.(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
           disabled={disabled}
           className="absolute inset-0 opacity-0 cursor-pointer"
           {...props}

@@ -266,12 +266,13 @@ function SelectTabFilter({
   const options = column.options || [];
   const isAllSelected = selected.length === 0;
 
-  const toggleOption = (opt: string) => {
-    if (selected.includes(opt)) {
-      const next = selected.filter((s) => s !== opt);
-      onChange(next);
+  // Mutually exclusive: clicking an option selects only that one;
+  // clicking the already-selected option goes back to "All"
+  const selectOption = (opt: string) => {
+    if (selected.length === 1 && selected[0] === opt) {
+      onChange([]);
     } else {
-      onChange([...selected, opt]);
+      onChange([opt]);
     }
   };
 
@@ -304,7 +305,7 @@ function SelectTabFilter({
           <button
             key={opt}
             type="button"
-            onClick={() => toggleOption(opt)}
+            onClick={() => selectOption(opt)}
             className={`
               px-2.5 py-1 rounded-md text-xs font-medium border transition-colors select-none
               ${isActive
@@ -331,13 +332,15 @@ export default function FilterBar({ columns, rows, filters, onFiltersChange }: F
 
   if (filterableColumns.length === 0) return null;
 
-  // Separate tab-style columns from chip-style columns
-  const tabColumns = filterableColumns.filter(
-    (c) => c.type === 'select' && c.filterDisplay === 'tab'
-  );
-  const chipColumns = filterableColumns.filter(
-    (c) => !(c.type === 'select' && c.filterDisplay === 'tab')
-  );
+  // Separate tab-style columns from chip-style columns.
+  // Select columns with ≤8 options use tab style by default (unless explicitly set to 'dropdown').
+  const useTabStyle = (c: ColumnDefinition) =>
+    c.type === 'select' &&
+    c.filterDisplay !== 'dropdown' &&
+    (c.options?.length ?? 0) <= 8;
+
+  const tabColumns = filterableColumns.filter(useTabStyle);
+  const chipColumns = filterableColumns.filter((c) => !useTabStyle(c));
 
   const activeCount = Object.values(filters).filter((v) => v !== undefined && (!Array.isArray(v) || v.length > 0)).length;
 
