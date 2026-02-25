@@ -1,38 +1,19 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import type { ColumnDefinition } from '../../types/table';
+import { buildColumnNameMap } from '../../lib/utils/schemaOperations';
+import type { SchemaProposalData, SchemaOperation } from '../../lib/utils/schemaOperations';
 
 // =============================================================================
-// Types
+// Props
 // =============================================================================
-
-interface ColumnDef {
-  name: string;
-  type: string;
-  required?: boolean;
-  options?: string[];
-  filterDisplay?: string;
-}
-
-interface SchemaOperation {
-  action: 'add' | 'modify' | 'remove' | 'reorder';
-  column?: ColumnDef;
-  column_id?: string;
-  after_column_id?: string;
-  changes?: Partial<ColumnDef>;
-}
-
-export interface SchemaProposalData {
-  reasoning?: string;
-  table_name?: string;
-  table_description?: string;
-  operations: SchemaOperation[];
-}
 
 interface SchemaProposalCardProps {
   data: SchemaProposalData;
+  columns?: ColumnDefinition[];
   onAccept?: (data: SchemaProposalData) => void;
   onReject?: () => void;
 }
@@ -75,10 +56,12 @@ function OperationRow({
   op,
   checked,
   onToggle,
+  colName,
 }: {
   op: SchemaOperation;
   checked: boolean;
   onToggle: () => void;
+  colName: (id?: string) => string;
 }) {
   const renderDetails = () => {
     switch (op.action) {
@@ -99,7 +82,7 @@ function OperationRow({
             )}
             {op.after_column_id && (
               <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                after column {op.after_column_id}
+                after "{colName(op.after_column_id)}"
               </div>
             )}
           </div>
@@ -111,7 +94,7 @@ function OperationRow({
         return (
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-gray-900 dark:text-white">
-              Column {op.column_id}
+              {colName(op.column_id)}
             </div>
             <div className="space-y-0.5 mt-0.5">
               {changes.name && (
@@ -143,7 +126,7 @@ function OperationRow({
         return (
           <div className="flex-1 min-w-0">
             <span className="text-sm font-medium text-red-700 dark:text-red-400 line-through">
-              Column {op.column_id}
+              {colName(op.column_id)}
             </span>
           </div>
         );
@@ -152,7 +135,7 @@ function OperationRow({
         return (
           <div className="flex-1 min-w-0">
             <span className="text-sm text-gray-700 dark:text-gray-300">
-              Move {op.column_id} after {op.after_column_id || 'start'}
+              Move "{colName(op.column_id)}" after {op.after_column_id ? `"${colName(op.after_column_id)}"` : 'start'}
             </span>
           </div>
         );
@@ -184,12 +167,24 @@ function OperationRow({
 // SchemaProposalCard
 // =============================================================================
 
-export default function SchemaProposalCard({ data, onAccept, onReject }: SchemaProposalCardProps) {
+export default function SchemaProposalCard({ data, columns, onAccept, onReject }: SchemaProposalCardProps) {
   const [checkedOps, setCheckedOps] = useState<boolean[]>(
     () => data.operations.map(() => true)
   );
   const [applied, setApplied] = useState(false);
   const [rejected, setRejected] = useState(false);
+
+  const isCreate = data.mode === 'create';
+
+  // Build column ID → name map for resolving IDs in operations
+  const nameMap = useMemo(
+    () => columns ? buildColumnNameMap(columns) : new Map<string, string>(),
+    [columns],
+  );
+  const colName = (id?: string) => {
+    if (!id) return id ?? '';
+    return nameMap.get(id) || id;
+  };
 
   const selectedCount = checkedOps.filter(Boolean).length;
   const totalCount = data.operations.length;
@@ -226,7 +221,7 @@ export default function SchemaProposalCard({ data, onAccept, onReject }: SchemaP
         <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm">
           <CheckIcon className="h-4 w-4" />
           <span>
-            Schema applied
+            {isCreate ? 'Table created' : 'Schema updated'}
             {selectedCount < totalCount && ` (${selectedCount} of ${totalCount} changes)`}
           </span>
         </div>
@@ -251,15 +246,17 @@ export default function SchemaProposalCard({ data, onAccept, onReject }: SchemaP
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Schema Proposal
+            {isCreate ? 'Create New Table' : 'Update Table Schema'}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {totalCount} change{totalCount !== 1 ? 's' : ''}
           </span>
         </div>
+        {/* Create mode: always show name/description prominently */}
+        {/* Update mode: only show if changing name/description */}
         {data.table_name && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Table: "{data.table_name}"
+            {isCreate ? '' : 'Rename to: '}"{data.table_name}"
             {data.table_description && ` — ${data.table_description}`}
           </div>
         )}
@@ -278,6 +275,7 @@ export default function SchemaProposalCard({ data, onAccept, onReject }: SchemaP
             op={op}
             checked={checkedOps[i]}
             onToggle={() => toggleOp(i)}
+            colName={colName}
           />
         ))}
       </div>
@@ -292,7 +290,10 @@ export default function SchemaProposalCard({ data, onAccept, onReject }: SchemaP
           onClick={handleApply}
           disabled={selectedCount === 0}
         >
-          Apply {selectedCount === totalCount ? `All ${totalCount} Changes` : `${selectedCount} of ${totalCount} Changes`}
+          {isCreate
+            ? (selectedCount === totalCount ? 'Create Table' : `Create with ${selectedCount} of ${totalCount} Columns`)
+            : (selectedCount === totalCount ? `Apply All ${totalCount} Changes` : `Apply ${selectedCount} of ${totalCount} Changes`)
+          }
         </Button>
       </div>
     </div>

@@ -27,6 +27,8 @@ import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import DataProposalCard, { type DataOperation } from '../components/chat/DataProposalCard';
+import { applySchemaOperations } from '../lib/utils/schemaOperations';
+import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 
 // =============================================================================
 // Helper: format date for display
@@ -885,60 +887,12 @@ export default function TableViewPage() {
   // Payload Handlers (for chat proposals)
   // -----------------------------------------------------------------------
 
-  const handleSchemaProposalAccept = useCallback(async (proposalData: any) => {
+  const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
     if (!table) return;
 
     try {
-      // Compute final columns array by applying operations
-      let columns = [...table.columns];
-
-      for (const op of proposalData.operations) {
-        if (op.action === 'add' && op.column) {
-          const newCol = {
-            id: `col_${Math.random().toString(36).slice(2, 10)}`,
-            name: op.column.name,
-            type: op.column.type,
-            required: op.column.required || false,
-            ...(op.column.options ? { options: op.column.options } : {}),
-            ...(op.column.filterDisplay ? { filterDisplay: op.column.filterDisplay } : {}),
-          };
-
-          if (op.after_column_id) {
-            const afterIdx = columns.findIndex((c) => c.id === op.after_column_id);
-            if (afterIdx >= 0) {
-              columns.splice(afterIdx + 1, 0, newCol);
-            } else {
-              columns.push(newCol);
-            }
-          } else {
-            columns.push(newCol);
-          }
-        } else if (op.action === 'modify' && op.column_id && op.changes) {
-          const idx = columns.findIndex((c) => c.id === op.column_id);
-          if (idx >= 0) {
-            // Strip null values from changes so they don't overwrite existing values
-            const cleanChanges = Object.fromEntries(
-              Object.entries(op.changes).filter(([, v]) => v !== null)
-            );
-            columns[idx] = { ...columns[idx], ...cleanChanges };
-          }
-        } else if (op.action === 'remove' && op.column_id) {
-          columns = columns.filter((c) => c.id !== op.column_id);
-        } else if (op.action === 'reorder' && op.column_id) {
-          const colIdx = columns.findIndex((c) => c.id === op.column_id);
-          if (colIdx >= 0) {
-            const [col] = columns.splice(colIdx, 1);
-            if (op.after_column_id) {
-              const afterIdx = columns.findIndex((c) => c.id === op.after_column_id);
-              columns.splice(afterIdx + 1, 0, col);
-            } else {
-              columns.unshift(col);
-            }
-          }
-        }
-      }
-
-      const updateData: any = { columns };
+      const columns = applySchemaOperations(table.columns, proposalData.operations);
+      const updateData: Record<string, unknown> = { columns };
       if (proposalData.table_name) updateData.name = proposalData.table_name;
       if (proposalData.table_description) updateData.description = proposalData.table_description;
 
@@ -984,7 +938,7 @@ export default function TableViewPage() {
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
       render: (payload: any, callbacks: any) => (
-        <SchemaProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+        <SchemaProposalCard data={payload} columns={table?.columns} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
       ),
       onAccept: handleSchemaProposalAccept,
       renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
@@ -1001,7 +955,7 @@ export default function TableViewPage() {
       onAccept: handleDataProposalAccept,
       renderOptions: { headerTitle: 'Data Proposal', headerIcon: '📊' },
     },
-  }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation]);
+  }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation, table?.columns]);
 
   // -----------------------------------------------------------------------
   // Render: loading state

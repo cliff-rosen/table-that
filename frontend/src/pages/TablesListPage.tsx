@@ -17,7 +17,8 @@ import ImportModal from '../components/table/ImportModal';
 import { useChatContext } from '../context/ChatContext';
 import ChatTray from '../components/chat/ChatTray';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
-import type { SchemaProposalData } from '../components/chat/SchemaProposalCard';
+import { applySchemaOperations, generateColumnId } from '../lib/utils/schemaOperations';
+import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 
 // =============================================================================
 // Constants
@@ -30,10 +31,6 @@ const COLUMN_TYPES: { value: ColumnType; label: string }[] = [
   { value: 'boolean', label: 'Boolean' },
   { value: 'select', label: 'Select' },
 ];
-
-function generateColumnId(): string {
-  return `col_${Math.random().toString(36).substring(2, 10)}`;
-}
 
 function formatRelativeDate(dateString: string): string {
   const date = new Date(dateString);
@@ -533,23 +530,7 @@ export default function TablesListPage() {
 
   // Handle accepted schema proposal — create a new table
   const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
-    const tableName = proposalData.table_name || 'Untitled Table';
-    const tableDescription = proposalData.table_description;
-
-    // Convert add operations to ColumnDefinition[]
-    const columns: ColumnDefinition[] = [];
-    for (const op of proposalData.operations) {
-      if (op.action === 'add' && op.column) {
-        columns.push({
-          id: generateColumnId(),
-          name: op.column.name,
-          type: (op.column.type as ColumnType) || 'text',
-          required: op.column.required || false,
-          ...(op.column.options ? { options: op.column.options } : {}),
-          ...(op.column.filterDisplay ? { filterDisplay: op.column.filterDisplay as 'tab' | 'dropdown' } : {}),
-        });
-      }
-    }
+    const columns = applySchemaOperations([], proposalData.operations);
 
     if (columns.length === 0) {
       showErrorToast('No columns in the proposal.', 'Invalid Proposal');
@@ -558,8 +539,8 @@ export default function TablesListPage() {
 
     try {
       const created = await createTable({
-        name: tableName,
-        description: tableDescription,
+        name: proposalData.table_name || 'Untitled Table',
+        description: proposalData.table_description,
         columns,
       });
       showSuccessToast(`Table "${created.name}" created.`);

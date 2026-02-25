@@ -20,6 +20,8 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
+import { applySchemaOperations, generateColumnId } from '../lib/utils/schemaOperations';
+import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 
 // =============================================================================
 // Constants
@@ -32,10 +34,6 @@ const COLUMN_TYPES: { value: ColumnType; label: string; description: string }[] 
   { value: 'boolean', label: 'Boolean', description: 'Yes/No toggle' },
   { value: 'select', label: 'Select', description: 'Pick from options' },
 ];
-
-function generateColumnId(): string {
-  return `col_${Math.random().toString(36).substring(2, 10)}`;
-}
 
 // =============================================================================
 // Column Editor Row
@@ -357,54 +355,8 @@ export default function TableEditPage() {
   // Payload Handlers
   // -----------------------------------------------------------------------
 
-  const handleSchemaProposalAccept = useCallback(async (proposalData: any) => {
-    // Apply schema operations to the current local columns state
-    let updatedColumns = [...columns];
-
-    for (const op of proposalData.operations) {
-      if (op.action === 'add' && op.column) {
-        const newCol: ColumnDefinition = {
-          id: generateColumnId(),
-          name: op.column.name,
-          type: op.column.type,
-          required: op.column.required || false,
-          ...(op.column.options ? { options: op.column.options } : {}),
-          ...(op.column.filterDisplay ? { filterDisplay: op.column.filterDisplay } : {}),
-        };
-
-        if (op.after_column_id) {
-          const afterIdx = updatedColumns.findIndex((c) => c.id === op.after_column_id);
-          if (afterIdx >= 0) {
-            updatedColumns.splice(afterIdx + 1, 0, newCol);
-          } else {
-            updatedColumns.push(newCol);
-          }
-        } else {
-          updatedColumns.push(newCol);
-        }
-      } else if (op.action === 'modify' && op.column_id && op.changes) {
-        const idx = updatedColumns.findIndex((c) => c.id === op.column_id);
-        if (idx >= 0) {
-          const cleanChanges = Object.fromEntries(
-            Object.entries(op.changes).filter(([, v]) => v !== null)
-          );
-          updatedColumns[idx] = { ...updatedColumns[idx], ...cleanChanges };
-        }
-      } else if (op.action === 'remove' && op.column_id) {
-        updatedColumns = updatedColumns.filter((c) => c.id !== op.column_id);
-      } else if (op.action === 'reorder' && op.column_id) {
-        const colIdx = updatedColumns.findIndex((c) => c.id === op.column_id);
-        if (colIdx >= 0) {
-          const [col] = updatedColumns.splice(colIdx, 1);
-          if (op.after_column_id) {
-            const afterIdx = updatedColumns.findIndex((c) => c.id === op.after_column_id);
-            updatedColumns.splice(afterIdx + 1, 0, col);
-          } else {
-            updatedColumns.unshift(col);
-          }
-        }
-      }
-    }
+  const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
+    const updatedColumns = applySchemaOperations(columns, proposalData.operations);
 
     // Update local state
     setColumns(updatedColumns);
@@ -414,7 +366,7 @@ export default function TableEditPage() {
 
     // Auto-save the changes
     try {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         columns: updatedColumns,
         name: proposalData.table_name || name.trim(),
         description: (proposalData.table_description || description.trim()) || undefined,
@@ -432,12 +384,12 @@ export default function TableEditPage() {
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
       render: (payload: any, callbacks: any) => (
-        <SchemaProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+        <SchemaProposalCard data={payload} columns={columns} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
       ),
       onAccept: handleSchemaProposalAccept,
       renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
     },
-  }), [handleSchemaProposalAccept]);
+  }), [handleSchemaProposalAccept, columns]);
 
   // -----------------------------------------------------------------------
   // Render: loading

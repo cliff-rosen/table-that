@@ -136,9 +136,10 @@ Note: You can only modify THIS table. You cannot create new tables from this pag
 - User wants to modify the table's schema (columns)
 - User wants to add, remove, modify, or reorder columns
 - User wants to change column types, options, or filter display
+- Always set mode to "update"
 - Example: "Add a Priority column with options P0-P3"
 - Example: "Make the Date column required"
-- filterDisplay controls the filter UI for select columns: "tab" for inline mutually-exclusive buttons, "dropdown" for a dropdown chip. ALWAYS use the string value — never null. When changing filter style, set filterDisplay to the desired value.
+- For select columns, set filterDisplay to "tab" for inline filter buttons or "dropdown" for a dropdown chip.
 - IMPORTANT: Proposals must be COMPLETE. If the user asks to restructure the table, include ALL necessary operations — adds for new columns AND removes for old columns AND modifies for changed columns, all in ONE proposal. Do not leave the user with half the old schema and half the new.
 
 **Use DATA_PROPOSAL** when:

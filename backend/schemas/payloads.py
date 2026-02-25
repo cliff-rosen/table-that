@@ -139,6 +139,7 @@ def summarize_payload(payload_type: str, data: Dict[str, Any]) -> str:
 
 def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
     """Summarize a schema proposal for the payload manifest."""
+    mode = data.get("mode")
     ops = data.get("operations", [])
     counts = {}
     for op in ops:
@@ -154,7 +155,8 @@ def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
     table_name = data.get("table_name")
     if table_name:
         summary = f'"{table_name}" — {summary}'
-    return f"Schema proposal: {summary}"
+    prefix = "Create table" if mode == "create" else "Schema proposal"
+    return f"{prefix}: {summary}"
 
 
 def _summarize_data_proposal(data: Dict[str, Any]) -> str:
@@ -178,9 +180,10 @@ When the user asks you to create a table, add/remove/modify columns, change colu
 
 Format — write this as TEXT in your message (not a tool call):
 SCHEMA_PROPOSAL: {
+  "mode": "create|update",
   "reasoning": "Brief explanation of what changes you're proposing",
-  "table_name": "Table Name",           // optional — only include if creating or renaming
-  "table_description": "Description",   // optional — only include if creating or changing
+  "table_name": "Table Name",
+  "table_description": "Description",
   "operations": [
     { "action": "add", "column": { "name": "Col Name", "type": "text|number|date|boolean|select", "required": true|false, "options": ["a","b"] } },
     { "action": "add", "column": { ... }, "after_column_id": "col_xxx" },
@@ -191,10 +194,12 @@ SCHEMA_PROPOSAL: {
 }
 
 Rules:
+- "mode" is REQUIRED. Set "create" when proposing a brand-new table, "update" when modifying an existing table.
+  - create: only "add" operations are valid; table_name and table_description are required.
+  - update: all operations are valid; table_name and table_description are optional (only include if renaming/changing description).
 - Use column NAMES when adding columns. Use column IDs (from context) when modifying/removing/reordering.
 - For select columns, always include the full options list (not just additions).
-- If modifying options on a select column, include ALL options (existing + new), not just the new ones.
-- filterDisplay controls the filter UI for select columns. Use "tab" for inline mutually-exclusive buttons, or "dropdown" for a dropdown chip. ALWAYS use the string value — never null. When changing filter style, set filterDisplay to the desired string value (e.g. "dropdown" to switch to dropdown, "tab" to switch to tabs).
+- filterDisplay controls the filter UI for select columns: "tab" for inline buttons, "dropdown" for a dropdown chip. Always use a string value, never null.
 - Always include a brief "reasoning" field.
 - The user will see this as an interactive card where they can review and selectively apply changes."""
 
@@ -348,9 +353,10 @@ register_payload_type(PayloadType(
     schema={
         "type": "object",
         "properties": {
+            "mode": {"type": "string", "enum": ["create", "update"], "description": "'create' for new table, 'update' for modifying existing table"},
             "reasoning": {"type": "string", "description": "Why these changes are proposed"},
-            "table_name": {"type": "string", "description": "New table name (only if creating or renaming)"},
-            "table_description": {"type": "string", "description": "New table description (only if changing)"},
+            "table_name": {"type": "string", "description": "New table name (required for create, optional for update/rename)"},
+            "table_description": {"type": "string", "description": "New table description (required for create, optional for update)"},
             "operations": {
                 "type": "array",
                 "items": _SCHEMA_OPERATION,
@@ -358,7 +364,7 @@ register_payload_type(PayloadType(
                 "minItems": 1,
             },
         },
-        "required": ["operations"],
+        "required": ["mode", "operations"],
     },
     source="llm",
     is_global=False,

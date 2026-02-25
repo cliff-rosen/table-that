@@ -987,9 +987,17 @@ SUGGESTED_ACTIONS:
             # Skip payloads without a parse_marker (tool payloads don't need parsing)
             if not marker:
                 continue
-            if marker in message:
-                marker_pos = message.find(marker)
-                after_marker_raw = message[marker_pos + len(marker) :]
+            # Build regex that handles optional markdown bold/italic around the marker.
+            # e.g. marker "DATA_PROPOSAL:" also matches "**DATA_PROPOSAL**:" or
+            # "*DATA_PROPOSAL*:" which LLMs sometimes produce.
+            marker_text = marker.rstrip(":")
+            marker_pattern = re.compile(
+                r"\*{0,2}" + re.escape(marker_text) + r"\*{0,2}\s*:"
+            )
+            match = marker_pattern.search(message)
+            if match:
+                marker_pos = match.start()
+                after_marker_raw = message[match.end() :]
                 after_marker = after_marker_raw.strip()
                 json_content = self._extract_json_object(after_marker)
                 if json_content:
@@ -998,13 +1006,9 @@ SUGGESTED_ACTIONS:
                         result["custom_payload"] = parsed
                         # Find where JSON starts in the raw after_marker (preserving whitespace)
                         json_start_in_raw = after_marker_raw.find(json_content)
-                        # Calculate full payload text including any whitespace between marker and JSON
-                        payload_text = message[
-                            marker_pos : marker_pos
-                            + len(marker)
-                            + json_start_in_raw
-                            + len(json_content)
-                        ]
+                        # Calculate full payload text: from marker start through end of JSON
+                        end_pos = match.end() + json_start_in_raw + len(json_content)
+                        payload_text = message[marker_pos : end_pos]
                         message = message.replace(payload_text, "").strip()
                         result["message"] = message
                         break

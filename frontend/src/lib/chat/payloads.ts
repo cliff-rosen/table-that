@@ -12,7 +12,7 @@ import React from 'react';
 import { registerPayloadHandler } from './payloadRegistry';
 import SchemaProposalCard from '../../components/chat/SchemaProposalCard';
 import DataProposalCard from '../../components/chat/DataProposalCard';
-import type { SchemaProposalData } from '../../components/chat/SchemaProposalCard';
+import type { SchemaProposalData } from '../utils/schemaOperations';
 import type { DataProposalData } from '../../components/chat/DataProposalCard';
 
 // ============================================================================
