@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
@@ -7,11 +7,17 @@ import {
   XMarkIcon,
   ArrowUpTrayIcon,
   PencilSquareIcon,
+  ChatBubbleLeftRightIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { listTables, createTable, deleteTable } from '../lib/api/tableApi';
 import type { TableListItem, ColumnDefinition, ColumnType } from '../types/table';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import ImportModal from '../components/table/ImportModal';
+import { useChatContext } from '../context/ChatContext';
+import ChatTray from '../components/chat/ChatTray';
+import SchemaProposalCard from '../components/chat/SchemaProposalCard';
+import type { SchemaProposalData } from '../components/chat/SchemaProposalCard';
 
 // =============================================================================
 // Constants
@@ -416,9 +422,10 @@ function TableCard({ table, onClick, onEdit, onDelete }: TableCardProps) {
 
 interface EmptyStateProps {
   onCreateClick: () => void;
+  onChatClick: () => void;
 }
 
-function EmptyState({ onCreateClick }: EmptyStateProps) {
+function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <TableCellsIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
@@ -429,13 +436,22 @@ function EmptyState({ onCreateClick }: EmptyStateProps) {
         Create your first table to start organizing and managing your data.
         Tables let you define custom columns and store structured information.
       </p>
-      <button
-        onClick={onCreateClick}
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-      >
-        <PlusIcon className="h-5 w-5" />
-        Create Your First Table
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onCreateClick}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Create Your First Table
+        </button>
+        <button
+          onClick={onChatClick}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          <SparklesIcon className="h-5 w-5" />
+          Design with AI
+        </button>
+      </div>
     </div>
   );
 }
@@ -446,12 +462,14 @@ function EmptyState({ onCreateClick }: EmptyStateProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
+  const { updateContext } = useChatContext();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TableListItem | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -467,6 +485,19 @@ export default function TablesListPage() {
   useEffect(() => {
     fetchTables();
   }, [fetchTables]);
+
+  // Push context to chat whenever tables list changes
+  useEffect(() => {
+    updateContext({
+      current_page: 'tables_list',
+      existing_tables: tables.map((t) => ({
+        name: t.name,
+        description: t.description,
+        column_count: t.column_count,
+        row_count: t.row_count,
+      })),
+    });
+  }, [tables, updateContext]);
 
   async function handleCreate(data: {
     name: string;
@@ -495,6 +526,53 @@ export default function TablesListPage() {
     }
   }
 
+  // Handle accepted schema proposal — create a new table
+  const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
+    const tableName = proposalData.table_name || 'Untitled Table';
+    const tableDescription = proposalData.table_description;
+
+    // Convert add operations to ColumnDefinition[]
+    const columns: ColumnDefinition[] = [];
+    for (const op of proposalData.operations) {
+      if (op.action === 'add' && op.column) {
+        columns.push({
+          id: generateColumnId(),
+          name: op.column.name,
+          type: (op.column.type as ColumnType) || 'text',
+          required: op.column.required || false,
+          ...(op.column.options ? { options: op.column.options } : {}),
+        });
+      }
+    }
+
+    if (columns.length === 0) {
+      showErrorToast('No columns in the proposal.', 'Invalid Proposal');
+      return;
+    }
+
+    try {
+      const created = await createTable({
+        name: tableName,
+        description: tableDescription,
+        columns,
+      });
+      showSuccessToast(`Table "${created.name}" created.`);
+      navigate(`/tables/${created.id}`);
+    } catch (error) {
+      showErrorToast(error, 'Failed to create table');
+    }
+  }, [navigate]);
+
+  const payloadHandlers = useMemo(() => ({
+    schema_proposal: {
+      render: (payload: any, callbacks: any) => (
+        <SchemaProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+      ),
+      onAccept: handleSchemaProposalAccept,
+      renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
+    },
+  }), [handleSchemaProposalAccept]);
+
   // Loading skeleton
   if (isLoading) {
     return (
@@ -518,8 +596,17 @@ export default function TablesListPage() {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto">
-      <div className="max-w-6xl mx-auto w-full px-6 py-8">
+    <div className="flex-1 min-h-0 flex flex-row">
+      <ChatTray
+        isOpen={chatOpen}
+        onOpenChange={setChatOpen}
+        initialContext={{
+          current_page: 'tables_list',
+        }}
+        payloadHandlers={payloadHandlers}
+      />
+      <div className="flex-1 min-h-0 overflow-auto">
+        <div className="max-w-6xl mx-auto w-full px-6 py-8">
           {/* Page header */}
           <div className="flex-shrink-0 flex items-center justify-between mb-8">
             <div>
@@ -532,29 +619,45 @@ export default function TablesListPage() {
                 </p>
               )}
             </div>
-            {tables.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <ArrowUpTrayIcon className="h-5 w-5" />
-                  Import CSV
-                </button>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-                >
-                  <PlusIcon className="h-5 w-5" />
-                  Create Table
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setChatOpen(!chatOpen)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border ${
+                  chatOpen
+                    ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600'
+                    : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                AI Chat
+              </button>
+              {tables.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <ArrowUpTrayIcon className="h-5 w-5" />
+                    Import CSV
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  >
+                    <PlusIcon className="h-5 w-5" />
+                    Create Table
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Content */}
           {tables.length === 0 ? (
-            <EmptyState onCreateClick={() => setShowCreateModal(true)} />
+            <EmptyState
+              onCreateClick={() => setShowCreateModal(true)}
+              onChatClick={() => setChatOpen(true)}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {tables.map((table) => (
@@ -569,38 +672,39 @@ export default function TablesListPage() {
             </div>
           )}
         </div>
-
-        {/* Create modal */}
-        {showCreateModal && (
-          <CreateTableModal
-            onClose={() => setShowCreateModal(false)}
-            onCreate={handleCreate}
-          />
-        )}
-
-        {/* Import CSV modal (creates new table from CSV) */}
-        {showImportModal && (
-          <ImportModal
-            onClose={() => setShowImportModal(false)}
-            onImported={(result) => {
-              setShowImportModal(false);
-              if (result.tableId) {
-                navigate(`/tables/${result.tableId}`);
-              } else {
-                fetchTables();
-              }
-            }}
-          />
-        )}
-
-        {/* Delete confirmation modal */}
-        {deleteTarget && (
-          <DeleteConfirmModal
-            tableName={deleteTarget.name}
-            onClose={() => setDeleteTarget(null)}
-            onConfirm={handleDelete}
-          />
-        )}
       </div>
+
+      {/* Create modal */}
+      {showCreateModal && (
+        <CreateTableModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreate}
+        />
+      )}
+
+      {/* Import CSV modal (creates new table from CSV) */}
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={(result) => {
+            setShowImportModal(false);
+            if (result.tableId) {
+              navigate(`/tables/${result.tableId}`);
+            } else {
+              fetchTables();
+            }
+          }}
+        />
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          tableName={deleteTarget.name}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+    </div>
   );
 }
