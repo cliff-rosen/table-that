@@ -10,7 +10,7 @@ to answer a natural-language question.
 
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, AsyncGenerator, Dict, List
 
 import anthropic
 import httpx
@@ -230,14 +230,14 @@ register_tool(ToolConfig(
 
 
 # =============================================================================
-# research_web — Mini search agent
+# research_web — Search agent with progress streaming
 # =============================================================================
 
 # Inner tool definitions for the research LLM call
 _RESEARCH_INNER_TOOLS = [
     {
         "name": "search_web",
-        "description": "Search the web. Returns titles, URLs, and snippets.",
+        "description": "Search the web via DuckDuckGo. Returns titles, URLs, and snippets.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -249,7 +249,7 @@ _RESEARCH_INNER_TOOLS = [
     },
     {
         "name": "fetch_webpage",
-        "description": "Fetch a webpage and extract its text content.",
+        "description": "Fetch a webpage and extract its text. Use this to read a specific URL and get its full content.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -260,75 +260,96 @@ _RESEARCH_INNER_TOOLS = [
     },
 ]
 
+_RESEARCH_SYSTEM_PROMPT = (
+    "You are a web research assistant. Your job is to find a specific piece of information.\n\n"
+    "## Research workflow\n"
+    "1. ALWAYS start by calling search_web with a well-crafted query.\n"
+    "2. Review the search results. If the answer is clearly in the snippets, return it.\n"
+    "3. If the answer is NOT clear from snippets, call fetch_webpage on the most promising URL "
+    "to read the full page content.\n"
+    "4. If the first page didn't have the answer, try fetching another result or refine your "
+    "search query and search again.\n"
+    "5. When you have a confident answer, respond with ONLY the answer — no explanation, "
+    "no quotes, just the raw value.\n\n"
+    "## Rules\n"
+    "- NEVER answer from memory or training data. ALWAYS search first.\n"
+    "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
+    "- For URLs/links: fetch the page to verify the URL is correct.\n"
+    "- If you truly cannot find the answer after multiple attempts, respond with exactly: "
+    "Could not determine an answer."
+)
 
-async def execute_research_web(
-    params: Dict[str, Any],
+
+async def _research_web_core(
+    query: str,
+    max_steps: int,
     db: AsyncSession,
     user_id: int,
-    context: Dict[str, Any],
-) -> str:
+) -> AsyncGenerator[Dict[str, Any], None]:
     """
-    Mini search agent: takes a natural language query, loops over
-    search_web/fetch_webpage with an inner LLM to arrive at a definitive answer.
+    Core research loop as an async generator.
+
+    Yields step dicts during execution:
+      {"type": "search", "query": "..."}       — about to search
+      {"type": "fetch", "url": "..."}           — about to fetch a page
+      {"type": "thinking", "message": "..."}    — LLM reasoning (between steps)
+      {"type": "result", "value": "..." | None} — final answer (always last)
     """
-    query = params.get("query", "").strip()
-    if not query:
-        return "Error: query is required."
-
-    max_steps = min(max(params.get("max_steps", 3), 1), 5)
-
     client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
     messages: List[Dict[str, Any]] = [{"role": "user", "content": query}]
 
-    system_prompt = (
-        "You are a web research assistant. You MUST use the search_web tool on your "
-        "VERY FIRST turn — NEVER answer from memory or training data. Always search first, "
-        "then optionally use fetch_webpage to read promising results. "
-        "After researching, respond with ONLY the answer — no explanation, no quotes, "
-        "just the raw value. If you cannot determine the answer after searching, "
-        "respond with exactly: Could not determine an answer."
-    )
-
-    for _turn in range(max_steps):
+    for turn in range(max_steps):
         try:
-            # Force tool use on the first turn so Haiku always searches
             api_kwargs: Dict[str, Any] = dict(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=1024,
                 messages=messages,
                 tools=_RESEARCH_INNER_TOOLS,
-                system=system_prompt,
+                system=_RESEARCH_SYSTEM_PROMPT,
             )
-            if _turn == 0:
+            # Force search_web on the first turn
+            if turn == 0:
                 api_kwargs["tool_choice"] = {"type": "tool", "name": "search_web"}
 
             response = await client.messages.create(**api_kwargs)
         except Exception as e:
-            logger.warning(f"research_web inner LLM call failed: {e}")
-            return "Could not determine an answer."
+            logger.warning(f"research_web inner LLM call failed (turn {turn}): {e}")
+            yield {"type": "result", "value": None}
+            return
 
         # Check for tool use
         tool_uses = [b for b in response.content if b.type == "tool_use"]
+
         if not tool_uses:
-            # Extract text response — we're done
+            # No more tool calls — extract the final text answer
             for block in response.content:
                 if block.type == "text":
                     text = block.text.strip()
                     if text:
-                        return text
-            return "Could not determine an answer."
+                        yield {"type": "result", "value": text}
+                        return
+            yield {"type": "result", "value": None}
+            return
 
-        # Execute tool calls and continue the conversation
+        # Emit any thinking text before tool calls
+        for block in response.content:
+            if block.type == "text" and block.text.strip():
+                yield {"type": "thinking", "message": block.text.strip()}
+
+        # Execute each tool call
         messages.append({"role": "assistant", "content": response.content})
-
         tool_results: List[Dict[str, Any]] = []
+
         for tool_use in tool_uses:
-            context_stub: Dict[str, Any] = {}
+            ctx: Dict[str, Any] = {}
             if tool_use.name == "search_web":
-                result_text = await execute_search_web(tool_use.input, db, user_id, context_stub)
+                search_query = tool_use.input.get("query", query)
+                yield {"type": "search", "query": search_query}
+                result_text = await execute_search_web(tool_use.input, db, user_id, ctx)
             elif tool_use.name == "fetch_webpage":
-                result_text = await execute_fetch_webpage(tool_use.input, db, user_id, context_stub)
+                fetch_url = tool_use.input.get("url", "")
+                yield {"type": "fetch", "url": fetch_url}
+                result_text = await execute_fetch_webpage(tool_use.input, db, user_id, ctx)
             else:
                 result_text = f"Unknown tool: {tool_use.name}"
 
@@ -340,15 +361,41 @@ async def execute_research_web(
 
         messages.append({"role": "user", "content": tool_results})
 
-    # Exhausted turns
-    return "Could not determine an answer."
+    # Exhausted all turns without a final answer
+    yield {"type": "result", "value": None}
+
+
+async def execute_research_web(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any],
+) -> str:
+    """
+    Standalone tool executor: runs the research loop and returns the final answer.
+    Progress steps are consumed silently (not streamed to frontend).
+    When called from for_each_row, use _research_web_core directly to get progress.
+    """
+    query = params.get("query", "").strip()
+    if not query:
+        return "Error: query is required."
+
+    max_steps = min(max(params.get("max_steps", 5), 1), 8)
+
+    answer = "Could not determine an answer."
+    async for step in _research_web_core(query, max_steps, db, user_id):
+        if step["type"] == "result":
+            answer = step.get("value") or "Could not determine an answer."
+
+    return answer
 
 
 register_tool(ToolConfig(
     name="research_web",
     description=(
         "Research agent: answers a natural language question by searching the web "
-        "and reading pages. Use this for one-off factual lookups like "
+        "and reading pages. Performs multiple rounds of search and fetch to find a "
+        "definitive answer. Use this for factual lookups like "
         "'What is Acme Corp's LinkedIn URL?' or 'When was Company X founded?'. "
         "Returns a concise answer or 'Could not determine an answer.'"
     ),
@@ -361,7 +408,7 @@ register_tool(ToolConfig(
             },
             "max_steps": {
                 "type": "integer",
-                "description": "Max search/fetch rounds (1-5, default 3)"
+                "description": "Max search/fetch rounds (1-8, default 5)"
             },
         },
         "required": ["query"]

@@ -561,8 +561,9 @@ async def execute_for_each_row(
     """
     Streaming tool: process rows one-by-one using web research.
     Writes results directly to DB and streams progress for live table updates.
+    Forwards inner search/fetch steps as ToolProgress so the user sees what's happening.
     """
-    from tools.builtin.web import execute_research_web
+    from tools.builtin.web import _research_web_core
 
     table_id = _get_table_id(context)
     if not table_id:
@@ -624,6 +625,13 @@ async def execute_for_each_row(
     success_count = 0
     for i, row in enumerate(rows):
         label = _row_label(row, table.columns)
+        base_progress = i / total
+
+        yield ToolProgress(
+            stage="researching",
+            message=f"Row {i + 1}/{total}: {label}",
+            progress=base_progress,
+        )
 
         # Build query from row data + instructions
         parts = []
@@ -634,11 +642,25 @@ async def execute_for_each_row(
         row_context = ", ".join(parts)
         built_query = f"Given: {row_context}. {instructions}"
 
-        # Call research_web directly
-        research_result = await execute_research_web(
-            {"query": built_query, "max_steps": 3},
-            db, user_id, {},
-        )
+        # Run research loop, forwarding inner steps as ToolProgress
+        research_result = None
+        async for step in _research_web_core(built_query, 5, db, user_id):
+            step_type = step["type"]
+            if step_type == "search":
+                yield ToolProgress(
+                    stage="searching",
+                    message=f"Searching: {step['query'][:80]}",
+                    progress=base_progress,
+                )
+            elif step_type == "fetch":
+                url_short = step["url"][:60] + "..." if len(step["url"]) > 60 else step["url"]
+                yield ToolProgress(
+                    stage="fetching",
+                    message=f"Reading: {url_short}",
+                    progress=base_progress,
+                )
+            elif step_type == "result":
+                research_result = step.get("value")
 
         # Check if we got a valid result
         is_valid = (
@@ -646,7 +668,7 @@ async def execute_for_each_row(
             and research_result.lower() not in ("n/a", "could not determine an answer.", "")
         )
 
-        if is_valid:
+        if is_valid and research_result:
             # Write directly to DB
             current_data = dict(row.data) if row.data else {}
             current_data[target_col_id] = research_result
