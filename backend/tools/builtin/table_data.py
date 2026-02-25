@@ -769,10 +769,14 @@ async def execute_for_each_row(
     log_count = len(research_log)
     summary = (
         f"Researched {total} rows for '{target_col_name}'. "
-        f"Found values for {found_count} rows ({skipped} not found)."
+        f"Found values for {found_count} rows, {skipped} not found. "
+        f"Results have been automatically presented to the user as a "
+        f"Data Proposal card with a full research trace. "
+        f"IMPORTANT: Do NOT write a DATA_PROPOSAL in your response — "
+        f"it is already delivered via the tool payload. "
+        f"Do NOT call research_web or other tools to retry failed rows. "
+        f"Just briefly summarize what was found and what was not."
     )
-    if found_count > 0:
-        summary += " Presenting results as a Data Proposal for review."
 
     logger.info(
         f"for_each_row: EMITTING ToolResult — ops={found_count}, "

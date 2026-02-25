@@ -196,9 +196,22 @@ class ChatStreamService:
             parsed = self._parse_llm_response(collected_text, request.context)
 
             # Process and merge all payloads (from tools + parsed LLM response)
+            # Tool-emitted payloads take priority over text-parsed ones of the same type.
             all_payloads = list(collected_payloads)
+            tool_payload_types = {p.get("type") for p in collected_payloads if p}
+
             if parsed.get("custom_payload"):
-                all_payloads.append(parsed["custom_payload"])
+                text_payload_type = parsed["custom_payload"].get("type")
+                if text_payload_type in tool_payload_types:
+                    # A tool already emitted this payload type — skip the text-parsed duplicate.
+                    # This prevents the LLM from overwriting a tool's richer payload
+                    # (e.g., for_each_row's data_proposal with research_log).
+                    logger.info(
+                        f"SSE: dropping text-parsed {text_payload_type} payload — "
+                        f"tool already emitted one"
+                    )
+                else:
+                    all_payloads.append(parsed["custom_payload"])
 
             logger.info(
                 f"SSE complete: collected_payloads={len(collected_payloads)}, "
