@@ -546,6 +546,7 @@ export default function TablesListPage() {
           type: (op.column.type as ColumnType) || 'text',
           required: op.column.required || false,
           ...(op.column.options ? { options: op.column.options } : {}),
+          ...(op.column.filterDisplay ? { filterDisplay: op.column.filterDisplay as 'tab' | 'dropdown' } : {}),
         });
       }
     }

@@ -170,7 +170,7 @@ function ColumnEditorRow({
 
           {/* Select options editor */}
           {showOptions && (
-            <div className="ml-0">
+            <div className="ml-0 space-y-2">
               <Label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
                 Options (one per line)
               </Label>
@@ -182,6 +182,33 @@ function ColumnEditorRow({
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 placeholder="Option 1&#10;Option 2&#10;Option 3"
               />
+              <div className="flex items-center gap-3">
+                <Label className="text-xs text-gray-500 dark:text-gray-400">Filter style:</Label>
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-md p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...column, filterDisplay: undefined })}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                      column.filterDisplay !== 'dropdown'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    Tabs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...column, filterDisplay: 'dropdown' })}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                      column.filterDisplay === 'dropdown'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    Dropdown
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -342,6 +369,7 @@ export default function TableEditPage() {
           type: op.column.type,
           required: op.column.required || false,
           ...(op.column.options ? { options: op.column.options } : {}),
+          ...(op.column.filterDisplay ? { filterDisplay: op.column.filterDisplay } : {}),
         };
 
         if (op.after_column_id) {

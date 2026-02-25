@@ -720,6 +720,13 @@ export default function TableViewPage() {
   // Push table context to chat whenever table/rows/filters change
   useEffect(() => {
     if (table) {
+      // Build selected rows data for chat context
+      const selectedRows = selectedRowIds.size > 0
+        ? rows
+            .filter((r) => selectedRowIds.has(r.id))
+            .map((r) => ({ id: r.id, data: r.data }))
+        : undefined;
+
       updateContext({
         current_page: 'table_view',
         table_id: table.id,
@@ -730,9 +737,10 @@ export default function TableViewPage() {
         sample_rows: rows.slice(0, 20).map(r => ({ id: r.id, data: r.data })),
         active_sort: sort,
         active_filters: Object.keys(filters).length > 0 ? filters : undefined,
+        selected_rows: selectedRows,
       });
     }
-  }, [table, rows, totalRows, sort, filters, updateContext]);
+  }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
@@ -892,6 +900,7 @@ export default function TableViewPage() {
             type: op.column.type,
             required: op.column.required || false,
             ...(op.column.options ? { options: op.column.options } : {}),
+            ...(op.column.filterDisplay ? { filterDisplay: op.column.filterDisplay } : {}),
           };
 
           if (op.after_column_id) {
@@ -1100,7 +1109,7 @@ export default function TableViewPage() {
         </div>
 
         {/* Data table - scrollable */}
-        <div className="flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-900">
+        <div className="flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-900 pr-4">
           <DataTable
             columns={table.columns}
             rows={filteredRows}

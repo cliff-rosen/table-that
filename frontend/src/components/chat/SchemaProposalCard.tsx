@@ -13,6 +13,7 @@ interface ColumnDef {
   type: string;
   required?: boolean;
   options?: string[];
+  filterDisplay?: string;
 }
 
 interface SchemaOperation {
