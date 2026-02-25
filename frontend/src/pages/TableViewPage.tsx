@@ -916,7 +916,11 @@ export default function TableViewPage() {
         } else if (op.action === 'modify' && op.column_id && op.changes) {
           const idx = columns.findIndex((c) => c.id === op.column_id);
           if (idx >= 0) {
-            columns[idx] = { ...columns[idx], ...op.changes };
+            // Strip null values from changes so they don't overwrite existing values
+            const cleanChanges = Object.fromEntries(
+              Object.entries(op.changes).filter(([, v]) => v !== null)
+            );
+            columns[idx] = { ...columns[idx], ...cleanChanges };
           }
         } else if (op.action === 'remove' && op.column_id) {
           columns = columns.filter((c) => c.id !== op.column_id);

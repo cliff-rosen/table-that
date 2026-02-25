@@ -42,8 +42,13 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
             annotations = []
             if required:
                 annotations.append("required")
-            if col.get("filterDisplay") == "tab":
-                annotations.append("filter: tab")
+            if col_type == "select" and col.get("options"):
+                fd = col.get("filterDisplay")
+                if fd == "dropdown":
+                    annotations.append("filter: dropdown")
+                else:
+                    # Default is tab for select columns with ≤8 options
+                    annotations.append("filter: tab")
             annotation_str = f" ({', '.join(annotations)})" if annotations else ""
             col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){annotation_str}")
         parts.append(f"Columns ({len(columns)}):\n" + "\n".join(col_lines))
@@ -133,16 +138,20 @@ Note: You can only modify THIS table. You cannot create new tables from this pag
 - User wants to change column types, options, or filter display
 - Example: "Add a Priority column with options P0-P3"
 - Example: "Make the Date column required"
-- For select columns with 3-8 options representing a workflow state or primary categorization, set filterDisplay: "tab" so the filter bar shows mutually-exclusive inline buttons instead of a dropdown
+- filterDisplay controls the filter UI for select columns: "tab" for inline mutually-exclusive buttons, "dropdown" for a dropdown chip. ALWAYS use the string value — never null. When changing filter style, set filterDisplay to the desired value.
+- IMPORTANT: Proposals must be COMPLETE. If the user asks to restructure the table, include ALL necessary operations — adds for new columns AND removes for old columns AND modifies for changed columns, all in ONE proposal. Do not leave the user with half the old schema and half the new.
 
 **Use DATA_PROPOSAL** when:
 - User wants to add multiple rows at once
 - User wants to update multiple rows based on a condition
 - User wants to delete multiple rows based on a condition
+- User wants to replace existing data with new data
 - Example: "Add 5 sample bugs" → DATA_PROPOSAL with 5 add operations
 - Example: "Mark all Resolved bugs as Closed" → DATA_PROPOSAL with update operations
 - Example: "Delete all rows where Status is Withdrawn" → DATA_PROPOSAL with delete operations
 - Example: "Based on my selected rows, set Priority to P1" → DATA_PROPOSAL targeting the selected row IDs
+- Example: "Replace all the data with these new entries" → DATA_PROPOSAL with delete operations for old rows AND add operations for new rows, all in ONE proposal
+- IMPORTANT: Proposals must be COMPLETE. If the user wants to replace data, include both the deletes and the adds. If they want to restructure rows, include all necessary operations in a single proposal. Never leave the user in a half-updated state.
 
 **IMPORTANT: Use for_each_row for ANY multi-row web research:**
 When the user asks to look up, research, or find information for multiple rows, you MUST use the for_each_row tool. Do NOT manually call research_web for each row — that loses the research trace.
@@ -154,6 +163,8 @@ When the user asks to look up, research, or find information for multiple rows, 
 - Example: "Look up the website for each company" → for_each_row
 - Example: "Find the LinkedIn URL for each person" → for_each_row
 - Example: "Research these selected rows and fill in the Notes column" → for_each_row with selected row IDs
+
+**Multi-column research:** for_each_row fills ONE column per call. If the user asks to research two columns (e.g., "find the website AND the CEO for each company"), call for_each_row twice — once per column. The user will get two separate Data Proposals to review. Tell the user this is what you're doing so they know to expect two proposals.
 
 **Use research_web** ONLY for:
 - A SINGLE one-off factual lookup: "What is Acme Corp's LinkedIn URL?"

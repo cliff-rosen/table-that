@@ -219,6 +219,12 @@ class ChatStreamService:
                 f"types={[p.get('type') for p in all_payloads]}"
             )
 
+            # Merge multiple payloads of the same type (e.g. two for_each_row
+            # calls that each produce a data_proposal).  Operations and
+            # research_log entries are concatenated into one payload so the
+            # user sees a single combined proposal card.
+            all_payloads = self._merge_same_type_payloads(all_payloads)
+
             # Assign IDs and summaries to payloads
             payloads_with_ids = self._process_payloads(all_payloads)
 
@@ -313,6 +319,72 @@ class ChatStreamService:
     # =========================================================================
     # Payload Processing
     # =========================================================================
+
+    @staticmethod
+    def _merge_same_type_payloads(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge multiple payloads of the same type into one.
+
+        Currently handles data_proposal and schema_proposal by concatenating
+        their operations (and research_log for data_proposal).  Other types
+        are left as-is.
+        """
+        from collections import defaultdict
+
+        groups: dict[str, list[Dict[str, Any]]] = defaultdict(list)
+        order: list[str] = []
+        for p in payloads:
+            if not p:
+                continue
+            t = p.get("type", "")
+            if t not in groups:
+                order.append(t)
+            groups[t].append(p)
+
+        merged: list[Dict[str, Any]] = []
+        for t in order:
+            items = groups[t]
+            if len(items) == 1:
+                merged.append(items[0])
+                continue
+
+            if t == "data_proposal":
+                combined_ops: list = []
+                combined_log: list = []
+                reasoning_parts: list[str] = []
+                for item in items:
+                    data = item.get("data", {})
+                    combined_ops.extend(data.get("operations", []))
+                    combined_log.extend(data.get("research_log", []))
+                    if data.get("reasoning"):
+                        reasoning_parts.append(data["reasoning"])
+                merged.append({
+                    "type": "data_proposal",
+                    "data": {
+                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
+                        "operations": combined_ops,
+                        "research_log": combined_log if combined_log else None,
+                    },
+                })
+            elif t == "schema_proposal":
+                combined_ops = []
+                reasoning_parts = []
+                for item in items:
+                    data = item.get("data", {})
+                    combined_ops.extend(data.get("operations", []))
+                    if data.get("reasoning"):
+                        reasoning_parts.append(data["reasoning"])
+                merged.append({
+                    "type": "schema_proposal",
+                    "data": {
+                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
+                        "operations": combined_ops,
+                    },
+                })
+            else:
+                # Unknown type — keep last one (original behavior)
+                merged.append(items[-1])
+
+        return merged
 
     def _process_payloads(self, payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

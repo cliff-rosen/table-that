@@ -194,7 +194,7 @@ Rules:
 - Use column NAMES when adding columns. Use column IDs (from context) when modifying/removing/reordering.
 - For select columns, always include the full options list (not just additions).
 - If modifying options on a select column, include ALL options (existing + new), not just the new ones.
-- For select columns with 3-8 options representing a workflow state or primary categorization (Status, Priority, Stage, Phase), set filterDisplay: "tab" so the filter bar shows inline buttons instead of a dropdown. Omit filterDisplay for columns with many options or secondary importance.
+- filterDisplay controls the filter UI for select columns. Use "tab" for inline mutually-exclusive buttons, or "dropdown" for a dropdown chip. ALWAYS use the string value — never null. When changing filter style, set filterDisplay to the desired string value (e.g. "dropdown" to switch to dropdown, "tab" to switch to tabs).
 - Always include a brief "reasoning" field.
 - The user will see this as an interactive card where they can review and selectively apply changes."""
 

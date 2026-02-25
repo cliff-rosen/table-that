@@ -385,7 +385,10 @@ export default function TableEditPage() {
       } else if (op.action === 'modify' && op.column_id && op.changes) {
         const idx = updatedColumns.findIndex((c) => c.id === op.column_id);
         if (idx >= 0) {
-          updatedColumns[idx] = { ...updatedColumns[idx], ...op.changes };
+          const cleanChanges = Object.fromEntries(
+            Object.entries(op.changes).filter(([, v]) => v !== null)
+          );
+          updatedColumns[idx] = { ...updatedColumns[idx], ...cleanChanges };
         }
       } else if (op.action === 'remove' && op.column_id) {
         updatedColumns = updatedColumns.filter((c) => c.id !== op.column_id);

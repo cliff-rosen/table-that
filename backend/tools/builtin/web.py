@@ -275,10 +275,19 @@ def _build_research_system_prompt() -> str:
         "- NEVER answer from memory or training data. ALWAYS search first.\n"
         "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
         "- For URLs/links: fetch the page to verify the URL is correct.\n"
-        "- Do NOT add preambles like 'Based on my research...' or 'Here is what I found...'. "
-        "Just give the answer directly.\n"
         "- If you truly cannot find the answer after multiple attempts, respond with exactly: "
-        "Could not determine an answer."
+        "Could not determine an answer.\n\n"
+        "## CRITICAL: Output format\n"
+        "Your final answer will be stored directly in a database cell. "
+        "Return ONLY the raw value — no preambles, no explanations, no surrounding text.\n"
+        "- Asked for a URL? Return ONLY the URL: https://example.com\n"
+        "- Asked for a date? Return ONLY the date: 2024-03-15\n"
+        "- Asked for a name? Return ONLY the name: John Smith\n"
+        "- Asked for a number? Return ONLY the number: 42\n"
+        "WRONG: 'The official website for Acme Corp is https://acme.com'\n"
+        "RIGHT: 'https://acme.com'\n"
+        "WRONG: 'Based on my research, the CEO is Jane Doe'\n"
+        "RIGHT: 'Jane Doe'"
     )
 
 

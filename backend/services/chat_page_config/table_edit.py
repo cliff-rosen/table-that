@@ -38,7 +38,11 @@ def table_edit_context_builder(context: Dict[str, Any]) -> str:
             options = ""
             if col_type == "select" and col.get("options"):
                 options = f" [{', '.join(col['options'])}]"
-            col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){required}")
+            filter_ann = ""
+            if col_type == "select" and col.get("options"):
+                fd = col.get("filterDisplay")
+                filter_ann = f" filter:{fd}" if fd == "dropdown" else " filter:tab"
+            col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){required}{filter_ann}")
         parts.append(f"Current columns ({len(columns)}):\n" + "\n".join(col_lines))
     else:
         parts.append("The table has no columns yet.")
