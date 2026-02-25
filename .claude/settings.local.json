@@ -45,7 +45,11 @@
       "Bash(C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe:*)",
       "Bash(cmd /c:*)",
       "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")",
-      "Bash(eb status:*)"
+      "Bash(eb status:*)",
+      "Bash(head:*)",
+      "Bash(cd /c/code/table-that/backend && source venv/Scripts/activate && python -c \"from main import app; print\\('Backend imports OK'\\)\" 2>&1)",
+      "Bash(cd /c/code/table-that && git ls-tree -r 3ab3295 -- backend/agents/ 2>&1)",
+      "Bash(tail:*)"
     ],
     "deny": [],
     "ask": [],

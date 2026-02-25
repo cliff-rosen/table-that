@@ -93,6 +93,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
         env_file_encoding = 'utf-8'
+        extra = "ignore"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

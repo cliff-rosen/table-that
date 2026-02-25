@@ -2,7 +2,7 @@
  * Table API client for CRUD operations on tables and rows.
  */
 
-import api from './index';
+import { api } from './index';
 import type {
   TableDefinition,
   TableListItem,

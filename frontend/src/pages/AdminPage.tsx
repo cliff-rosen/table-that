@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon, BugAntIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigPanel, ArtifactList } from '../components/admin';
+import { OrganizationList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigPanel } from '../components/admin';
 
-type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'activity' | 'conversations' | 'chat-config' | 'artifacts';
+type AdminTab = 'organizations' | 'users' | 'invitations' | 'activity' | 'conversations' | 'chat-config';
 
 interface TabGroup {
     label: string;
@@ -25,12 +25,6 @@ const tabGroups: TabGroup[] = [
         ],
     },
     {
-        label: 'Content',
-        tabs: [
-            { id: 'streams', label: 'Global Streams', icon: GlobeAltIcon },
-        ],
-    },
-    {
         label: 'Monitoring',
         tabs: [
             { id: 'activity', label: 'Activity', icon: ClockIcon },
@@ -41,7 +35,6 @@ const tabGroups: TabGroup[] = [
         label: 'System',
         tabs: [
             { id: 'chat-config', label: 'Chat Config', icon: Cog6ToothIcon },
-            { id: 'artifacts', label: 'Artifacts', icon: BugAntIcon },
         ],
     },
 ];
@@ -112,15 +105,13 @@ export default function AdminPage() {
             </div>
 
             {/* Active Tab Content */}
-            <div className={activeTab === 'artifacts' ? 'flex-1 min-h-0' : 'max-w-7xl mx-auto w-full'}>
+            <div className="max-w-7xl mx-auto w-full">
                 {activeTab === 'organizations' && <OrganizationList />}
-                {activeTab === 'streams' && <GlobalStreamList />}
                 {activeTab === 'users' && <UserList />}
                 {activeTab === 'invitations' && <InvitationList />}
                 {activeTab === 'activity' && <ActivityList />}
                 {activeTab === 'conversations' && <ConversationList />}
                 {activeTab === 'chat-config' && <ChatConfigPanel />}
-                {activeTab === 'artifacts' && <ArtifactList />}
             </div>
         </div>
     );

@@ -7,10 +7,8 @@ modular schema system.
 """
 
 from pydantic import BaseModel, Field
-from typing import Dict, Optional, Union, Literal, get_args, TYPE_CHECKING
+from typing import Dict, Optional, Union, Literal, get_args
 
-if TYPE_CHECKING:
-    from schemas.canonical_types import get_canonical_schema
 
 # --- Common Type Definitions ---
 
@@ -82,29 +80,15 @@ def resolve_canonical_schema(schema: SchemaType) -> SchemaType:
     """
     Resolve a SchemaType that references a canonical type by expanding it
     to include the full field definitions.
-    
+
     Args:
         schema: The schema to resolve
-        
+
     Returns:
         Resolved schema with canonical type fields expanded
     """
-    if not is_custom_type(schema.type):
-        return schema
-    
-    # Import here to avoid circular imports
-    from schemas.canonical_types import get_canonical_schema
-    
-    try:
-        canonical_schema = get_canonical_schema(schema.type)
-        # Preserve the original array setting and description
-        canonical_schema.is_array = schema.is_array
-        if schema.description:
-            canonical_schema.description = schema.description
-        return canonical_schema
-    except ValueError:
-        # If we can't resolve the canonical type, return the original
-        return schema
+    # Canonical types were removed during KH→table.that conversion
+    return schema
 
 # Pydantic v2 requires this to correctly resolve forward references in models.
 SchemaType.model_rebuild() 

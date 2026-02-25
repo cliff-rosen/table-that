@@ -1,25 +1,12 @@
 import { useState, useEffect } from 'react';
-import { UserIcon, BuildingOfficeIcon, KeyIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { UserIcon, KeyIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { userApi, type UserUpdateRequest, type PasswordChangeRequest } from '../lib/api/userApi';
+import { userApi, type UserUpdateRequest } from '../lib/api/userApi';
 import { handleApiError } from '../lib/api';
 import type { User } from '../types/user';
 
-// Import org components for org admins
-import { OrgDetailsForm } from '../components/org/OrgDetailsForm';
-import { MemberList } from '../components/org/MemberList';
-import { GlobalStreamSubscriptions } from '../components/org/GlobalStreamSubscriptions';
-import { OrganizationProvider } from '../context/OrganizationContext';
-
-type ProfileTab = 'user' | 'organization';
-
 export default function Profile() {
-    const { user: authUser, isOrgAdmin, isPlatformAdmin } = useAuth();
-    const [activeTab, setActiveTab] = useState<ProfileTab>('user');
-
-    // Only show Organization tab for org admins who actually belong to an org
-    // Platform admins don't have an org_id, so they shouldn't see this tab
-    const showOrgTab = isOrgAdmin && !isPlatformAdmin && authUser?.org_id;
+    const { user: authUser } = useAuth();
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -130,11 +117,6 @@ export default function Profile() {
         }
     };
 
-    const tabs = [
-        { id: 'user' as const, name: 'Profile', icon: UserIcon },
-        ...(showOrgTab ? [{ id: 'organization' as const, name: 'Organization', icon: BuildingOfficeIcon }] : [])
-    ];
-
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -150,40 +132,12 @@ export default function Profile() {
                     Settings
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Manage your profile{showOrgTab ? ' and organization' : ''}
+                    Manage your profile
                 </p>
             </div>
 
-            {/* Tab Navigation */}
-            {tabs.length > 1 && (
-                <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-                    <nav className="-mb-px flex space-x-8">
-                        {tabs.map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = activeTab === tab.id;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`
-                                        group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm
-                                        ${isActive
-                                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                        }
-                                    `}
-                                >
-                                    <Icon className={`h-5 w-5 ${isActive ? 'text-blue-500' : 'text-gray-400'}`} />
-                                    {tab.name}
-                                </button>
-                            );
-                        })}
-                    </nav>
-                </div>
-            )}
-
-            {/* User Profile Tab */}
-            {activeTab === 'user' && (
+            {/* Profile */}
+            {(
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
                         Your Profile
@@ -376,16 +330,6 @@ export default function Profile() {
                 </div>
             )}
 
-            {/* Organization Tab (for org admins who belong to an org) */}
-            {activeTab === 'organization' && showOrgTab && (
-                <OrganizationProvider>
-                    <div className="space-y-6">
-                        <OrgDetailsForm />
-                        <MemberList />
-                        <GlobalStreamSubscriptions />
-                    </div>
-                </OrganizationProvider>
-            )}
         </div>
     );
 }

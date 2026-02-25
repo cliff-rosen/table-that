@@ -1,5 +1,5 @@
 """
-Schemas package for Knowledge Horizon API.
+Schemas package for table.that API.
 
 Core types are in schemas/user.py.
 Request schemas are defined in the routers where they're used.
@@ -14,12 +14,6 @@ from .user import (
     TokenData,
     UserList,
     OrgMember,
-)
-
-# LLM schemas (for LLM interactions)
-from .llm import (
-    MessageRole as LLMMessageRole,
-    ChatMessage,
 )
 
 # Chat schemas (for user-facing chat)
@@ -45,10 +39,6 @@ __all__ = [
     'TokenData',
     'UserList',
     'OrgMember',
-
-    # LLM schemas (for LLM interactions)
-    'LLMMessageRole',
-    'ChatMessage',
 
     # Chat schemas (for user-facing chat)
     'MessageRole',

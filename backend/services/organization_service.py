@@ -11,8 +11,7 @@ from datetime import datetime
 from fastapi import HTTPException, status, Depends
 
 from models import (
-    Organization, User, ResearchStream, UserRole,
-    OrgStreamSubscription, UserStreamSubscription, StreamScope,
+    Organization, User, UserRole,
     Invitation
 )
 from schemas.organization import (
@@ -109,16 +108,6 @@ class OrganizationService:
         member_count = result.scalar() or 0
 
         result = await self.db.execute(
-            select(func.count(ResearchStream.stream_id)).where(
-                and_(
-                    ResearchStream.org_id == org_id,
-                    ResearchStream.scope == StreamScope.ORGANIZATION
-                )
-            )
-        )
-        stream_count = result.scalar() or 0
-
-        result = await self.db.execute(
             select(func.count(Invitation.invitation_id)).where(
                 and_(
                     Invitation.org_id == org_id,
@@ -137,7 +126,6 @@ class OrganizationService:
             created_at=org.created_at,
             updated_at=org.updated_at,
             member_count=member_count,
-            stream_count=stream_count,
             pending_invitation_count=pending_invitation_count
         )
 
