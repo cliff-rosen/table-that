@@ -125,7 +125,7 @@ function BooleanChip({
 }
 
 // =============================================================================
-// SelectChip
+// SelectChip (dropdown style)
 // =============================================================================
 
 function SelectChip({
@@ -248,6 +248,81 @@ function SelectChip({
 }
 
 // =============================================================================
+// SelectTabFilter (inline pill buttons)
+// =============================================================================
+
+function SelectTabFilter({
+  column,
+  rows,
+  selected,
+  onChange,
+}: {
+  column: ColumnDefinition;
+  rows: TableRow[];
+  selected: string[];
+  onChange: (val: string[]) => void;
+}) {
+  const counts = countValues(rows, column.id);
+  const options = column.options || [];
+  const isAllSelected = selected.length === 0;
+
+  const toggleOption = (opt: string) => {
+    if (selected.includes(opt)) {
+      const next = selected.filter((s) => s !== opt);
+      onChange(next);
+    } else {
+      onChange([...selected, opt]);
+    }
+  };
+
+  const selectAll = () => onChange([]);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-gray-500 dark:text-gray-400 mr-0.5">{column.name}:</span>
+
+      {/* "All" button */}
+      <button
+        type="button"
+        onClick={selectAll}
+        className={`
+          px-2.5 py-1 rounded-md text-xs font-medium border transition-colors select-none
+          ${isAllSelected
+            ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+          }
+        `}
+      >
+        All
+      </button>
+
+      {/* One button per option */}
+      {options.map((opt) => {
+        const isActive = !isAllSelected && selected.includes(opt);
+        const count = counts.get(opt) || 0;
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggleOption(opt)}
+            className={`
+              px-2.5 py-1 rounded-md text-xs font-medium border transition-colors select-none
+              ${isActive
+                ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }
+            `}
+            title={`${count} row${count !== 1 ? 's' : ''}`}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// =============================================================================
 // FilterBar
 // =============================================================================
 
@@ -256,66 +331,116 @@ export default function FilterBar({ columns, rows, filters, onFiltersChange }: F
 
   if (filterableColumns.length === 0) return null;
 
+  // Separate tab-style columns from chip-style columns
+  const tabColumns = filterableColumns.filter(
+    (c) => c.type === 'select' && c.filterDisplay === 'tab'
+  );
+  const chipColumns = filterableColumns.filter(
+    (c) => !(c.type === 'select' && c.filterDisplay === 'tab')
+  );
+
   const activeCount = Object.values(filters).filter((v) => v !== undefined && (!Array.isArray(v) || v.length > 0)).length;
 
   const clearAll = () => onFiltersChange({});
 
+  const handleSelectChange = (colId: string, val: string[]) => {
+    const next = { ...filters };
+    if (val.length === 0) {
+      delete next[colId];
+    } else {
+      next[colId] = val;
+    }
+    onFiltersChange(next);
+  };
+
+  const handleBooleanChange = (colId: string, val: boolean | undefined) => {
+    const next = { ...filters };
+    if (val === undefined) {
+      delete next[colId];
+    } else {
+      next[colId] = val;
+    }
+    onFiltersChange(next);
+  };
+
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex-wrap">
-      <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Filters:</span>
-
-      {filterableColumns.map((col) => {
-        if (col.type === 'boolean') {
-          return (
-            <BooleanChip
-              key={col.id}
-              column={col}
-              rows={rows}
-              value={filters[col.id] as boolean | undefined}
-              onChange={(val) => {
-                const next = { ...filters };
-                if (val === undefined) {
-                  delete next[col.id];
-                } else {
-                  next[col.id] = val;
-                }
-                onFiltersChange(next);
-              }}
-            />
-          );
-        }
-
-        if (col.type === 'select') {
-          return (
-            <SelectChip
+    <div className="flex flex-col gap-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
+      {/* Tab-style filters (rendered first) */}
+      {tabColumns.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 flex-wrap">
+          {tabColumns.map((col) => (
+            <SelectTabFilter
               key={col.id}
               column={col}
               rows={rows}
               selected={(filters[col.id] as string[]) || []}
-              onChange={(val) => {
-                const next = { ...filters };
-                if (val.length === 0) {
-                  delete next[col.id];
-                } else {
-                  next[col.id] = val;
-                }
-                onFiltersChange(next);
-              }}
+              onChange={(val) => handleSelectChange(col.id, val)}
             />
-          );
-        }
+          ))}
+        </div>
+      )}
 
-        return null;
-      })}
+      {/* Divider between tab and chip filters */}
+      {tabColumns.length > 0 && chipColumns.length > 0 && (
+        <div className="h-px bg-gray-200 dark:bg-gray-700 mx-4" />
+      )}
 
-      {activeCount > 0 && (
-        <button
-          type="button"
-          onClick={clearAll}
-          className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline ml-2"
-        >
-          Clear all
-        </button>
+      {/* Chip-style filters */}
+      {chipColumns.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 flex-wrap">
+          <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Filters:</span>
+
+          {chipColumns.map((col) => {
+            if (col.type === 'boolean') {
+              return (
+                <BooleanChip
+                  key={col.id}
+                  column={col}
+                  rows={rows}
+                  value={filters[col.id] as boolean | undefined}
+                  onChange={(val) => handleBooleanChange(col.id, val)}
+                />
+              );
+            }
+
+            if (col.type === 'select') {
+              return (
+                <SelectChip
+                  key={col.id}
+                  column={col}
+                  rows={rows}
+                  selected={(filters[col.id] as string[]) || []}
+                  onChange={(val) => handleSelectChange(col.id, val)}
+                />
+              );
+            }
+
+            return null;
+          })}
+
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline ml-2"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Clear all (when only tab filters and some are active) */}
+      {chipColumns.length === 0 && activeCount > 0 && (
+        <div className="flex items-center px-4 py-1">
+          <button
+            type="button"
+            onClick={clearAll}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
+          >
+            Clear all filters
+          </button>
+        </div>
       )}
     </div>
   );

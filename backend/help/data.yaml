@@ -75,13 +75,21 @@ sections:
       - Click the chip to cycle through states
       - Click the X to reset to All
 
-      #### Select Filter Chips
-      Each select column gets a dropdown chip:
+      #### Select Filter Chips (Dropdown)
+      By default, each select column gets a dropdown chip:
       - Click to open a dropdown showing all options with checkboxes
       - Check/uncheck options to filter
       - The chip shows the count or names of selected options
       - Click "All" to reset
       - Click the X to clear the filter
+
+      #### Tab-Style Filters
+      Select columns with `filterDisplay: "tab"` render as inline pill buttons instead of a dropdown:
+      - All options are visible at once as clickable buttons
+      - Click a button to filter by that option (click multiple for OR logic)
+      - Click "All" to clear the filter
+      - Best for columns with 3-8 options like Status, Priority, or Stage
+      - The chat assistant automatically sets this for appropriate columns when creating schemas
 
       ### Text Search
       The search bar in the toolbar searches across all text and select columns. Type to search — results update after a short delay.

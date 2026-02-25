@@ -26,7 +26,7 @@ import { Badge } from '../components/ui/badge';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
-import DataProposalCard from '../components/chat/DataProposalCard';
+import DataProposalCard, { type DataOperation } from '../components/chat/DataProposalCard';
 
 // =============================================================================
 // Helper: format date for display
@@ -937,10 +937,9 @@ export default function TableViewPage() {
     }
   }, [table, tableId]);
 
-  const handleDataProposalAccept = useCallback(async (proposalData: any) => {
-    if (!table) return;
+  const executeSingleDataOperation = useCallback(async (op: DataOperation) => {
+    if (!table) throw new Error('No table loaded');
 
-    const ops = proposalData.operations || [];
     const colNameToId = new Map<string, string>();
     for (const col of table.columns) {
       colNameToId.set(col.name.toLowerCase(), col.id);
@@ -955,23 +954,19 @@ export default function TableViewPage() {
       return mapped;
     };
 
-    try {
-      for (const op of ops) {
-        if (op.action === 'add' && op.data) {
-          await createRow(tableId, mapData(op.data));
-        } else if (op.action === 'update' && op.row_id && op.changes) {
-          await updateRow(tableId, op.row_id, mapData(op.changes));
-        } else if (op.action === 'delete' && op.row_id) {
-          await deleteRow(tableId, op.row_id);
-        }
-      }
-      await fetchRows();
-      showSuccessToast(`Applied ${ops.length} data change${ops.length !== 1 ? 's' : ''}`);
-    } catch (err) {
-      showErrorToast(err, 'Failed to apply some data changes');
-      await fetchRows(); // Refresh to see partial results
+    if (op.action === 'add' && op.data) {
+      await createRow(tableId, mapData(op.data));
+    } else if (op.action === 'update' && op.row_id && op.changes) {
+      await updateRow(tableId, op.row_id, mapData(op.changes));
+    } else if (op.action === 'delete' && op.row_id) {
+      await deleteRow(tableId, op.row_id);
     }
-  }, [table, tableId, fetchRows]);
+  }, [table, tableId]);
+
+  const handleDataProposalAccept = useCallback(async () => {
+    // Called when the user clicks "Done" after all operations complete
+    await fetchRows();
+  }, [fetchRows]);
 
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
@@ -983,12 +978,17 @@ export default function TableViewPage() {
     },
     data_proposal: {
       render: (payload: any, callbacks: any) => (
-        <DataProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+        <DataProposalCard
+          data={payload}
+          onAccept={callbacks.onAccept}
+          onReject={callbacks.onReject}
+          onExecuteOperation={executeSingleDataOperation}
+        />
       ),
       onAccept: handleDataProposalAccept,
       renderOptions: { headerTitle: 'Data Proposal', headerIcon: '📊' },
     },
-  }), [handleSchemaProposalAccept, handleDataProposalAccept]);
+  }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation]);
 
   // -----------------------------------------------------------------------
   // Render: loading state

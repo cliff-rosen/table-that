@@ -534,3 +534,106 @@ register_tool(ToolConfig(
     executor=execute_suggest_schema,
     category="table_data",
 ))
+
+
+# =============================================================================
+# for_each_row — Retrieve filtered rows for bulk DATA_PROPOSAL generation
+# =============================================================================
+
+async def execute_for_each_row(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any],
+) -> str:
+    """Retrieve rows matching filter conditions so the LLM can emit a DATA_PROPOSAL."""
+    table_id = _get_table_id(context)
+    if not table_id:
+        return "Error: No table context available."
+
+    table = await _get_table_for_user(db, table_id, user_id)
+    if not table:
+        return "Error: Table not found or access denied."
+
+    filter_conditions = params.get("filter", {})
+    limit = min(max(params.get("limit", 100), 1), 500)
+
+    # Build query
+    stmt = (
+        select(TableRow)
+        .where(TableRow.table_id == table_id)
+        .order_by(TableRow.id)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    # Apply column-value filters client-side (JSON columns)
+    if filter_conditions:
+        # Resolve column names to IDs
+        col_filters = {}
+        for key, val in filter_conditions.items():
+            col_id = _resolve_column_id(table.columns, key)
+            if col_id:
+                col_filters[col_id] = val
+            else:
+                return f"Error: Unknown column '{key}'. Available: {', '.join(c['name'] for c in table.columns)}"
+
+        filtered = []
+        for row in rows:
+            match = True
+            for col_id, expected in col_filters.items():
+                actual = row.data.get(col_id)
+                # Flexible comparison: string match
+                if str(actual).lower() != str(expected).lower():
+                    match = False
+                    break
+            if match:
+                filtered.append(row)
+        rows = filtered
+
+    if not rows:
+        cond_text = f" matching filter {json.dumps(filter_conditions, default=str)}" if filter_conditions else ""
+        return f"No rows found{cond_text}."
+
+    # Get total count for context
+    count_result = await db.execute(
+        select(func.count(TableRow.id)).where(TableRow.table_id == table_id)
+    )
+    total = count_result.scalar() or 0
+
+    # Format all rows
+    lines = [f"Found {len(rows)} row(s) (of {total} total):\n"]
+    for row in rows:
+        display = {}
+        for col in table.columns:
+            val = row.data.get(col["id"])
+            if val is not None:
+                display[col["name"]] = val
+        lines.append(f"  Row #{row.id}: {json.dumps(display, default=str)}")
+
+    lines.append("")
+    lines.append("You now have all matching rows. Emit a DATA_PROPOSAL with the changes the user requested.")
+
+    return "\n".join(lines)
+
+
+register_tool(ToolConfig(
+    name="for_each_row",
+    description="Retrieve all rows matching a filter so you can generate a DATA_PROPOSAL for bulk changes. Use when the user asks to transform, update, or compute values across multiple rows.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "filter": {
+                "type": "object",
+                "description": "Column name:value pairs to filter rows (optional, omit for all rows)"
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max rows to return (default 100, max 500)"
+            }
+        },
+    },
+    executor=execute_for_each_row,
+    category="table_data",
+))

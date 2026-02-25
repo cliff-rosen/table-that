@@ -8,3 +8,5 @@ Auto-imports all tool modules to register them with the global registry.
 from tools.builtin import conversation
 from tools.builtin import help
 from tools.builtin import table_data
+from tools.builtin import web
+from tools.builtin import enrich

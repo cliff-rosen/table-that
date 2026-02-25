@@ -11,6 +11,7 @@ export interface ColumnDefinition {
   required: boolean;
   default?: unknown;
   options?: string[]; // For select type
+  filterDisplay?: 'tab' | 'dropdown'; // 'tab' for inline filter buttons, 'dropdown' (default) for dropdown chip
 }
 
 export interface TableDefinition {

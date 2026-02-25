@@ -24,6 +24,7 @@ class ColumnDefinition(BaseModel):
     required: bool = Field(default=False, description="Whether this column is required")
     default: Optional[Any] = Field(default=None, description="Default value for new rows")
     options: Optional[List[str]] = Field(default=None, description="Options for select type columns")
+    filterDisplay: Optional[str] = Field(default=None, description="'tab' for inline filter buttons, 'dropdown' (default) for dropdown chip. Only for select columns.")
 
 
 class TableCreate(BaseModel):

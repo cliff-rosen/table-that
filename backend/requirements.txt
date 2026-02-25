@@ -25,6 +25,9 @@ anthropic>=0.40
 httpx>=0.25
 httpx-sse>=0.4
 
+# Web Scraping
+beautifulsoup4>=4.12
+
 # Data & Utilities
 orjson>=3.10
 python-dateutil>=2.9

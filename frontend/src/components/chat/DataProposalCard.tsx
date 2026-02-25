@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { useState, useCallback } from 'react';
+import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 
@@ -23,17 +23,25 @@ interface DataDeleteOperation {
   row_id: number;
 }
 
-type DataOperation = DataAddOperation | DataUpdateOperation | DataDeleteOperation;
+export type DataOperation = DataAddOperation | DataUpdateOperation | DataDeleteOperation;
 
 export interface DataProposalData {
   reasoning?: string;
   operations: DataOperation[];
 }
 
+type OpStatus = 'pending' | 'running' | 'success' | 'error';
+
+interface OpResult {
+  status: OpStatus;
+  error?: string;
+}
+
 interface DataProposalCardProps {
   data: DataProposalData;
   onAccept?: (data: DataProposalData) => void;
   onReject?: () => void;
+  onExecuteOperation?: (op: DataOperation) => Promise<void>;
 }
 
 // =============================================================================
@@ -59,19 +67,39 @@ function truncate(val: unknown, maxLen = 40): string {
   return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 }
 
+function OpStatusIcon({ result }: { result: OpResult }) {
+  switch (result.status) {
+    case 'running':
+      return <div className="h-3.5 w-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />;
+    case 'success':
+      return <CheckIcon className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />;
+    case 'error':
+      return (
+        <span title={result.error || 'Failed'}>
+          <XMarkIcon className="h-3.5 w-3.5 text-red-600 dark:text-red-400 flex-shrink-0" />
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
 // =============================================================================
 // AddOperationRow
 // =============================================================================
 
-function AddOperationRow({ op, checked, onToggle }: { op: DataAddOperation; checked: boolean; onToggle: () => void }) {
+function AddOperationRow({ op, checked, onToggle, result, disabled }: {
+  op: DataAddOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean;
+}) {
   const entries = Object.entries(op.data);
-  // Pick key columns for display (first 3)
   const displayEntries = entries.slice(0, 3);
   const moreCount = entries.length - displayEntries.length;
 
   return (
     <div className="flex items-start gap-2 py-2 px-3 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-colors">
-      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" />
+      {result ? <OpStatusIcon result={result} /> : (
+        <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" disabled={disabled} />
+      )}
       {getActionIcon('add')}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -94,12 +122,16 @@ function AddOperationRow({ op, checked, onToggle }: { op: DataAddOperation; chec
 // UpdateOperationRow
 // =============================================================================
 
-function UpdateOperationRow({ op, checked, onToggle }: { op: DataUpdateOperation; checked: boolean; onToggle: () => void }) {
+function UpdateOperationRow({ op, checked, onToggle, result, disabled }: {
+  op: DataUpdateOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean;
+}) {
   const changes = Object.entries(op.changes);
 
   return (
     <div className="flex items-start gap-2 py-2 px-3 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors">
-      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" />
+      {result ? <OpStatusIcon result={result} /> : (
+        <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" disabled={disabled} />
+      )}
       {getActionIcon('update')}
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -123,10 +155,14 @@ function UpdateOperationRow({ op, checked, onToggle }: { op: DataUpdateOperation
 // DeleteOperationRow
 // =============================================================================
 
-function DeleteOperationRow({ op, checked, onToggle }: { op: DataDeleteOperation; checked: boolean; onToggle: () => void }) {
+function DeleteOperationRow({ op, checked, onToggle, result, disabled }: {
+  op: DataDeleteOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean;
+}) {
   return (
     <div className="flex items-start gap-2 py-2 px-3 hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
-      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" />
+      {result ? <OpStatusIcon result={result} /> : (
+        <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" disabled={disabled} />
+      )}
       {getActionIcon('delete')}
       <div className="flex-1 min-w-0">
         <span className="text-xs text-red-700 dark:text-red-400 line-through">
@@ -163,12 +199,17 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 // DataProposalCard
 // =============================================================================
 
-export default function DataProposalCard({ data, onAccept, onReject }: DataProposalCardProps) {
+export default function DataProposalCard({ data, onAccept, onReject, onExecuteOperation }: DataProposalCardProps) {
   const [checkedOps, setCheckedOps] = useState<boolean[]>(
     () => data.operations.map(() => true)
   );
-  const [status, setStatus] = useState<'pending' | 'applying' | 'applied' | 'rejected'>('pending');
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [phase, setPhase] = useState<'idle' | 'running' | 'done'>('idle');
+  const [opResults, setOpResults] = useState<OpResult[]>(
+    () => data.operations.map(() => ({ status: 'pending' as OpStatus }))
+  );
+  const [rejected, setRejected] = useState(false);
+  const [successCount, setSuccessCount] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
 
   const selectedCount = checkedOps.filter(Boolean).length;
   const totalCount = data.operations.length;
@@ -178,7 +219,13 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
   const updates = data.operations.filter((op): op is DataUpdateOperation => op.action === 'update');
   const deletes = data.operations.filter((op): op is DataDeleteOperation => op.action === 'delete');
 
+  const completedCount = opResults.filter(r => r.status === 'success' || r.status === 'error').length;
+  const runningTotal = opResults.filter(r => r.status !== 'pending').length > 0
+    ? checkedOps.filter(Boolean).length
+    : 0;
+
   const toggleOp = (index: number) => {
+    if (phase !== 'idle') return;
     setCheckedOps((prev) => {
       const next = [...prev];
       next[index] = !next[index];
@@ -186,36 +233,63 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
     });
   };
 
-  const handleApply = () => {
-    const selectedOps = data.operations.filter((_, i) => checkedOps[i]);
-    if (selectedOps.length === 0) return;
+  const handleApply = useCallback(async () => {
+    const selectedIndices = data.operations
+      .map((_, i) => i)
+      .filter(i => checkedOps[i]);
 
-    setStatus('applying');
-    setProgress({ current: 0, total: selectedOps.length });
+    if (selectedIndices.length === 0) return;
 
-    const acceptData: DataProposalData = {
-      ...data,
-      operations: selectedOps,
-    };
+    setPhase('running');
 
-    // Simulate progress (the parent handles actual execution)
-    let tick = 0;
-    const interval = setInterval(() => {
-      tick++;
-      if (tick >= selectedOps.length) {
-        clearInterval(interval);
-        setProgress({ current: selectedOps.length, total: selectedOps.length });
-        setStatus('applied');
-      } else {
-        setProgress({ current: tick, total: selectedOps.length });
+    let successes = 0;
+    let errors = 0;
+
+    for (const idx of selectedIndices) {
+      const op = data.operations[idx];
+
+      // Mark running
+      setOpResults(prev => {
+        const next = [...prev];
+        next[idx] = { status: 'running' };
+        return next;
+      });
+
+      try {
+        if (onExecuteOperation) {
+          await onExecuteOperation(op);
+        }
+        // Mark success
+        setOpResults(prev => {
+          const next = [...prev];
+          next[idx] = { status: 'success' };
+          return next;
+        });
+        successes++;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setOpResults(prev => {
+          const next = [...prev];
+          next[idx] = { status: 'error', error: errorMsg };
+          return next;
+        });
+        errors++;
       }
-    }, 200);
+    }
 
-    onAccept?.(acceptData);
-  };
+    setSuccessCount(successes);
+    setErrorCount(errors);
+    setPhase('done');
+  }, [data.operations, checkedOps, onExecuteOperation]);
+
+  const handleDone = useCallback(() => {
+    // Build data with only successful ops for the refresh callback
+    const successfulOps = data.operations.filter((_, i) => opResults[i].status === 'success');
+    onAccept?.({ ...data, operations: successfulOps });
+  }, [data, opResults, onAccept]);
 
   const handleReject = () => {
-    setStatus('rejected');
+    setRejected(true);
     onReject?.();
   };
 
@@ -226,23 +300,13 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
   if (deletes.length > 0) parts.push(`${deletes.length} deletion${deletes.length > 1 ? 's' : ''}`);
   const summaryText = parts.join(', ');
 
-  if (status === 'applied') {
-    return (
-      <div className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-        <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm">
-          <CheckIcon className="h-4 w-4" />
-          <span>
-            {selectedCount === totalCount
-              ? `${totalCount} changes applied`
-              : `${selectedCount} of ${totalCount} changes applied`
-            }
-          </span>
-        </div>
-      </div>
-    );
-  }
+  // Result for a given global index (only shown during/after execution)
+  const getOpResult = (globalIndex: number): OpResult | undefined => {
+    if (phase === 'idle') return undefined;
+    return opResults[globalIndex];
+  };
 
-  if (status === 'rejected') {
+  if (rejected) {
     return (
       <div className="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
@@ -289,6 +353,8 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
                   op={op}
                   checked={checkedOps[globalIndex]}
                   onToggle={() => toggleOp(globalIndex)}
+                  result={getOpResult(globalIndex)}
+                  disabled={phase !== 'idle'}
                 />
               );
             })}
@@ -310,6 +376,8 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
                   op={op}
                   checked={checkedOps[globalIndex]}
                   onToggle={() => toggleOp(globalIndex)}
+                  result={getOpResult(globalIndex)}
+                  disabled={phase !== 'idle'}
                 />
               );
             })}
@@ -331,6 +399,8 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
                   op={op}
                   checked={checkedOps[globalIndex]}
                   onToggle={() => toggleOp(globalIndex)}
+                  result={getOpResult(globalIndex)}
+                  disabled={phase !== 'idle'}
                 />
               );
             })}
@@ -338,13 +408,48 @@ export default function DataProposalCard({ data, onAccept, onReject }: DataPropo
         )}
       </div>
 
-      {/* Progress bar (when applying) */}
-      {status === 'applying' && (
-        <ProgressBar current={progress.current} total={progress.total} />
+      {/* Progress bar (when running) */}
+      {phase === 'running' && (
+        <ProgressBar current={completedCount} total={runningTotal} />
       )}
 
-      {/* Actions */}
-      {status === 'pending' && (
+      {/* Done summary banner */}
+      {phase === 'done' && (
+        <div className={`px-4 py-3 border-t ${
+          errorCount > 0
+            ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+            : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              {errorCount > 0 ? (
+                <>
+                  <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-amber-700 dark:text-amber-300">
+                    Applied {successCount} of {successCount + errorCount} — {errorCount} failed
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <span className="text-green-700 dark:text-green-300">
+                    {successCount === totalCount
+                      ? `All ${successCount} changes applied`
+                      : `${successCount} of ${totalCount} changes applied`
+                    }
+                  </span>
+                </>
+              )}
+            </div>
+            <Button size="sm" onClick={handleDone}>
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Actions (only when idle) */}
+      {phase === 'idle' && (
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={handleReject}>
             Cancel

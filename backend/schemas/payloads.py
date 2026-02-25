@@ -194,6 +194,7 @@ Rules:
 - Use column NAMES when adding columns. Use column IDs (from context) when modifying/removing/reordering.
 - For select columns, always include the full options list (not just additions).
 - If modifying options on a select column, include ALL options (existing + new), not just the new ones.
+- For select columns with 3-8 options representing a workflow state or primary categorization (Status, Priority, Stage, Phase), set filterDisplay: "tab" so the filter bar shows inline buttons instead of a dropdown. Omit filterDisplay for columns with many options or secondary importance.
 - Always include a brief "reasoning" field.
 - The user will see this as an interactive card where they can review and selectively apply changes."""
 
@@ -235,6 +236,11 @@ _COLUMN_DEF_SCHEMA = {
             "items": {"type": "string"},
             "description": "Options for select-type columns",
         },
+        "filterDisplay": {
+            "type": "string",
+            "enum": ["tab", "dropdown"],
+            "description": "'tab' for inline filter buttons, 'dropdown' for dropdown chip (default). Only for select columns.",
+        },
     },
     "required": ["name", "type"],
 }
@@ -265,6 +271,7 @@ _SCHEMA_OPERATION = {
                         "type": {"type": "string", "enum": ["text", "number", "date", "boolean", "select"]},
                         "required": {"type": "boolean"},
                         "options": {"type": "array", "items": {"type": "string"}},
+                        "filterDisplay": {"type": "string", "enum": ["tab", "dropdown"]},
                     },
                 },
             },

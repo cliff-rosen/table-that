@@ -73,5 +73,6 @@ sections:
       - Options are defined in the column schema
       - Displayed as a badge
       - Edited via a dropdown
-      - **Filter chip**: multi-select dropdown with option counts
+      - **Filter chip**: multi-select dropdown with option counts (default)
+      - **Tab filter**: set `filterDisplay: "tab"` to show inline filter buttons instead of a dropdown — ideal for columns with 3-8 options like Status or Priority
       - Good for status, category, priority, type

@@ -72,6 +72,7 @@ Always use SCHEMA_PROPOSAL when the user wants to:
 - For dates, suggest "date" type
 - Consider which columns should be required vs optional
 - Warn users about implications of type changes on existing data
+- For select columns with 3-8 options representing a workflow state or primary categorization (Status, Priority, Stage, Phase), set filterDisplay: "tab" so the filter bar shows inline buttons instead of a dropdown. Omit for columns with many options or secondary importance.
 
 ## Column IDs
 When modifying or removing existing columns, use their IDs (shown in context as col_xxx).

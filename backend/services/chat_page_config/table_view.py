@@ -39,7 +39,13 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
             options = ""
             if col_type == "select" and col.get("options"):
                 options = f" [{', '.join(col['options'])}]"
-            col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){required}")
+            annotations = []
+            if required:
+                annotations.append("required")
+            if col.get("filterDisplay") == "tab":
+                annotations.append("filter: tab")
+            annotation_str = f" ({', '.join(annotations)})" if annotations else ""
+            col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){annotation_str}")
         parts.append(f"Columns ({len(columns)}):\n" + "\n".join(col_lines))
 
     # Row count
@@ -84,6 +90,8 @@ You can help users with:
 - Proposing schema changes (adding/modifying/removing columns)
 - Proposing bulk data changes (multiple adds, updates, or deletes)
 - Describing the table structure
+- Searching the web and fetching webpages to help populate data
+- Enriching rows by researching each one via web search
 
 ## Tools Available
 - create_row: Add a single record (use for single row + explicit request)
@@ -92,6 +100,10 @@ You can help users with:
 - search_rows: Full-text search across text columns
 - describe_table: Get schema summary and stats
 - get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
+- for_each_row: Retrieve all rows matching a filter for bulk DATA_PROPOSAL generation
+- search_web: Search the web via DuckDuckGo
+- fetch_webpage: Fetch and extract text from a URL
+- enrich_rows: Research each row via web search to fill a target column (streaming, produces DATA_PROPOSAL)
 
 ## When to Use Tools vs Proposals
 
@@ -106,6 +118,7 @@ You can help users with:
 - User wants to change column types or options
 - Example: "Add a Priority column with options P0-P3"
 - Example: "Make the Date column required"
+- For select columns with 3-8 options representing a workflow state or primary categorization, set filterDisplay: "tab" so the filter bar shows inline buttons
 
 **Use DATA_PROPOSAL** when:
 - User wants to add multiple rows
@@ -113,7 +126,21 @@ You can help users with:
 - User wants to delete multiple rows
 - Example: "Add 5 sample bugs"
 - Example: "Mark all Resolved bugs as Closed"
-- Example: "Set all unassigned bugs' owner to Sarah"
+
+**Use for_each_row** when:
+- User wants to transform or compute values across many rows based on existing data
+- The transformation doesn't need web research
+- Example: "Change all Open bugs to In Progress"
+
+**Use enrich_rows** when:
+- User wants to fill in a column by looking up information for each row
+- The task requires web searches per row
+- Example: "Look up the website for each company"
+- Example: "Find the LinkedIn URL for each person"
+
+**Use search_web / fetch_webpage** for:
+- One-off lookups or research questions
+- Helping populate individual rows with web data
 
 ## Duplicate Detection
 When adding rows, check the existing data (sample rows in context) for potential duplicates. If you find a similar row, ask the user before creating a duplicate.
@@ -136,7 +163,7 @@ Be concise and helpful. When proposing changes, briefly explain what you're doin
 register_page(
     page="table_view",
     context_builder=table_view_context_builder,
-    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "suggest_schema"],
+    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "suggest_schema", "for_each_row", "search_web", "fetch_webpage", "enrich_rows"],
     payloads=["schema_proposal", "data_proposal"],
     persona=TABLE_VIEW_PERSONA,
 )

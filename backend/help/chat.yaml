@@ -86,6 +86,7 @@ sections:
       - Changing a column type may affect how existing data is displayed
       - The assistant uses column IDs internally for reliable targeting — renaming a column won't confuse it
       - You can request multiple changes at once and they'll appear as a single proposal
+      - For select columns with 3-8 options (like Status or Priority), the assistant may set `filterDisplay: "tab"` so the filter bar shows inline buttons instead of a dropdown
 
   - category: chat
     topic: data-proposals
@@ -199,3 +200,83 @@ sections:
       - "What are the value distributions for Status?"
 
       The assistant can summarize schema, row counts, and value distributions for select/boolean columns.
+
+  - category: chat
+    topic: web-tools
+    title: Web Search & Fetch
+    summary: The chat assistant can search the web and read webpages to help populate or verify data
+    roles: [member, org_admin, platform_admin]
+    order: 4
+    content: |
+      ## Web Search & Fetch
+
+      The chat assistant has access to web tools that let it look up information online.
+
+      ### Web Search
+      Ask the assistant to search for something:
+      - "Search for Acme Corp website"
+      - "Look up the latest funding round for Company X"
+      - "Find the Wikipedia page for CRISPR"
+
+      The assistant uses DuckDuckGo to search and returns titles, URLs, and snippets.
+
+      ### Fetching Webpages
+      Ask the assistant to read a specific URL:
+      - "Fetch https://example.com and tell me what it's about"
+      - "Read the homepage of acme.com"
+
+      The assistant fetches the page, extracts its text content, and can answer questions about it.
+
+      ### Use Cases
+      - Populating table data: "Add the website URL for this company" — the assistant searches, finds it, and adds it
+      - Verifying data: "Is this company still active? Check their website"
+      - Research: "What does this company do?" — the assistant searches and summarizes
+
+  - category: chat
+    topic: enriching-data
+    title: Enriching Data with Web Research
+    summary: Automatically research and fill in data for multiple rows using web search
+    roles: [member, org_admin, platform_admin]
+    order: 5
+    content: |
+      ## Enriching Data with Web Research
+
+      The chat assistant can automatically research each row in your table and fill in missing information.
+
+      ### How It Works
+
+      When you ask to fill in a column based on web research, the assistant uses the **enrich_rows** tool:
+      1. It finds rows that need the target column filled in
+      2. For each row, it performs web searches based on the row's existing data
+      3. It extracts the relevant information from search results
+      4. It presents all changes as a **Data Proposal** for your review
+
+      ### Examples
+
+      - "For each company, look up their website URL"
+      - "Find the LinkedIn page for each person"
+      - "Look up the headquarters city for each company"
+      - "Research the founding year for each organization"
+
+      ### How to Use
+
+      1. Make sure your table has the target column (e.g., "Website URL")
+      2. Ask the assistant: "Look up the website for each company and fill in the URL column"
+      3. Watch the progress as it researches each row
+      4. Review the Data Proposal showing all found values
+      5. Uncheck any incorrect results, then click Apply
+
+      ### Bulk Transformations (No Web Required)
+
+      For changes that don't need web research, the assistant uses **for_each_row**:
+      - "Change all Open bugs to In Progress"
+      - "Set the priority to High for all bugs assigned to Sarah"
+      - "Capitalize all company names"
+
+      These produce a Data Proposal directly without web lookups.
+
+      ### Limits
+
+      - Enrichment processes up to 50 rows at a time
+      - Only rows with empty target columns are processed by default
+      - You can filter which rows to enrich (e.g., "only companies in the US")
