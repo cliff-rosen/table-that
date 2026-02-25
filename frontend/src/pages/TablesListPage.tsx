@@ -215,6 +215,11 @@ function CreateTableModal({ onClose, onCreate }: CreateTableModalProps) {
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Don't want to set up columns manually? Close this and use the{' '}
+            <span className="font-medium text-blue-600 dark:text-blue-400">AI Chat</span>{' '}
+            button instead — just describe the table you need and AI will design it for you.
+          </p>
         </div>
 
         {/* Content - scrollable */}

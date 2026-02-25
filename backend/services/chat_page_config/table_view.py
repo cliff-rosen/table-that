@@ -165,7 +165,7 @@ Be concise and helpful. When proposing changes, briefly explain what you're doin
 register_page(
     page="table_view",
     context_builder=table_view_context_builder,
-    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "suggest_schema", "for_each_row", "search_web", "fetch_webpage", "research_web"],
+    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "for_each_row", "search_web", "fetch_webpage", "research_web"],
     payloads=["schema_proposal", "data_proposal"],
     persona=TABLE_VIEW_PERSONA,
 )
