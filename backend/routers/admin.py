@@ -5,12 +5,15 @@ Requires platform_admin role for all operations.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime
 import logging
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from models import User, UserRole
+from models import User, UserRole, ChatConfig
 from services import auth_service
+from database import get_async_db
 from services.organization_service import OrganizationService, get_organization_service
 from services.user_service import UserService, get_user_service
 from services.invitation_service import InvitationService, get_invitation_service
@@ -539,4 +542,500 @@ async def create_user_directly(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create user: {str(e)}",
+        )
+
+
+# ==================== Chat System Configuration ====================
+
+
+class PayloadTypeInfo(BaseModel):
+    """Info about a registered payload type."""
+
+    name: str
+    description: str
+    source: str
+    is_global: bool
+    parse_marker: Optional[str] = None
+    has_parser: bool = False
+    has_instructions: bool = False
+    schema: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ToolInfo(BaseModel):
+    """Info about a registered tool."""
+
+    name: str
+    description: str
+    category: str
+    is_global: bool
+    payload_type: Optional[str] = None
+    streaming: bool = False
+    input_schema: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubTabConfigInfo(BaseModel):
+    """Info about a subtab configuration."""
+
+    payloads: List[str]
+    tools: List[str]
+
+
+class TabConfigInfo(BaseModel):
+    """Info about a tab configuration."""
+
+    payloads: List[str]
+    tools: List[str]
+    subtabs: dict[str, SubTabConfigInfo] = {}
+
+
+class PageConfigInfo(BaseModel):
+    """Info about a page configuration."""
+
+    page: str
+    has_context_builder: bool
+    payloads: List[str]
+    tools: List[str]
+    tabs: dict[str, TabConfigInfo]
+    client_actions: List[str]
+
+
+class ChatConfigResponse(BaseModel):
+    """Complete chat system configuration."""
+
+    payload_types: List[PayloadTypeInfo]
+    tools: List[ToolInfo]
+    pages: List[PageConfigInfo]
+    summary: dict
+
+
+@router.get(
+    "/chat-config",
+    response_model=ChatConfigResponse,
+    summary="Get chat system configuration",
+)
+async def get_chat_config(
+    current_user: User = Depends(require_platform_admin),
+):
+    """Get complete chat system configuration. Platform admin only."""
+    logger.info(f"get_chat_config - admin_user_id={current_user.user_id}")
+
+    try:
+        from schemas.payloads import get_all_payload_types
+        from tools.registry import get_all_tools
+        import services.chat_page_config
+        from services.chat_page_config.registry import _page_registry
+
+        # Get all payload types
+        payload_types = []
+        for pt in get_all_payload_types():
+            payload_types.append(
+                PayloadTypeInfo(
+                    name=pt.name,
+                    description=pt.description,
+                    source=pt.source,
+                    is_global=pt.is_global,
+                    parse_marker=pt.parse_marker,
+                    has_parser=pt.parser is not None,
+                    has_instructions=pt.llm_instructions is not None
+                    and len(pt.llm_instructions) > 0,
+                    schema=pt.schema,
+                )
+            )
+
+        # Get all tools
+        tools = []
+        for tool in get_all_tools():
+            tools.append(
+                ToolInfo(
+                    name=tool.name,
+                    description=tool.description,
+                    category=tool.category,
+                    is_global=tool.is_global,
+                    payload_type=tool.payload_type,
+                    streaming=tool.streaming,
+                    input_schema=tool.input_schema,
+                )
+            )
+
+        # Get all page configs
+        pages = []
+        for page_name, config in _page_registry.items():
+            tabs_info = {}
+            for tab_name, tab_config in config.tabs.items():
+                subtabs_info = {}
+                for subtab_name, subtab_config in tab_config.subtabs.items():
+                    subtabs_info[subtab_name] = SubTabConfigInfo(
+                        payloads=subtab_config.payloads, tools=subtab_config.tools
+                    )
+                tabs_info[tab_name] = TabConfigInfo(
+                    payloads=tab_config.payloads,
+                    tools=tab_config.tools,
+                    subtabs=subtabs_info,
+                )
+            pages.append(
+                PageConfigInfo(
+                    page=page_name,
+                    has_context_builder=config.context_builder is not None,
+                    payloads=config.payloads,
+                    tools=config.tools,
+                    tabs=tabs_info,
+                    client_actions=[ca.action for ca in config.client_actions],
+                )
+            )
+
+        summary = {
+            "total_payload_types": len(payload_types),
+            "global_payloads": len([p for p in payload_types if p.is_global]),
+            "llm_payloads": len([p for p in payload_types if p.source == "llm"]),
+            "tool_payloads": len([p for p in payload_types if p.source == "tool"]),
+            "total_tools": len(tools),
+            "global_tools": len([t for t in tools if t.is_global]),
+            "total_pages": len(pages),
+        }
+
+        logger.info(
+            f"get_chat_config complete - payloads={len(payload_types)}, tools={len(tools)}, pages={len(pages)}"
+        )
+        return ChatConfigResponse(
+            payload_types=payload_types,
+            tools=tools,
+            pages=pages,
+            summary=summary,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_chat_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get chat config: {str(e)}",
+        )
+
+
+# ==================== Page Chat Config Management ====================
+
+
+class ChatConfigUpdate(BaseModel):
+    """Request body for updating chat config."""
+
+    content: Optional[str] = None
+
+
+class PageChatConfig(BaseModel):
+    """Page chat config info."""
+
+    page: str
+    content: Optional[str] = None
+    has_override: bool = False
+    default_content: Optional[str] = None
+    default_is_global: bool = False
+
+
+@router.get(
+    "/chat-config/pages",
+    response_model=List[PageChatConfig],
+    summary="List all page chat configs",
+)
+async def list_page_configs(
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> List[PageChatConfig]:
+    """Get all pages with their chat config (platform admin only)."""
+    import services.chat_page_config
+    from services.chat_page_config.registry import _page_registry, get_persona
+    from services.chat_stream_service import ChatStreamService
+
+    global_default = ChatStreamService.DEFAULT_PAGE_INSTRUCTIONS
+
+    try:
+        result = await db.execute(
+            select(ChatConfig).where(ChatConfig.scope == "page")
+        )
+        db_overrides = {cc.scope_key: cc.content for cc in result.scalars().all()}
+
+        configs = []
+        for page in _page_registry.keys():
+            db_content = db_overrides.get(page)
+            code_default = get_persona(page)
+            default_content = code_default or global_default
+
+            configs.append(
+                PageChatConfig(
+                    page=page,
+                    content=db_content if db_content else default_content,
+                    has_override=db_content is not None,
+                    default_content=default_content,
+                    default_is_global=code_default is None,
+                )
+            )
+
+        configs.sort(key=lambda x: x.page)
+        logger.info(f"list_page_configs - count={len(configs)}")
+        return configs
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_page_configs failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list page configs: {str(e)}",
+        )
+
+
+@router.get(
+    "/chat-config/pages/{page}",
+    response_model=PageChatConfig,
+    summary="Get page chat config",
+)
+async def get_page_config(
+    page: str,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> PageChatConfig:
+    """Get chat config for a page (platform admin only)."""
+    import services.chat_page_config
+    from services.chat_page_config.registry import _page_registry, get_persona
+    from services.chat_stream_service import ChatStreamService
+
+    global_default = ChatStreamService.DEFAULT_PAGE_INSTRUCTIONS
+
+    try:
+        if not _page_registry.get(page):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Page '{page}' not found",
+            )
+
+        result = await db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "page",
+                ChatConfig.scope_key == page
+            )
+        )
+        db_config = result.scalars().first()
+        db_content = db_config.content if db_config else None
+
+        code_default = get_persona(page)
+        default_content = code_default or global_default
+
+        return PageChatConfig(
+            page=page,
+            content=db_content if db_content else default_content,
+            has_override=db_content is not None,
+            default_content=default_content,
+            default_is_global=code_default is None,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_page_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get page config: {str(e)}",
+        )
+
+
+@router.put(
+    "/chat-config/pages/{page}",
+    response_model=PageChatConfig,
+    summary="Update page chat config",
+)
+async def update_page_config(
+    page: str,
+    update: ChatConfigUpdate,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> PageChatConfig:
+    """Update chat config for a page (platform admin only)."""
+    import services.chat_page_config
+    from services.chat_page_config.registry import _page_registry, get_persona
+    from services.chat_stream_service import ChatStreamService
+
+    global_default = ChatStreamService.DEFAULT_PAGE_INSTRUCTIONS
+
+    try:
+        if not _page_registry.get(page):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Page '{page}' not found",
+            )
+
+        result = await db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "page",
+                ChatConfig.scope_key == page
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            existing.content = update.content
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = current_user.user_id
+        else:
+            new_config = ChatConfig(
+                scope="page",
+                scope_key=page,
+                content=update.content,
+                updated_by=current_user.user_id,
+            )
+            db.add(new_config)
+
+        await db.commit()
+
+        logger.info(f"User {current_user.email} updated chat config for page '{page}'")
+
+        code_default = get_persona(page)
+        default_content = code_default or global_default
+
+        return PageChatConfig(
+            page=page,
+            content=update.content if update.content else default_content,
+            has_override=update.content is not None and len(update.content.strip()) > 0,
+            default_content=default_content,
+            default_is_global=code_default is None,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_page_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update page config: {str(e)}",
+        )
+
+
+@router.delete(
+    "/chat-config/pages/{page}",
+    summary="Delete page chat config override",
+)
+async def delete_page_config(
+    page: str,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> Dict[str, str]:
+    """Delete chat config override for a page, reverting to default (platform admin only)."""
+    import services.chat_page_config
+    from services.chat_page_config.registry import _page_registry
+
+    try:
+        config = _page_registry.get(page)
+        if not config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Page '{page}' not found",
+            )
+
+        result = await db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "page",
+                ChatConfig.scope_key == page
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            await db.delete(existing)
+            await db.commit()
+            logger.info(f"User {current_user.email} deleted chat config for page '{page}'")
+            return {"status": "deleted", "page": page}
+        else:
+            return {"status": "no_override", "page": page}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_page_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete page config: {str(e)}",
+        )
+
+
+# ==================== System Chat Config ====================
+
+
+class SystemConfigResponse(BaseModel):
+    """System configuration settings."""
+    max_tool_iterations: int = Field(description="Maximum tool call iterations per chat request")
+    global_preamble: Optional[str] = Field(None, description="Global preamble override (None = use default)")
+    default_global_preamble: str = Field(description="Default global preamble from code")
+
+
+class SystemConfigUpdate(BaseModel):
+    """Update system configuration."""
+    max_tool_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max tool iterations (1-20)")
+    global_preamble: Optional[str] = Field(None, description="Global preamble override")
+    clear_global_preamble: bool = Field(False, description="Set to True to remove preamble override")
+
+
+@router.get(
+    "/chat-config/system",
+    response_model=SystemConfigResponse,
+    summary="Get system chat configuration",
+)
+async def get_system_config_endpoint(
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> SystemConfigResponse:
+    """Get system-wide chat configuration settings (platform admin only)."""
+    from services.chat_service import ChatService
+    from services.chat_stream_service import ChatStreamService
+
+    try:
+        chat_service = ChatService(db)
+        config = await chat_service.get_system_config()
+        return SystemConfigResponse(
+            **config,
+            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE
+        )
+    except Exception as e:
+        logger.error(f"get_system_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get system config: {str(e)}",
+        )
+
+
+@router.put(
+    "/chat-config/system",
+    response_model=SystemConfigResponse,
+    summary="Update system chat configuration",
+)
+async def update_system_config_endpoint(
+    update: SystemConfigUpdate,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> SystemConfigResponse:
+    """Update system-wide chat configuration settings (platform admin only)."""
+    from services.chat_service import ChatService
+    from services.chat_stream_service import ChatStreamService
+
+    try:
+        chat_service = ChatService(db)
+        config = await chat_service.update_system_config(
+            user_id=current_user.user_id,
+            max_tool_iterations=update.max_tool_iterations,
+            global_preamble=update.global_preamble,
+            clear_global_preamble=update.clear_global_preamble
+        )
+        return SystemConfigResponse(
+            **config,
+            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE
+        )
+    except Exception as e:
+        logger.error(f"update_system_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update system config: {str(e)}",
         )

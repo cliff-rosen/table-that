@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -11,6 +11,7 @@ import {
   ChatBubbleLeftRightIcon,
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 import { getTable, listRows, createRow, updateRow, deleteRow, bulkDeleteRows, searchRows, exportTableCsv } from '../lib/api/tableApi';
 import type { TableDefinition, TableRow, ColumnDefinition, SortState } from '../types/table';
@@ -603,6 +604,7 @@ function TableToolbar({
 export default function TableViewPage() {
   const { tableId: tableIdParam } = useParams<{ tableId: string }>();
   const tableId = Number(tableIdParam);
+  const navigate = useNavigate();
 
   // Data state
   const [table, setTable] = useState<TableDefinition | null>(null);
@@ -620,7 +622,7 @@ export default function TableViewPage() {
   const [editingCell, setEditingCell] = useState<{ rowId: number; columnId: string } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
 
   // Search debounce ref
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -911,14 +913,34 @@ export default function TableViewPage() {
       {/* Main content */}
       <div className="flex-1 min-h-0 flex flex-col">
         {/* Page title */}
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          <div className="flex items-center gap-3">
-            <TableCellsIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{table.name}</h1>
-              {table.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{table.description}</p>
-              )}
+        <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <TableCellsIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{table.name}</h1>
+                {table.description && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{table.description}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/tables/${tableId}/edit`)}
+                className="gap-2"
+              >
+                <PencilSquareIcon className="h-5 w-5" />
+                Edit Schema
+              </Button>
+              <Button
+                variant={chatOpen ? 'default' : 'outline'}
+                onClick={() => setChatOpen((prev) => !prev)}
+                className="gap-2"
+              >
+                <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                {chatOpen ? 'Hide Chat' : 'Chat'}
+              </Button>
             </div>
           </div>
         </div>
@@ -935,7 +957,6 @@ export default function TableViewPage() {
             onDeleteSelected={handleDeleteSelected}
             onImport={() => setShowImportModal(true)}
             onExport={handleExport}
-            onToggleChat={() => setChatOpen((prev) => !prev)}
           />
         </div>
 

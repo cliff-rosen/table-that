@@ -23,6 +23,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import AdminPage from './pages/AdminPage';
 import TablesListPage from './pages/TablesListPage';
 import TableViewPage from './pages/TableViewPage';
+import TableEditPage from './pages/TableEditPage';
 
 // Inner component that uses auth context
 function AppContent() {
@@ -41,11 +42,12 @@ function AppContent() {
     return (
       <div className="h-screen flex flex-col dark:bg-gray-900 bg-gray-50">
         <TopBar />
-        <main className="flex-1 overflow-y-auto pt-16">
+        <main className="flex-1 min-h-0 flex flex-col pt-16">
           <Routes>
             <Route path="/" element={<Navigate to="/tables" />} />
             <Route path="/tables" element={<TablesListPage />} />
             <Route path="/tables/:tableId" element={<TableViewPage />} />
+            <Route path="/tables/:tableId/edit" element={<TableEditPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Navigate to="/profile" replace />} />
             <Route path="/admin" element={<AdminPage />} />

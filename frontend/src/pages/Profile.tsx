@@ -126,7 +126,7 @@ export default function Profile() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="flex-1 min-h-0 overflow-auto max-w-4xl mx-auto w-full p-6">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                     Settings

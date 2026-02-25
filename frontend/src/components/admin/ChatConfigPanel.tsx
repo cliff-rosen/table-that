@@ -23,13 +23,12 @@ import {
     ArrowsPointingInIcon,
     Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCConfig, type StreamChatConfig, type PageChatConfig, type ToolInfo, type TopicSummariesResponse, type SystemConfig } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCConfig, type PageChatConfig, type ToolInfo, type TopicSummariesResponse, type SystemConfig } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 
-type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help' | 'system';
+type ConfigTab = 'pages' | 'payloads' | 'tools' | 'help' | 'system';
 
 const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'streams', label: 'Streams', icon: BeakerIcon },
     { id: 'pages', label: 'Pages', icon: DocumentTextIcon },
     { id: 'payloads', label: 'Payloads', icon: CubeIcon },
     { id: 'tools', label: 'Tools', icon: WrenchScrewdriverIcon },
@@ -50,15 +49,7 @@ export function ChatConfigPanel() {
     const [config, setConfig] = useState<ChatConfigResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<ConfigTab>('streams');
-
-    // Stream config editing state
-    const [streamConfigs, setStreamConfigs] = useState<StreamChatConfig[]>([]);
-    const [selectedStream, setSelectedStream] = useState<StreamChatConfig | null>(null);
-    const [streamInstructions, setStreamInstructions] = useState<string>('');
-    const [isLoadingStreams, setIsLoadingStreams] = useState(false);
-    const [isSavingStream, setIsSavingStream] = useState(false);
-    const [streamError, setStreamError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<ConfigTab>('pages');
 
     // Page config editing state
     const [pageConfigs, setPageConfigs] = useState<PageChatConfig[]>([]);
@@ -169,54 +160,6 @@ export function ChatConfigPanel() {
             setError(handleApiError(err));
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    // Stream config functions
-    const loadStreamConfigs = async () => {
-        setIsLoadingStreams(true);
-        setStreamError(null);
-        try {
-            const configs = await adminApi.getStreamConfigs();
-            setStreamConfigs(configs);
-        } catch (err) {
-            setStreamError(handleApiError(err));
-        } finally {
-            setIsLoadingStreams(false);
-        }
-    };
-
-    const openStreamConfig = (stream: StreamChatConfig) => {
-        setSelectedStream(stream);
-        setStreamInstructions(stream.content || '');
-        setStreamError(null);
-    };
-
-    const closeStreamConfig = () => {
-        setSelectedStream(null);
-        setStreamInstructions('');
-        setStreamError(null);
-    };
-
-    const saveStreamConfig = async () => {
-        if (!selectedStream) return;
-
-        setIsSavingStream(true);
-        setStreamError(null);
-
-        try {
-            const trimmed = streamInstructions.trim();
-            await adminApi.updateStreamConfig(
-                selectedStream.stream_id,
-                trimmed.length > 0 ? trimmed : null
-            );
-
-            await loadStreamConfigs();
-            closeStreamConfig();
-        } catch (err) {
-            setStreamError(handleApiError(err));
-        } finally {
-            setIsSavingStream(false);
         }
     };
 
@@ -564,13 +507,6 @@ export function ChatConfigPanel() {
     useEffect(() => {
         if (activeTab === 'help' && helpCategories.length === 0 && !isLoadingHelp) {
             loadHelpCategories();
-        }
-    }, [activeTab]);
-
-    // Load stream configs when switching to streams tab
-    useEffect(() => {
-        if (activeTab === 'streams' && streamConfigs.length === 0 && !isLoadingStreams) {
-            loadStreamConfigs();
         }
     }, [activeTab]);
 
@@ -1216,93 +1152,6 @@ export function ChatConfigPanel() {
                     </div>
                 )}
 
-                {activeTab === 'streams' && (
-                    <div>
-                        {isLoadingStreams ? (
-                            <div className="flex items-center justify-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                            </div>
-                        ) : streamError ? (
-                            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                                {streamError}
-                            </div>
-                        ) : (
-                            <>
-                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                        <thead className="bg-gray-50 dark:bg-gray-900">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                    Stream
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                    Has Instructions
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                    Preview
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                    Actions
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                            {streamConfigs.map((stream) => (
-                                                <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="font-medium text-gray-900 dark:text-white">
-                                                            {stream.stream_name}
-                                                        </div>
-                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                            ID: {stream.stream_id}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <StatusIcon active={stream.has_override} />
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {stream.content ? (
-                                                            <div className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
-                                                                <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                                    {stream.content.length > 200
-                                                                        ? stream.content.substring(0, 200) + '...'
-                                                                        : stream.content}
-                                                                </pre>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-gray-400 text-sm">No instructions configured</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                        <button
-                                                            onClick={() => openStreamConfig(stream)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
-                                                        >
-                                                            <PencilSquareIcon className="h-4 w-4" />
-                                                            Edit
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {streamConfigs.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                                        No research streams found.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                                    Stream instructions are included in the system prompt when chatting about reports from that stream.
-                                    They guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
-
                 {activeTab === 'help' && (
                     <div className="space-y-4">
                         {/* Help header with reload button */}
@@ -1869,72 +1718,6 @@ export function ChatConfigPanel() {
                     </p>
                 </div>
             </div>
-
-            {/* Stream Instructions Edit Modal - Full size for text editing */}
-            {selectedStream && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)] flex flex-col">
-                        {/* Header */}
-                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    Edit Chat Instructions
-                                </h2>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {selectedStream.stream_name}
-                                    {selectedStream.has_override && (
-                                        <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                            Custom Override
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
-                            <button
-                                onClick={closeStreamConfig}
-                                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-                            >
-                                <XMarkIcon className="h-6 w-6" />
-                            </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-h-0 flex flex-col p-6">
-                            {streamError && (
-                                <div className="flex-shrink-0 mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                                    {streamError}
-                                </div>
-                            )}
-                            <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                These instructions are added to the system prompt when chatting about reports from this stream.
-                                Use them to guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
-                            </p>
-                            <textarea
-                                value={streamInstructions}
-                                onChange={(e) => setStreamInstructions(e.target.value)}
-                                placeholder="Enter custom instructions for this stream..."
-                                className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
-                            />
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
-                            <button
-                                onClick={closeStreamConfig}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={saveStreamConfig}
-                                disabled={isSavingStream}
-                                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                            >
-                                {isSavingStream ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Global Preamble Edit Modal */}
             {isPreambleMaximized && systemConfig && (

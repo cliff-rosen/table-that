@@ -6,6 +6,7 @@ import {
   TableCellsIcon,
   XMarkIcon,
   ArrowUpTrayIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 import { listTables, createTable, deleteTable } from '../lib/api/tableApi';
 import type { TableListItem, ColumnDefinition, ColumnType } from '../types/table';
@@ -344,26 +345,39 @@ function DeleteConfirmModal({
 interface TableCardProps {
   table: TableListItem;
   onClick: () => void;
+  onEdit: () => void;
   onDelete: () => void;
 }
 
-function TableCard({ table, onClick, onDelete }: TableCardProps) {
+function TableCard({ table, onClick, onEdit, onDelete }: TableCardProps) {
   return (
     <div
       onClick={onClick}
       className="group relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all"
     >
-      {/* Delete button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="absolute top-3 right-3 p-1.5 rounded text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-        title="Delete table"
-      >
-        <TrashIcon className="h-4 w-4" />
-      </button>
+      {/* Action buttons */}
+      <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          className="p-1.5 rounded text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400"
+          title="Edit table schema"
+        >
+          <PencilSquareIcon className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="p-1.5 rounded text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+          title="Delete table"
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* Table name */}
       <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1 pr-8 truncate">
@@ -484,31 +498,28 @@ export default function TablesListPage() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex-1 min-h-0 flex flex-col">
-          <div className="max-w-6xl mx-auto w-full px-6 py-8">
-            <div className="flex items-center justify-between mb-8">
-              <div className="h-8 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-36 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
-                />
-              ))}
-            </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        <div className="max-w-6xl mx-auto w-full px-6 py-8">
+          <div className="flex items-center justify-between mb-8">
+            <div className="h-8 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
-        </main>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-36 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 min-h-0 flex flex-col">
-        <div className="max-w-6xl mx-auto w-full px-6 py-8">
+    <div className="flex-1 min-h-0 overflow-auto">
+      <div className="max-w-6xl mx-auto w-full px-6 py-8">
           {/* Page header */}
           <div className="flex-shrink-0 flex items-center justify-between mb-8">
             <div>
@@ -551,45 +562,45 @@ export default function TablesListPage() {
                   key={table.id}
                   table={table}
                   onClick={() => navigate(`/tables/${table.id}`)}
+                  onEdit={() => navigate(`/tables/${table.id}/edit`)}
                   onDelete={() => setDeleteTarget(table)}
                 />
               ))}
             </div>
           )}
         </div>
-      </main>
 
-      {/* Create modal */}
-      {showCreateModal && (
-        <CreateTableModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreate}
-        />
-      )}
+        {/* Create modal */}
+        {showCreateModal && (
+          <CreateTableModal
+            onClose={() => setShowCreateModal(false)}
+            onCreate={handleCreate}
+          />
+        )}
 
-      {/* Import CSV modal (creates new table from CSV) */}
-      {showImportModal && (
-        <ImportModal
-          onClose={() => setShowImportModal(false)}
-          onImported={(result) => {
-            setShowImportModal(false);
-            if (result.tableId) {
-              navigate(`/tables/${result.tableId}`);
-            } else {
-              fetchTables();
-            }
-          }}
-        />
-      )}
+        {/* Import CSV modal (creates new table from CSV) */}
+        {showImportModal && (
+          <ImportModal
+            onClose={() => setShowImportModal(false)}
+            onImported={(result) => {
+              setShowImportModal(false);
+              if (result.tableId) {
+                navigate(`/tables/${result.tableId}`);
+              } else {
+                fetchTables();
+              }
+            }}
+          />
+        )}
 
-      {/* Delete confirmation modal */}
-      {deleteTarget && (
-        <DeleteConfirmModal
-          tableName={deleteTarget.name}
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={handleDelete}
-        />
-      )}
-    </div>
+        {/* Delete confirmation modal */}
+        {deleteTarget && (
+          <DeleteConfirmModal
+            tableName={deleteTarget.name}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={handleDelete}
+          />
+        )}
+      </div>
   );
 }

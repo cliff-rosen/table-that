@@ -49,7 +49,7 @@ export default function AdminPage() {
     }
 
     return (
-        <div className="h-full flex flex-col px-4 py-8">
+        <div className="flex-1 min-h-0 flex flex-col overflow-auto px-4 py-8">
             {/* Page Header */}
             <div className="max-w-7xl mx-auto w-full flex-shrink-0 mb-6">
                 <div className="flex items-center gap-3 mb-2">

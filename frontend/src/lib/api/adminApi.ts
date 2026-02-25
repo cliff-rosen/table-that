@@ -550,7 +550,6 @@ export interface ChatConfigResponse {
   payload_types: PayloadTypeInfo[];
   tools: ToolInfo[];
   pages: PageConfigInfo[];
-  stream_instructions: StreamInstructionsInfo[];
   summary: {
     total_payload_types: number;
     global_payloads: number;
@@ -559,8 +558,6 @@ export interface ChatConfigResponse {
     total_tools: number;
     global_tools: number;
     total_pages: number;
-    total_streams: number;
-    streams_with_instructions: number;
   };
 }
 
