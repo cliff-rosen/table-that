@@ -87,13 +87,9 @@ function App() {
         v7_relativeSplatPath: true
       }}
     >
-      <Routes>
-        <Route path="/*" element={
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        } />
-      </Routes>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
