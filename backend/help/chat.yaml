@@ -1,0 +1,201 @@
+sections:
+  - category: chat
+    topic: overview
+    title: Chat Assistant Overview
+    summary: What the chat assistant can do, three interaction modes, when chat is available
+    roles: [member, org_admin, platform_admin]
+    order: 0
+    content: |
+      ## Chat Assistant Overview
+
+      The chat panel is available on the **Table View** and **Schema Editor** pages. It's the primary power interface — every significant operation flows through chat as a reviewable proposal.
+
+      ### Three Interaction Modes
+
+      1. **How-to questions** — Ask how to do something and the assistant retrieves help documentation.
+         - "How do I filter by status?"
+         - "What column types are available?"
+
+      2. **Single-row data operations** — Quick adds, edits, and deletes using direct tools.
+         - "Add a bug: Login timeout, Critical, Open"
+         - "Delete row 12"
+         - "Change row 5's status to Closed"
+
+      3. **Proposals** — Schema changes and multi-row data operations appear as interactive review cards.
+         - "Add a Priority column with options P0, P1, P2, P3" → Schema Proposal card
+         - "Add 10 sample bugs" → Data Proposal card
+         - "Mark all Open bugs as Closed" → Data Proposal card
+
+      ### What the Assistant Knows
+
+      On the **Table View** page, the assistant automatically sees:
+      - Your table name, description, and full column schema
+      - The first 20 rows of data as a sample
+      - Total row count
+      - Active filters and sort state
+
+      On the **Schema Editor** page, the assistant sees:
+      - Your table name, description, and full column schema (with column IDs)
+      - Row count (to warn about data impact of schema changes)
+
+      The assistant can also use tools to see more data — it can paginate through all rows, search, and get statistical summaries.
+
+  - category: chat
+    topic: schema-proposals
+    title: Schema Proposals
+    summary: How to ask for schema changes, what the proposal card shows, reviewing and applying
+    roles: [member, org_admin, platform_admin]
+    order: 1
+    content: |
+      ## Schema Proposals
+
+      A **Schema Proposal** is how the chat assistant proposes changes to your table structure. Any request to add, remove, modify, or reorder columns goes through a proposal card.
+
+      ### How to Ask for Schema Changes
+
+      Describe what you want in natural language:
+      - "Add a Priority column with options High, Medium, Low"
+      - "Make the Email column required"
+      - "Remove the Notes column"
+      - "Add 'Deferred' to the Status options"
+      - "Rename Severity to Priority"
+      - "I need a bug tracker with title, severity, status, and assignee"
+      - "Reorder columns so Status comes after Title"
+
+      ### What the Proposal Card Shows
+
+      The assistant responds with an interactive card listing each proposed change:
+      - **Add** (green): New column with name, type, and options
+      - **Modify** (amber): Shows what's changing on an existing column (e.g., name, type, options, required)
+      - **Remove** (red): Column to be deleted — warns about data loss
+      - **Reorder** (blue): Column being moved to a new position
+
+      Each change has a checkbox. You can uncheck changes you don't want.
+
+      ### Reviewing and Applying
+
+      1. Review each proposed change in the card
+      2. Uncheck any changes you don't want
+      3. Click **Apply** to execute the checked changes
+      4. The table schema updates immediately
+
+      If you click **Cancel**, no changes are made.
+
+      ### Important Notes
+      - Removing a column deletes all data in that column permanently
+      - Changing a column type may affect how existing data is displayed
+      - The assistant uses column IDs internally for reliable targeting — renaming a column won't confuse it
+      - You can request multiple changes at once and they'll appear as a single proposal
+
+  - category: chat
+    topic: data-proposals
+    title: Data Proposals
+    summary: How bulk data operations work — adds, updates, deletes as reviewable proposal cards
+    roles: [member, org_admin, platform_admin]
+    order: 2
+    content: |
+      ## Data Proposals
+
+      A **Data Proposal** is how the chat assistant proposes bulk data changes. Any request involving multiple rows — adding, updating, or deleting — goes through a proposal card.
+
+      ### When Data Proposals Are Used
+
+      The assistant uses a Data Proposal whenever:
+      - You ask to add multiple rows: "Add 10 sample bugs"
+      - You ask to update multiple rows: "Mark all Open bugs as Closed"
+      - You ask to delete multiple rows: "Delete all rows where Status is Withdrawn"
+      - You ask for data transformations: "Capitalize all company names"
+      - You ask to populate the table: "Generate some test data"
+
+      For a single explicit row (e.g., "Add a bug called Login timeout"), the assistant uses a direct tool instead — no proposal needed.
+
+      ### What the Proposal Card Shows
+
+      Operations are grouped by type:
+      - **Additions** (green): New rows with all column values shown
+      - **Updates** (amber): Existing rows with changed values highlighted
+      - **Deletions** (red): Rows to be deleted
+
+      Each operation has a checkbox. A summary line shows counts: "3 additions, 2 updates, 1 deletion"
+
+      ### Reviewing and Applying
+
+      1. Review the proposed changes — each row is shown with its data
+      2. Uncheck any operations you don't want
+      3. Click **Apply** to execute the checked operations
+      4. Watch the progress bar as changes are applied one by one
+      5. The data table refreshes when complete
+
+      ### How Apply Works
+
+      Unlike schema proposals (which apply atomically), data proposals execute each operation individually:
+      - Each add creates a row via the API
+      - Each update modifies a row via the API
+      - Each delete removes a row via the API
+
+      This means some operations can succeed even if others fail. The card shows progress (pending → done or error) for each operation.
+
+      ### Tips
+      - For bulk updates, the assistant reads your data first to find matching rows by row ID
+      - You can ask for changes based on conditions: "Set all Critical bugs' assignee to Sarah"
+      - The assistant checks for duplicates before proposing additions
+      - If the table has many rows, the assistant paginates through the data to find all matches
+
+  - category: chat
+    topic: single-operations
+    title: Single-Row Operations via Chat
+    summary: Quick adds, edits, and deletes using direct tools — no proposal card needed
+    roles: [member, org_admin, platform_admin]
+    order: 3
+    content: |
+      ## Single-Row Operations via Chat
+
+      For simple, single-row changes, the chat assistant acts immediately using tools — no proposal card to review.
+
+      ### Adding a Single Row
+      - "Add a bug: Login page crashes on Safari, Critical, Open"
+      - "Add a record for Acme Corp, position: Engineer, status: Applied"
+      - "Create a new row with name John Doe, age 30"
+
+      The assistant maps your values to the right columns and creates the row directly.
+
+      ### Updating a Single Row
+      - "Change row 5's status to Closed"
+      - "Set the priority of row 12 to High"
+      - "Update row 3: assignee = Sarah, status = In Progress"
+
+      You need to reference the row by its ID (shown in the # column on the left of the table).
+
+      ### Deleting a Single Row
+      - "Delete row 12"
+      - "Remove row 7"
+
+      Deletion is immediate — there's no undo.
+
+      ### When Direct Tools vs Proposals
+
+      | Request | Method |
+      |---------|--------|
+      | "Add a bug called Login timeout" | Direct tool (single add) |
+      | "Add 5 sample bugs" | Data Proposal (multiple adds) |
+      | "Delete row 12" | Direct tool (single delete) |
+      | "Delete all Closed bugs" | Data Proposal (multiple deletes) |
+      | "Update row 3's status" | Direct tool (single update) |
+      | "Mark all Open bugs as Closed" | Data Proposal (multiple updates) |
+
+      The rule: **one row, explicit** → direct tool. **Multiple rows or conditional** → proposal.
+
+      ### Searching Data
+      You can also ask the assistant to find data:
+      - "Search for Safari"
+      - "Find all rows mentioning login"
+      - "What rows have Sarah as assignee?"
+
+      The assistant searches across text columns and returns matching rows.
+
+      ### Describing the Table
+      - "Describe this table"
+      - "How many rows are there?"
+      - "What are the value distributions for Status?"
+
+      The assistant can summarize schema, row counts, and value distributions for select/boolean columns.

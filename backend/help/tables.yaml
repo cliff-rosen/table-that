@@ -1,0 +1,122 @@
+sections:
+  - category: tables
+    topic: creating-tables
+    title: Creating Tables
+    summary: How to create tables via the UI or via chat proposals
+    roles: [member, org_admin, platform_admin]
+    order: 0
+    content: |
+      ## Creating Tables
+
+      ### Via the UI
+      1. Go to the Tables List page
+      2. Click "New Table"
+      3. Fill in:
+         - **Name** (required): e.g., "Bug Tracker", "Customer List"
+         - **Description** (optional): What this table is for
+         - **Columns**: Add columns with name, type, required flag, and options (for select)
+      4. Click "Create Table"
+
+      ### Via Chat
+      Open any table and describe what you want to build in the chat panel:
+      - "I need a bug tracker with title, severity, status, and assignee"
+      - "Create a table for tracking job applications"
+
+      The assistant will propose a complete schema as a **Schema Proposal** card. You can review each column, uncheck ones you don't want, and click Apply.
+
+      ### Via CSV Import
+      1. Click "Import CSV" on the Tables List page
+      2. Upload a CSV file
+      3. table.that auto-detects column types
+      4. Review the detected schema and adjust if needed
+      5. Click Import — a new table is created with the data
+
+  - category: tables
+    topic: editing-schema
+    title: Editing Table Schema
+    summary: How to modify columns via the schema editor or via chat proposals
+    roles: [member, org_admin, platform_admin]
+    order: 1
+    content: |
+      ## Editing Table Schema
+
+      ### Via the Schema Editor
+      1. From the data view, click "Edit Schema" in the header
+      2. Or from the tables list, click the pencil icon on a table card
+      3. In the editor:
+         - Edit column names, types, and required status
+         - For select columns, edit the options list (one per line)
+         - Reorder columns with the up/down arrows
+         - Remove columns with the trash icon
+         - Add new columns with "Add Column"
+      4. Click "Save Changes"
+
+      ### Via Chat
+      On either the data view or schema editor page, tell the chat assistant what you want:
+      - "Add a Priority column with options High, Medium, Low"
+      - "Make the Email column required"
+      - "Remove the Notes column"
+      - "Add 'Deferred' to the Status options"
+      - "Rename Severity to Priority"
+
+      The assistant responds with a **Schema Proposal** card showing each change. Review, uncheck any you don't want, and click Apply.
+
+      ### Important Notes
+      - Removing a column deletes all data in that column — the assistant warns you
+      - Changing a column type may affect existing data
+      - Column IDs are stable — renaming a column doesn't break existing data
+
+  - category: tables
+    topic: importing-data
+    title: Importing Data
+    summary: How to import CSV files into existing tables or as new tables
+    roles: [member, org_admin, platform_admin]
+    order: 2
+    content: |
+      ## Importing Data
+
+      ### Import into Existing Table
+      1. Open the table you want to import into
+      2. Click "Import" in the toolbar
+      3. Upload a CSV file
+      4. The system maps CSV columns to table columns by name
+      5. Review the mapping and click Import
+
+      ### Create New Table from CSV
+      1. From the Tables List, click "Import CSV"
+      2. Upload your file
+      3. table.that auto-detects:
+         - Column names from the CSV header
+         - Column types from the data (text, number, date, boolean, select)
+         - Select options if a column has few unique values
+      4. Review the detected schema, adjust types if needed
+      5. Click Import
+
+      ### Type Detection
+      The auto-detect examines the first 100 rows:
+      - Numbers: columns where all values parse as numbers
+      - Dates: columns matching common date formats (YYYY-MM-DD, MM/DD/YYYY, etc.)
+      - Booleans: columns with only true/false/yes/no/1/0 values
+      - Select: text columns with 10 or fewer unique values
+      - Text: everything else
+
+  - category: tables
+    topic: exporting-data
+    title: Exporting Data
+    summary: How to export table data to CSV
+    roles: [member, org_admin, platform_admin]
+    order: 3
+    content: |
+      ## Exporting Data
+
+      1. Open the table you want to export
+      2. Click "Export" in the toolbar
+      3. A CSV file downloads with:
+         - Column names as headers
+         - All rows in the table
+         - Values formatted appropriately (dates as YYYY-MM-DD, booleans as true/false)
+
+      ### Notes
+      - Export includes all rows, regardless of active filters
+      - Column names are used as headers (not internal IDs)
+      - The file is named after the table (e.g., "Bug Tracker.csv")

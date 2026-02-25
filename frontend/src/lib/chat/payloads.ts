@@ -8,14 +8,43 @@
  * by individual pages when using ChatTray.
  */
 
+import React from 'react';
+import { registerPayloadHandler } from './payloadRegistry';
+import SchemaProposalCard from '../../components/chat/SchemaProposalCard';
+import DataProposalCard from '../../components/chat/DataProposalCard';
+import type { SchemaProposalData } from '../../components/chat/SchemaProposalCard';
+import type { DataProposalData } from '../../components/chat/DataProposalCard';
+
 // ============================================================================
-// Additional payload types can be registered here as needed.
-//
-// The pattern is:
-// 1. Import the card component
-// 2. Register with registerPayloadHandler(type, { render, renderOptions })
-//
-// For payloads that require page-specific callbacks (like schema_proposal),
-// those are still provided via the payloadHandlers prop on ChatTray since
-// they need access to page state and navigation.
+// Schema Proposal
 // ============================================================================
+
+registerPayloadHandler('schema_proposal', {
+  render: (payload: SchemaProposalData, callbacks) =>
+    React.createElement(SchemaProposalCard, {
+      data: payload,
+      onAccept: callbacks.onAccept,
+      onReject: callbacks.onReject,
+    }),
+  renderOptions: {
+    headerTitle: 'Schema Proposal',
+    headerIcon: '📋',
+  },
+});
+
+// ============================================================================
+// Data Proposal
+// ============================================================================
+
+registerPayloadHandler('data_proposal', {
+  render: (payload: DataProposalData, callbacks) =>
+    React.createElement(DataProposalCard, {
+      data: payload,
+      onAccept: callbacks.onAccept,
+      onReject: callbacks.onReject,
+    }),
+  renderOptions: {
+    headerTitle: 'Data Proposal',
+    headerIcon: '📊',
+  },
+});

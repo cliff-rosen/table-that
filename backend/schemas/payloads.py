@@ -135,4 +135,252 @@ def summarize_payload(payload_type: str, data: Dict[str, Any]) -> str:
 # =============================================================================
 # table.that Payload Registrations
 # =============================================================================
-# (Payloads will be registered here as features are built)
+
+
+def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
+    """Summarize a schema proposal for the payload manifest."""
+    ops = data.get("operations", [])
+    counts = {}
+    for op in ops:
+        action = op.get("action", "unknown")
+        counts[action] = counts.get(action, 0) + 1
+    parts = []
+    for action, count in counts.items():
+        label = {"add": "addition", "modify": "modification", "remove": "removal"}.get(action, action)
+        if count > 1:
+            label += "s"
+        parts.append(f"{count} {label}")
+    summary = ", ".join(parts) if parts else "empty proposal"
+    table_name = data.get("table_name")
+    if table_name:
+        summary = f'"{table_name}" — {summary}'
+    return f"Schema proposal: {summary}"
+
+
+def _summarize_data_proposal(data: Dict[str, Any]) -> str:
+    """Summarize a data proposal for the payload manifest."""
+    ops = data.get("operations", [])
+    counts = {}
+    for op in ops:
+        action = op.get("action", "unknown")
+        counts[action] = counts.get(action, 0) + 1
+    parts = []
+    for action, count in counts.items():
+        label = {"add": "addition", "update": "update", "delete": "deletion"}.get(action, action)
+        if count > 1:
+            label += "s"
+        parts.append(f"{count} {label}")
+    return f"Data proposal: {', '.join(parts)}" if parts else "Data proposal: empty"
+
+
+SCHEMA_PROPOSAL_INSTRUCTIONS = """SCHEMA_PROPOSAL (propose table schema changes):
+When the user asks you to create a table, add/remove/modify columns, change column types, reorder columns, or rename the table, respond with a SCHEMA_PROPOSAL in your message text.
+
+Format — write this as TEXT in your message (not a tool call):
+SCHEMA_PROPOSAL: {
+  "reasoning": "Brief explanation of what changes you're proposing",
+  "table_name": "Table Name",           // optional — only include if creating or renaming
+  "table_description": "Description",   // optional — only include if creating or changing
+  "operations": [
+    { "action": "add", "column": { "name": "Col Name", "type": "text|number|date|boolean|select", "required": true|false, "options": ["a","b"] } },
+    { "action": "add", "column": { ... }, "after_column_id": "col_xxx" },
+    { "action": "modify", "column_id": "col_xxx", "changes": { "name": "New Name", "type": "select", "options": [...], "required": true } },
+    { "action": "remove", "column_id": "col_xxx" },
+    { "action": "reorder", "column_id": "col_xxx", "after_column_id": "col_yyy" }
+  ]
+}
+
+Rules:
+- Use column NAMES when adding columns. Use column IDs (from context) when modifying/removing/reordering.
+- For select columns, always include the full options list (not just additions).
+- If modifying options on a select column, include ALL options (existing + new), not just the new ones.
+- Always include a brief "reasoning" field.
+- The user will see this as an interactive card where they can review and selectively apply changes."""
+
+
+DATA_PROPOSAL_INSTRUCTIONS = """DATA_PROPOSAL (propose bulk data changes):
+When the user asks you to add multiple rows, update multiple rows, delete multiple rows, or make bulk changes to data, respond with a DATA_PROPOSAL in your message text.
+
+Format — write this as TEXT in your message (not a tool call):
+DATA_PROPOSAL: {
+  "reasoning": "Brief explanation of what data changes you're proposing",
+  "operations": [
+    { "action": "add", "data": { "Column Name": "value", "Another Column": 42 } },
+    { "action": "update", "row_id": 5, "changes": { "Column Name": "new value" } },
+    { "action": "delete", "row_id": 12 }
+  ]
+}
+
+Rules:
+- Use column NAMES (not IDs) in data values and changes.
+- For updates, only include the columns being changed (not all columns).
+- For adds, include values for all relevant columns.
+- The user will see this as an interactive card showing proposed additions (green), updates (highlighted diff), and deletions (red). They can uncheck individual operations before applying.
+
+When to use DATA_PROPOSAL vs direct tools:
+- Single row + explicit user request → use create_row/update_row/delete_row tools directly
+- Multiple rows, or user says "add some sample data", "update all X", "mark these as Y" → use DATA_PROPOSAL
+- When in doubt, prefer DATA_PROPOSAL so the user can review before changes are applied."""
+
+
+# -- Schema for a column definition inside a schema_proposal add operation
+_COLUMN_DEF_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Column display name"},
+        "type": {"type": "string", "enum": ["text", "number", "date", "boolean", "select"]},
+        "required": {"type": "boolean"},
+        "options": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Options for select-type columns",
+        },
+    },
+    "required": ["name", "type"],
+}
+
+# -- Schema for individual schema operations
+_SCHEMA_OPERATION = {
+    "oneOf": [
+        {
+            "type": "object",
+            "description": "Add a new column",
+            "properties": {
+                "action": {"const": "add"},
+                "column": _COLUMN_DEF_SCHEMA,
+                "after_column_id": {"type": "string", "description": "Insert after this column ID (optional)"},
+            },
+            "required": ["action", "column"],
+        },
+        {
+            "type": "object",
+            "description": "Modify an existing column",
+            "properties": {
+                "action": {"const": "modify"},
+                "column_id": {"type": "string", "description": "ID of the column to modify (e.g. col_abc123)"},
+                "changes": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "type": {"type": "string", "enum": ["text", "number", "date", "boolean", "select"]},
+                        "required": {"type": "boolean"},
+                        "options": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            },
+            "required": ["action", "column_id", "changes"],
+        },
+        {
+            "type": "object",
+            "description": "Remove a column",
+            "properties": {
+                "action": {"const": "remove"},
+                "column_id": {"type": "string", "description": "ID of the column to remove"},
+            },
+            "required": ["action", "column_id"],
+        },
+        {
+            "type": "object",
+            "description": "Reorder a column",
+            "properties": {
+                "action": {"const": "reorder"},
+                "column_id": {"type": "string", "description": "ID of the column to move"},
+                "after_column_id": {"type": "string", "description": "Place after this column ID (omit for first position)"},
+            },
+            "required": ["action", "column_id"],
+        },
+    ]
+}
+
+# -- Schema for individual data operations
+_DATA_OPERATION = {
+    "oneOf": [
+        {
+            "type": "object",
+            "description": "Add a new row",
+            "properties": {
+                "action": {"const": "add"},
+                "data": {
+                    "type": "object",
+                    "description": "Column name → value pairs for the new row",
+                    "additionalProperties": True,
+                },
+            },
+            "required": ["action", "data"],
+        },
+        {
+            "type": "object",
+            "description": "Update an existing row",
+            "properties": {
+                "action": {"const": "update"},
+                "row_id": {"type": "integer", "description": "ID of the row to update"},
+                "changes": {
+                    "type": "object",
+                    "description": "Column name → new value pairs (only changed columns)",
+                    "additionalProperties": True,
+                },
+            },
+            "required": ["action", "row_id", "changes"],
+        },
+        {
+            "type": "object",
+            "description": "Delete a row",
+            "properties": {
+                "action": {"const": "delete"},
+                "row_id": {"type": "integer", "description": "ID of the row to delete"},
+            },
+            "required": ["action", "row_id"],
+        },
+    ]
+}
+
+
+register_payload_type(PayloadType(
+    name="schema_proposal",
+    description="Proposed schema changes for the table",
+    schema={
+        "type": "object",
+        "properties": {
+            "reasoning": {"type": "string", "description": "Why these changes are proposed"},
+            "table_name": {"type": "string", "description": "New table name (only if creating or renaming)"},
+            "table_description": {"type": "string", "description": "New table description (only if changing)"},
+            "operations": {
+                "type": "array",
+                "items": _SCHEMA_OPERATION,
+                "description": "List of schema operations to apply",
+                "minItems": 1,
+            },
+        },
+        "required": ["operations"],
+    },
+    source="llm",
+    is_global=False,
+    parse_marker="SCHEMA_PROPOSAL:",
+    parser=make_json_parser("schema_proposal"),
+    llm_instructions=SCHEMA_PROPOSAL_INSTRUCTIONS,
+    summarize=_summarize_schema_proposal,
+))
+
+register_payload_type(PayloadType(
+    name="data_proposal",
+    description="Proposed bulk data changes (additions, updates, deletions)",
+    schema={
+        "type": "object",
+        "properties": {
+            "reasoning": {"type": "string", "description": "Why these changes are proposed"},
+            "operations": {
+                "type": "array",
+                "items": _DATA_OPERATION,
+                "description": "List of data operations to apply (adds, updates, deletes)",
+                "minItems": 1,
+            },
+        },
+        "required": ["operations"],
+    },
+    source="llm",
+    is_global=False,
+    parse_marker="DATA_PROPOSAL:",
+    parser=make_json_parser("data_proposal"),
+    llm_instructions=DATA_PROPOSAL_INSTRUCTIONS,
+    summarize=_summarize_data_proposal,
+))

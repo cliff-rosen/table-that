@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlassIcon,
@@ -13,17 +13,20 @@ import {
   ArrowDownTrayIcon,
   PencilSquareIcon,
 } from '@heroicons/react/24/outline';
-import { getTable, listRows, createRow, updateRow, deleteRow, bulkDeleteRows, searchRows, exportTableCsv } from '../lib/api/tableApi';
+import { getTable, updateTable, listRows, createRow, updateRow, deleteRow, bulkDeleteRows, searchRows, exportTableCsv } from '../lib/api/tableApi';
 import type { TableDefinition, TableRow, ColumnDefinition, SortState } from '../types/table';
 import { useChatContext } from '../context/ChatContext';
 import ChatTray from '../components/chat/ChatTray';
 import ImportModal from '../components/table/ImportModal';
+import FilterBar, { applyFilters, type FilterState } from '../components/table/FilterBar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
+import SchemaProposalCard from '../components/chat/SchemaProposalCard';
+import DataProposalCard from '../components/chat/DataProposalCard';
 
 // =============================================================================
 // Helper: format date for display
@@ -623,6 +626,13 @@ export default function TableViewPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const [filters, setFilters] = useState<FilterState>({});
+
+  // Compute filtered rows (client-side filtering on loaded rows)
+  const filteredRows = useMemo(
+    () => table ? applyFilters(rows, filters, table.columns) : rows,
+    [rows, filters, table]
+  );
 
   // Search debounce ref
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -707,7 +717,7 @@ export default function TableViewPage() {
     };
   }, [searchQuery, performSearch]);
 
-  // Push table context to chat whenever table/rows change
+  // Push table context to chat whenever table/rows/filters change
   useEffect(() => {
     if (table) {
       updateContext({
@@ -719,9 +729,10 @@ export default function TableViewPage() {
         row_count: totalRows,
         sample_rows: rows.slice(0, 20).map(r => ({ id: r.id, data: r.data })),
         active_sort: sort,
+        active_filters: Object.keys(filters).length > 0 ? filters : undefined,
       });
     }
-  }, [table, rows, totalRows, sort, updateContext]);
+  }, [table, rows, totalRows, sort, filters, updateContext]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
@@ -772,10 +783,10 @@ export default function TableViewPage() {
   };
 
   const handleToggleAllSelection = () => {
-    if (selectedRowIds.size === rows.length) {
+    if (selectedRowIds.size === filteredRows.length) {
       setSelectedRowIds(new Set());
     } else {
-      setSelectedRowIds(new Set(rows.map((r) => r.id)));
+      setSelectedRowIds(new Set(filteredRows.map((r) => r.id)));
     }
   };
 
@@ -863,6 +874,123 @@ export default function TableViewPage() {
   };
 
   // -----------------------------------------------------------------------
+  // Payload Handlers (for chat proposals)
+  // -----------------------------------------------------------------------
+
+  const handleSchemaProposalAccept = useCallback(async (proposalData: any) => {
+    if (!table) return;
+
+    try {
+      // Compute final columns array by applying operations
+      let columns = [...table.columns];
+
+      for (const op of proposalData.operations) {
+        if (op.action === 'add' && op.column) {
+          const newCol = {
+            id: `col_${Math.random().toString(36).slice(2, 10)}`,
+            name: op.column.name,
+            type: op.column.type,
+            required: op.column.required || false,
+            ...(op.column.options ? { options: op.column.options } : {}),
+          };
+
+          if (op.after_column_id) {
+            const afterIdx = columns.findIndex((c) => c.id === op.after_column_id);
+            if (afterIdx >= 0) {
+              columns.splice(afterIdx + 1, 0, newCol);
+            } else {
+              columns.push(newCol);
+            }
+          } else {
+            columns.push(newCol);
+          }
+        } else if (op.action === 'modify' && op.column_id && op.changes) {
+          const idx = columns.findIndex((c) => c.id === op.column_id);
+          if (idx >= 0) {
+            columns[idx] = { ...columns[idx], ...op.changes };
+          }
+        } else if (op.action === 'remove' && op.column_id) {
+          columns = columns.filter((c) => c.id !== op.column_id);
+        } else if (op.action === 'reorder' && op.column_id) {
+          const colIdx = columns.findIndex((c) => c.id === op.column_id);
+          if (colIdx >= 0) {
+            const [col] = columns.splice(colIdx, 1);
+            if (op.after_column_id) {
+              const afterIdx = columns.findIndex((c) => c.id === op.after_column_id);
+              columns.splice(afterIdx + 1, 0, col);
+            } else {
+              columns.unshift(col);
+            }
+          }
+        }
+      }
+
+      const updateData: any = { columns };
+      if (proposalData.table_name) updateData.name = proposalData.table_name;
+      if (proposalData.table_description) updateData.description = proposalData.table_description;
+
+      const updated = await updateTable(tableId, updateData);
+      setTable(updated);
+      showSuccessToast('Schema updated successfully');
+    } catch (err) {
+      showErrorToast(err, 'Failed to apply schema changes');
+    }
+  }, [table, tableId]);
+
+  const handleDataProposalAccept = useCallback(async (proposalData: any) => {
+    if (!table) return;
+
+    const ops = proposalData.operations || [];
+    const colNameToId = new Map<string, string>();
+    for (const col of table.columns) {
+      colNameToId.set(col.name.toLowerCase(), col.id);
+    }
+
+    const mapData = (data: Record<string, unknown>): Record<string, unknown> => {
+      const mapped: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(data)) {
+        const colId = colNameToId.get(key.toLowerCase()) || key;
+        mapped[colId] = val;
+      }
+      return mapped;
+    };
+
+    try {
+      for (const op of ops) {
+        if (op.action === 'add' && op.data) {
+          await createRow(tableId, mapData(op.data));
+        } else if (op.action === 'update' && op.row_id && op.changes) {
+          await updateRow(tableId, op.row_id, mapData(op.changes));
+        } else if (op.action === 'delete' && op.row_id) {
+          await deleteRow(tableId, op.row_id);
+        }
+      }
+      await fetchRows();
+      showSuccessToast(`Applied ${ops.length} data change${ops.length !== 1 ? 's' : ''}`);
+    } catch (err) {
+      showErrorToast(err, 'Failed to apply some data changes');
+      await fetchRows(); // Refresh to see partial results
+    }
+  }, [table, tableId, fetchRows]);
+
+  const payloadHandlers = useMemo(() => ({
+    schema_proposal: {
+      render: (payload: any, callbacks: any) => (
+        <SchemaProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+      ),
+      onAccept: handleSchemaProposalAccept,
+      renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
+    },
+    data_proposal: {
+      render: (payload: any, callbacks: any) => (
+        <DataProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+      ),
+      onAccept: handleDataProposalAccept,
+      renderOptions: { headerTitle: 'Data Proposal', headerIcon: '📊' },
+    },
+  }), [handleSchemaProposalAccept, handleDataProposalAccept]);
+
+  // -----------------------------------------------------------------------
   // Render: loading state
   // -----------------------------------------------------------------------
 
@@ -908,6 +1036,7 @@ export default function TableViewPage() {
           table_id: table.id,
           table_name: table.name,
         }}
+        payloadHandlers={payloadHandlers}
       />
 
       {/* Main content */}
@@ -951,7 +1080,7 @@ export default function TableViewPage() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             columnCount={table.columns.length}
-            rowCount={totalRows}
+            rowCount={filteredRows.length}
             selectedCount={selectedRowIds.size}
             onAddRecord={() => setShowAddModal(true)}
             onDeleteSelected={handleDeleteSelected}
@@ -960,11 +1089,21 @@ export default function TableViewPage() {
           />
         </div>
 
+        {/* Filter bar */}
+        <div className="flex-shrink-0">
+          <FilterBar
+            columns={table.columns}
+            rows={rows}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
+        </div>
+
         {/* Data table - scrollable */}
         <div className="flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-900">
           <DataTable
             columns={table.columns}
-            rows={rows}
+            rows={filteredRows}
             selectedRowIds={selectedRowIds}
             onToggleRowSelection={handleToggleRowSelection}
             onToggleAllSelection={handleToggleAllSelection}

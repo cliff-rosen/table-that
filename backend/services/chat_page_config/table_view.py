@@ -25,6 +25,10 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
     if table_description:
         parts.append(f"Description: {table_description}")
 
+    table_id = context.get("table_id")
+    if table_id:
+        parts.append(f"Table ID: {table_id}")
+
     # Column schema
     columns = context.get("columns", [])
     if columns:
@@ -35,7 +39,7 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
             options = ""
             if col_type == "select" and col.get("options"):
                 options = f" [{', '.join(col['options'])}]"
-            col_lines.append(f"  - {col.get('name', 'unnamed')} ({col_type}{options}){required}")
+            col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){required}")
         parts.append(f"Columns ({len(columns)}):\n" + "\n".join(col_lines))
 
     # Row count
@@ -47,7 +51,7 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
     sample_rows = context.get("sample_rows", [])
     if sample_rows and columns:
         parts.append(f"\nSample data (first {len(sample_rows)} rows):")
-        for row in sample_rows[:10]:
+        for row in sample_rows[:20]:
             row_data = row.get("data", {})
             display = {}
             for col in columns:
@@ -55,6 +59,9 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
                 if val is not None:
                     display[col.get("name", col.get("id", ""))] = val
             parts.append(f"  Row #{row.get('id', '?')}: {json.dumps(display, default=str)}")
+
+        if row_count and row_count > len(sample_rows):
+            parts.append(f"  (Showing {len(sample_rows)} of {row_count} rows. Use get_rows tool to see more.)")
 
     # Active filters/sort
     active_filters = context.get("active_filters")
@@ -68,24 +75,68 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-TABLE_VIEW_PERSONA = """You are a data assistant helping the user manage their table data.
+TABLE_VIEW_PERSONA = """You are a data assistant helping the user manage their table data in table.that.
 
-You can:
-- Add new records to the table (use create_row)
-- Update existing records (use update_row with the row ID)
-- Delete records (use delete_row with the row ID)
-- Search through the data (use search_rows)
-- Describe the table schema (use describe_table)
+## Your Capabilities
+You can help users with:
+- Adding, updating, and deleting records
+- Searching and analyzing data
+- Proposing schema changes (adding/modifying/removing columns)
+- Proposing bulk data changes (multiple adds, updates, or deletes)
+- Describing the table structure
 
-When adding or updating records, use column NAMES (not IDs). The tools will map them automatically.
+## Tools Available
+- create_row: Add a single record (use for single row + explicit request)
+- update_row: Update a single record by row ID
+- delete_row: Delete a single record by row ID
+- search_rows: Full-text search across text columns
+- describe_table: Get schema summary and stats
+- get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
 
-When the user asks about their data, search first using search_rows, then provide insights.
-If the user asks you to add multiple records, create them one at a time using create_row."""
+## When to Use Tools vs Proposals
+
+**Use direct tools** (create_row, update_row, delete_row) when:
+- The user explicitly asks for a single specific change
+- Example: "Add a bug called Login timeout" → use create_row
+- Example: "Delete row 12" → use delete_row
+
+**Use SCHEMA_PROPOSAL** when:
+- User wants to create a new table or modify the schema
+- User wants to add, remove, modify, or reorder columns
+- User wants to change column types or options
+- Example: "Add a Priority column with options P0-P3"
+- Example: "Make the Date column required"
+
+**Use DATA_PROPOSAL** when:
+- User wants to add multiple rows
+- User wants to update multiple rows
+- User wants to delete multiple rows
+- Example: "Add 5 sample bugs"
+- Example: "Mark all Resolved bugs as Closed"
+- Example: "Set all unassigned bugs' owner to Sarah"
+
+## Duplicate Detection
+When adding rows, check the existing data (sample rows in context) for potential duplicates. If you find a similar row, ask the user before creating a duplicate.
+
+## Data Access
+- You see the first 20 rows in your context automatically
+- Use get_rows with offset/limit to access more data
+- Use describe_table for row counts and column distributions
+- For tables with many rows, paginate through data with get_rows
+
+## Column References
+- When using tools: use column NAMES (the tools map names to IDs automatically)
+- When using proposals: use column NAMES for new columns, column IDs for existing columns
+- Column IDs are shown in your context (e.g., col_abc123)
+
+## Style
+Be concise and helpful. When proposing changes, briefly explain what you're doing and why."""
 
 
 register_page(
     page="table_view",
     context_builder=table_view_context_builder,
-    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "suggest_schema"],
+    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "suggest_schema"],
+    payloads=["schema_proposal", "data_proposal"],
     persona=TABLE_VIEW_PERSONA,
 )

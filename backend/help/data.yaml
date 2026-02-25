@@ -1,0 +1,148 @@
+sections:
+  - category: data
+    topic: adding-records
+    title: Adding Records
+    summary: How to add records via the form, inline, or via chat
+    roles: [member, org_admin, platform_admin]
+    order: 0
+    content: |
+      ## Adding Records
+
+      ### Via the Add Record Form
+      1. Click "Add Record" in the toolbar
+      2. Fill in the form — each column gets an appropriate input:
+         - Text: text field
+         - Number: number input
+         - Date: date picker
+         - Boolean: checkbox
+         - Select: dropdown
+      3. Required fields are marked with a red asterisk
+      4. Click "Add Record" to save
+
+      ### Via Inline Editing
+      Not directly — you need to use the Add Record form or chat to create new rows. But once a row exists, you can click any cell to edit it inline.
+
+      ### Via Chat
+      Ask the chat assistant:
+      - "Add a bug: Login page crashes on Safari, Critical, Open"
+      - "Add a record for Acme Corp, position: Engineer, status: Applied"
+
+      For a single explicit row, the assistant adds it directly. For multiple rows, it creates a **Data Proposal** card for you to review first.
+
+  - category: data
+    topic: editing-records
+    title: Editing Records
+    summary: Inline click-to-edit for individual cells
+    roles: [member, org_admin, platform_admin]
+    order: 1
+    content: |
+      ## Editing Records
+
+      ### Inline Editing
+      Click any cell in the data table to edit it:
+      - **Text**: Opens a text input — type and press Enter to save, Escape to cancel
+      - **Number**: Opens a number input
+      - **Date**: Opens a date picker
+      - **Boolean**: Toggles immediately on click (no Enter needed)
+      - **Select**: Opens a dropdown — select an option to save
+
+      Changes save automatically when you press Enter or click away from the cell.
+
+      ### Via Chat
+      Tell the assistant what to change:
+      - "Change row 5's status to Closed"
+      - "Set the priority of row 12 to High"
+
+      For a single row change, the assistant updates it directly. For multiple rows, it uses a Data Proposal.
+
+  - category: data
+    topic: filtering
+    title: Filtering Data
+    summary: Boolean and select filter chips, text search, combining filters
+    roles: [member, org_admin, platform_admin]
+    order: 2
+    content: |
+      ## Filtering Data
+
+      ### Filter Bar
+      The filter bar sits between the toolbar and the data table. It shows filter chips for boolean and select columns.
+
+      #### Boolean Filter Chips
+      Each boolean column gets a 3-state toggle chip:
+      - **All** (gray): No filter — showing all rows
+      - **Yes** (highlighted): Only rows where this column is true
+      - **No** (highlighted): Only rows where this column is false
+      - Click the chip to cycle through states
+      - Click the X to reset to All
+
+      #### Select Filter Chips
+      Each select column gets a dropdown chip:
+      - Click to open a dropdown showing all options with checkboxes
+      - Check/uncheck options to filter
+      - The chip shows the count or names of selected options
+      - Click "All" to reset
+      - Click the X to clear the filter
+
+      ### Text Search
+      The search bar in the toolbar searches across all text and select columns. Type to search — results update after a short delay.
+
+      ### Combining Filters
+      - Filters are AND-combined: a row must match ALL active filters
+      - Text search works on top of active filters
+      - The row count in the toolbar updates to show filtered results
+      - Select all / bulk delete operates on filtered rows only
+
+  - category: data
+    topic: sorting
+    title: Sorting Data
+    summary: Column header click sorting — ascending, descending, clear
+    roles: [member, org_admin, platform_admin]
+    order: 3
+    content: |
+      ## Sorting Data
+
+      Click any column header to sort:
+      1. First click: Sort ascending (arrow up)
+      2. Second click: Sort descending (arrow down)
+      3. Third click: Clear sort (no arrow)
+
+      The active sort column shows a blue arrow icon. Only one column can be sorted at a time.
+
+      Sort order by type:
+      - **Text**: Alphabetical (A-Z / Z-A)
+      - **Number**: Numeric (low-high / high-low)
+      - **Date**: Chronological (oldest-newest / newest-oldest)
+      - **Boolean**: False first / True first
+      - **Select**: Alphabetical by option text
+
+  - category: data
+    topic: bulk-operations
+    title: Bulk Operations
+    summary: Row selection, bulk delete, chat-driven bulk updates via Data Proposals
+    roles: [member, org_admin, platform_admin]
+    order: 4
+    content: |
+      ## Bulk Operations
+
+      ### Row Selection
+      - Click the checkbox on any row to select it
+      - Click the header checkbox to select/deselect all visible rows
+      - Selection count appears in the toolbar
+
+      ### Bulk Delete
+      1. Select the rows you want to delete
+      2. Click "Delete N selected" in the toolbar
+      3. Confirm the deletion
+
+      ### Bulk Updates via Chat
+      For bulk changes beyond deletion, use the chat assistant:
+      - "Mark all Open bugs as Closed"
+      - "Set the assignee to Sarah for all High priority items"
+      - "Delete all rows where Status is Withdrawn"
+      - "Add 10 sample records"
+
+      The assistant creates a **Data Proposal** card showing every proposed change. You can:
+      - Review each operation (add, update, delete)
+      - Uncheck individual operations you don't want
+      - Click Apply to execute the checked operations
+      - Watch the progress bar as changes are applied one by one

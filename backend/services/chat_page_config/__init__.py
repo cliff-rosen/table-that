@@ -34,6 +34,7 @@ from .registry import (
 
 # Import all page configurations to register them
 from . import table_view
+from . import table_edit
 
 
 # =============================================================================

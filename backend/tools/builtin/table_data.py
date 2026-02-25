@@ -237,7 +237,7 @@ async def execute_describe_table(
     user_id: int,
     context: Dict[str, Any],
 ) -> str:
-    """Describe the current table's schema and stats."""
+    """Describe the current table's schema, stats, and value distributions."""
     table_id = _get_table_id(context)
     if not table_id:
         return "Error: No table context available."
@@ -264,7 +264,29 @@ async def execute_describe_table(
         col_type = col["type"]
         if col_type == "select" and col.get("options"):
             col_type += f" [{', '.join(col['options'])}]"
-        lines.append(f"  - {col['name']} ({col_type}){required}")
+        lines.append(f"  - {col['name']} [id: {col['id']}] ({col_type}){required}")
+
+    # Value distributions for select and boolean columns
+    distributable = [c for c in table.columns if c.get("type") in ("select", "boolean")]
+    if distributable and row_count > 0:
+        # Fetch all rows to compute distributions
+        all_rows_result = await db.execute(
+            select(TableRow.data).where(TableRow.table_id == table_id)
+        )
+        all_data = [r[0] for r in all_rows_result.all()]
+
+        lines.append(f"\nValue distributions:")
+        for col in distributable:
+            counts: Dict[str, int] = {}
+            for row_data in all_data:
+                val = row_data.get(col["id"]) if row_data else None
+                if col["type"] == "boolean":
+                    key = "Yes" if val else "No"
+                else:
+                    key = str(val) if val is not None else "(empty)"
+                counts[key] = counts.get(key, 0) + 1
+            dist_parts = [f"{k}: {v}" for k, v in sorted(counts.items(), key=lambda x: -x[1])]
+            lines.append(f"  {col['name']}: {', '.join(dist_parts)}")
 
     return "\n".join(lines)
 
@@ -357,6 +379,83 @@ register_tool(ToolConfig(
         "properties": {},
     },
     executor=execute_describe_table,
+    category="table_data",
+))
+
+
+async def execute_get_rows(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any],
+) -> str:
+    """Retrieve rows from the current table with offset/limit pagination."""
+    table_id = _get_table_id(context)
+    if not table_id:
+        return "Error: No table context available."
+
+    table = await _get_table_for_user(db, table_id, user_id)
+    if not table:
+        return "Error: Table not found or access denied."
+
+    offset = max(params.get("offset", 0), 0)
+    limit = min(max(params.get("limit", 50), 1), 200)
+
+    # Get total count
+    count_result = await db.execute(
+        select(func.count(TableRow.id)).where(TableRow.table_id == table_id)
+    )
+    total = count_result.scalar() or 0
+
+    # Get rows
+    stmt = (
+        select(TableRow)
+        .where(TableRow.table_id == table_id)
+        .order_by(TableRow.id)
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    if not rows:
+        if offset > 0:
+            return f"No rows found at offset {offset}. Table has {total} total rows."
+        return "The table is empty (0 rows)."
+
+    # Format results
+    lines = [f"Rows {offset + 1}-{offset + len(rows)} of {total} total:\n"]
+    for row in rows:
+        display = {}
+        for col in table.columns:
+            val = row.data.get(col["id"])
+            if val is not None:
+                display[col["name"]] = val
+        lines.append(f"  Row #{row.id}: {json.dumps(display, default=str)}")
+
+    if offset + len(rows) < total:
+        lines.append(f"\n(More rows available. Use offset={offset + len(rows)} to continue.)")
+
+    return "\n".join(lines)
+
+
+register_tool(ToolConfig(
+    name="get_rows",
+    description="Retrieve rows from the current table with pagination. Use this to see data beyond the sample rows in context. Returns rows with their IDs and all column values.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "offset": {
+                "type": "integer",
+                "description": "Starting row index (0-based). Default: 0"
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Number of rows to return (1-200). Default: 50"
+            }
+        },
+    },
+    executor=execute_get_rows,
     category="table_data",
 ))
 

@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
   TrashIcon,
-  XMarkIcon,
   TableCellsIcon,
   ChatBubbleLeftRightIcon,
   ChevronUpIcon,
@@ -20,6 +19,7 @@ import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
+import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 
 // =============================================================================
 // Constants
@@ -327,6 +327,88 @@ export default function TableEditPage() {
   };
 
   // -----------------------------------------------------------------------
+  // Payload Handlers
+  // -----------------------------------------------------------------------
+
+  const handleSchemaProposalAccept = useCallback(async (proposalData: any) => {
+    // Apply schema operations to the current local columns state
+    let updatedColumns = [...columns];
+
+    for (const op of proposalData.operations) {
+      if (op.action === 'add' && op.column) {
+        const newCol: ColumnDefinition = {
+          id: generateColumnId(),
+          name: op.column.name,
+          type: op.column.type,
+          required: op.column.required || false,
+          ...(op.column.options ? { options: op.column.options } : {}),
+        };
+
+        if (op.after_column_id) {
+          const afterIdx = updatedColumns.findIndex((c) => c.id === op.after_column_id);
+          if (afterIdx >= 0) {
+            updatedColumns.splice(afterIdx + 1, 0, newCol);
+          } else {
+            updatedColumns.push(newCol);
+          }
+        } else {
+          updatedColumns.push(newCol);
+        }
+      } else if (op.action === 'modify' && op.column_id && op.changes) {
+        const idx = updatedColumns.findIndex((c) => c.id === op.column_id);
+        if (idx >= 0) {
+          updatedColumns[idx] = { ...updatedColumns[idx], ...op.changes };
+        }
+      } else if (op.action === 'remove' && op.column_id) {
+        updatedColumns = updatedColumns.filter((c) => c.id !== op.column_id);
+      } else if (op.action === 'reorder' && op.column_id) {
+        const colIdx = updatedColumns.findIndex((c) => c.id === op.column_id);
+        if (colIdx >= 0) {
+          const [col] = updatedColumns.splice(colIdx, 1);
+          if (op.after_column_id) {
+            const afterIdx = updatedColumns.findIndex((c) => c.id === op.after_column_id);
+            updatedColumns.splice(afterIdx + 1, 0, col);
+          } else {
+            updatedColumns.unshift(col);
+          }
+        }
+      }
+    }
+
+    // Update local state
+    setColumns(updatedColumns);
+    if (proposalData.table_name) setName(proposalData.table_name);
+    if (proposalData.table_description) setDescription(proposalData.table_description);
+    setHasChanges(true);
+
+    // Auto-save the changes
+    try {
+      const updateData: any = {
+        columns: updatedColumns,
+        name: proposalData.table_name || name.trim(),
+        description: (proposalData.table_description || description.trim()) || undefined,
+      };
+      const updated = await updateTable(tableId, updateData);
+      setTable(updated);
+      setColumns(updated.columns.map((c) => ({ ...c })));
+      setHasChanges(false);
+      showSuccessToast('Schema updated successfully');
+    } catch (err) {
+      showErrorToast(err, 'Failed to apply schema changes (changes shown but not saved)');
+    }
+  }, [columns, name, description, tableId]);
+
+  const payloadHandlers = useMemo(() => ({
+    schema_proposal: {
+      render: (payload: any, callbacks: any) => (
+        <SchemaProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+      ),
+      onAccept: handleSchemaProposalAccept,
+      renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
+    },
+  }), [handleSchemaProposalAccept]);
+
+  // -----------------------------------------------------------------------
   // Render: loading
   // -----------------------------------------------------------------------
 
@@ -367,6 +449,7 @@ export default function TableEditPage() {
           table_id: table.id,
           table_name: name,
         }}
+        payloadHandlers={payloadHandlers}
       />
 
       {/* Main content */}

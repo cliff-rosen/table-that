@@ -1,0 +1,77 @@
+sections:
+  - category: general
+    topic: getting-started
+    title: Getting Started with table.that
+    summary: What table.that is, navigation basics, creating your first table
+    roles: [member, org_admin, platform_admin]
+    order: 0
+    content: |
+      ## What is table.that?
+
+      table.that is a modern data table builder. You define table schemas with typed columns, manage records through a clean spreadsheet-like interface, and use the AI chat assistant to help you build, populate, and analyze your data.
+
+      ## Navigation
+
+      - **Tables List** (`/tables`): Your home page. Shows all your tables as cards. Click a table to view its data. Click the pencil icon to edit its schema.
+      - **Table View** (`/tables/:id`): The main data view. Browse rows, sort, filter, search, add records, and use the chat panel.
+      - **Schema Editor** (`/tables/:id/edit`): Modify your table's column definitions, reorder columns, and change types.
+
+      ## Creating Your First Table
+
+      1. Go to the Tables List page
+      2. Click "New Table"
+      3. Enter a table name and optional description
+      4. Add columns — choose a name, type, and whether it's required
+      5. Click "Create Table"
+
+      Or use the chat assistant: open any table's chat and describe what you want to track. The assistant will propose a schema for you.
+
+      ## Column Types
+
+      - **Text**: Free-form text strings
+      - **Number**: Numeric values (integers or decimals)
+      - **Date**: Calendar dates
+      - **Boolean**: Yes/No toggle
+      - **Select**: Pick from a predefined list of options
+
+  - category: general
+    topic: column-types
+    title: Column Types Reference
+    summary: Detailed explanation of each column type with examples and use cases
+    roles: [member, org_admin, platform_admin]
+    order: 1
+    content: |
+      ## Column Types
+
+      ### Text
+      Free-form text. Use for names, descriptions, notes, URLs, or any string data.
+      - Searchable via full-text search
+      - No filter chip (use the search bar instead)
+      - Sorted alphabetically
+
+      ### Number
+      Numeric values — integers or decimals.
+      - Right-aligned in the table
+      - Sorted numerically
+      - Good for prices, quantities, scores, measurements
+
+      ### Date
+      Calendar dates stored as ISO strings (YYYY-MM-DD).
+      - Displayed in a human-readable format (e.g., "Feb 24, 2026")
+      - Edited via a date picker
+      - Sorted chronologically
+
+      ### Boolean
+      Yes/No values.
+      - Displayed as a dot indicator (green = Yes, gray = No)
+      - Edited via a checkbox toggle
+      - **Filter chip**: 3-state toggle — All / Yes / No
+      - Good for flags: active, verified, paid, completed
+
+      ### Select
+      Pick from a predefined list of options.
+      - Options are defined in the column schema
+      - Displayed as a badge
+      - Edited via a dropdown
+      - **Filter chip**: multi-select dropdown with option counts
+      - Good for status, category, priority, type

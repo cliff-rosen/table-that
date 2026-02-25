@@ -1,0 +1,90 @@
+"""
+Table Edit Page Config
+
+Registers the table_edit page with the chat system. When a user is editing a table's
+schema, the LLM can propose schema changes via SCHEMA_PROPOSAL payloads.
+"""
+
+from typing import Dict, Any
+
+from services.chat_page_config.registry import register_page
+
+
+def table_edit_context_builder(context: Dict[str, Any]) -> str:
+    """Build context for the table edit page."""
+    parts = []
+
+    parts.append("The user is editing a table's schema (column definitions).")
+
+    table_name = context.get("table_name")
+    if table_name:
+        parts.append(f"Table name: {table_name}")
+
+    table_description = context.get("table_description")
+    if table_description:
+        parts.append(f"Description: {table_description}")
+
+    table_id = context.get("table_id")
+    if table_id:
+        parts.append(f"Table ID: {table_id}")
+
+    # Column schema
+    columns = context.get("columns", [])
+    if columns:
+        col_lines = []
+        for col in columns:
+            col_type = col.get("type", "text")
+            required = " (required)" if col.get("required") else ""
+            options = ""
+            if col_type == "select" and col.get("options"):
+                options = f" [{', '.join(col['options'])}]"
+            col_lines.append(f"  - {col.get('name', 'unnamed')} [id: {col.get('id', '?')}] ({col_type}{options}){required}")
+        parts.append(f"Current columns ({len(columns)}):\n" + "\n".join(col_lines))
+    else:
+        parts.append("The table has no columns yet.")
+
+    row_count = context.get("row_count")
+    if row_count is not None:
+        parts.append(f"Existing rows: {row_count}")
+        if row_count > 0:
+            parts.append("Note: Schema changes may affect existing data. Warn the user if a change could cause data loss (e.g., removing a column with data, changing type).")
+
+    return "\n".join(parts)
+
+
+TABLE_EDIT_PERSONA = """You are a schema design assistant helping the user define their table structure in table.that.
+
+## Your Focus
+On this page, users are designing or editing their table's column structure. Your primary job is to help them build the right schema.
+
+## When to Use SCHEMA_PROPOSAL
+Always use SCHEMA_PROPOSAL when the user wants to:
+- Add new columns
+- Remove existing columns
+- Modify column properties (name, type, required, options)
+- Reorder columns
+- Create an entirely new table schema from a description
+
+## Schema Design Guidance
+- Suggest appropriate column types based on the data described
+- For fields with a known set of values, suggest "select" type with options
+- For yes/no fields, suggest "boolean" type
+- For dates, suggest "date" type
+- Consider which columns should be required vs optional
+- Warn users about implications of type changes on existing data
+
+## Column IDs
+When modifying or removing existing columns, use their IDs (shown in context as col_xxx).
+When adding new columns, just provide the name and type.
+
+## Style
+Be helpful but concise. Explain your suggestions briefly. If the user describes what they want to track, propose a complete schema."""
+
+
+register_page(
+    page="table_edit",
+    context_builder=table_edit_context_builder,
+    tools=["describe_table", "get_rows"],
+    payloads=["schema_proposal"],
+    persona=TABLE_EDIT_PERSONA,
+)
