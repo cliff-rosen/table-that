@@ -19,7 +19,7 @@ interface SchemaProposalCardProps {
 }
 
 // =============================================================================
-// Action Icons & Colors
+// Update-mode helpers
 // =============================================================================
 
 function getActionIcon(action: string) {
@@ -49,10 +49,48 @@ function getActionBadgeVariant(action: string): 'default' | 'secondary' | 'destr
 }
 
 // =============================================================================
-// OperationRow
+// CreateColumnRow — clean column preview for create mode
 // =============================================================================
 
-function OperationRow({
+function CreateColumnRow({
+  op,
+  checked,
+  onToggle,
+}: {
+  op: SchemaOperation;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const col = op.column;
+  if (!col) return null;
+
+  return (
+    <div className="flex items-center gap-3 py-2 px-3 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+      <Checkbox
+        checked={checked}
+        onCheckedChange={onToggle}
+      />
+      <span className="font-medium text-sm text-gray-900 dark:text-white">{col.name}</span>
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{col.type}</Badge>
+      {col.required && (
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-600 dark:border-red-700 dark:text-red-400">
+          required
+        </Badge>
+      )}
+      {col.type === 'select' && col.options && (
+        <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+          {col.options.join(', ')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// UpdateOperationRow — diff-style row for update mode
+// =============================================================================
+
+function UpdateOperationRow({
   op,
   checked,
   onToggle,
@@ -176,7 +214,7 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
 
   const isCreate = data.mode === 'create';
 
-  // Build column ID → name map for resolving IDs in operations
+  // Build column ID → name map for resolving IDs in update-mode operations
   const nameMap = useMemo(
     () => columns ? buildColumnNameMap(columns) : new Map<string, string>(),
     [columns],
@@ -215,6 +253,10 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
     onReject?.();
   };
 
+  // ---------------------------------------------------------------------------
+  // Applied / rejected states
+  // ---------------------------------------------------------------------------
+
   if (applied) {
     return (
       <div className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
@@ -222,7 +264,7 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
           <CheckIcon className="h-4 w-4" />
           <span>
             {isCreate ? 'Table created' : 'Schema updated'}
-            {selectedCount < totalCount && ` (${selectedCount} of ${totalCount} changes)`}
+            {selectedCount < totalCount && ` (${selectedCount} of ${totalCount})`}
           </span>
         </div>
       </div>
@@ -234,11 +276,15 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
       <div className="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
           <XMarkIcon className="h-4 w-4" />
-          <span>Schema proposal cancelled</span>
+          <span>Proposal dismissed</span>
         </div>
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Active card
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 overflow-hidden">
@@ -249,16 +295,28 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
             {isCreate ? 'Create New Table' : 'Update Table Schema'}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {totalCount} change{totalCount !== 1 ? 's' : ''}
+            {isCreate
+              ? `${totalCount} column${totalCount !== 1 ? 's' : ''}`
+              : `${totalCount} change${totalCount !== 1 ? 's' : ''}`
+            }
           </span>
         </div>
-        {/* Create mode: always show name/description prominently */}
-        {/* Update mode: only show if changing name/description */}
-        {data.table_name && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {isCreate ? '' : 'Rename to: '}"{data.table_name}"
-            {data.table_description && ` — ${data.table_description}`}
+        {isCreate ? (
+          // Create: show table name + description prominently
+          <div className="text-sm text-gray-700 dark:text-gray-300 mt-1 font-medium">
+            {data.table_name}
+            {data.table_description && (
+              <span className="font-normal text-gray-500 dark:text-gray-400"> — {data.table_description}</span>
+            )}
           </div>
+        ) : (
+          // Update: only show if renaming/changing description
+          data.table_name && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Rename to: "{data.table_name}"
+              {data.table_description && ` — ${data.table_description}`}
+            </div>
+          )
         )}
         {data.reasoning && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
@@ -267,17 +325,27 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
         )}
       </div>
 
-      {/* Operations */}
+      {/* Body */}
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {data.operations.map((op, i) => (
-          <OperationRow
-            key={i}
-            op={op}
-            checked={checkedOps[i]}
-            onToggle={() => toggleOp(i)}
-            colName={colName}
-          />
-        ))}
+        {isCreate
+          ? data.operations.map((op, i) => (
+              <CreateColumnRow
+                key={i}
+                op={op}
+                checked={checkedOps[i]}
+                onToggle={() => toggleOp(i)}
+              />
+            ))
+          : data.operations.map((op, i) => (
+              <UpdateOperationRow
+                key={i}
+                op={op}
+                checked={checkedOps[i]}
+                onToggle={() => toggleOp(i)}
+                colName={colName}
+              />
+            ))
+        }
       </div>
 
       {/* Actions */}
@@ -291,8 +359,12 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
           disabled={selectedCount === 0}
         >
           {isCreate
-            ? (selectedCount === totalCount ? 'Create Table' : `Create with ${selectedCount} of ${totalCount} Columns`)
-            : (selectedCount === totalCount ? `Apply All ${totalCount} Changes` : `Apply ${selectedCount} of ${totalCount} Changes`)
+            ? (selectedCount === totalCount
+                ? 'Create Table'
+                : `Create with ${selectedCount} of ${totalCount} Columns`)
+            : (selectedCount === totalCount
+                ? `Apply All ${totalCount} Changes`
+                : `Apply ${selectedCount} of ${totalCount} Changes`)
           }
         </Button>
       </div>
