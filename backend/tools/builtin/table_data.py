@@ -559,9 +559,11 @@ async def execute_for_each_row(
     context: Dict[str, Any],
 ) -> AsyncGenerator[Union[ToolProgress, ToolResult], None]:
     """
-    Streaming tool: process rows one-by-one using web research.
-    Writes results directly to DB and streams progress for live table updates.
-    Forwards inner search/fetch steps as ToolProgress so the user sees what's happening.
+    Streaming tool: research rows one-by-one, then present results as a DATA_PROPOSAL.
+
+    Does NOT write to the database. Streams progress during research so the user
+    sees what's happening, then emits a data_proposal payload at the end for the
+    user to review and selectively approve.
     """
     from tools.builtin.web import _research_web_core
 
@@ -618,11 +620,14 @@ async def execute_for_each_row(
     total = len(rows)
     yield ToolProgress(
         stage="starting",
-        message=f"Processing {total} rows...",
+        message=f"Researching {total} rows...",
         progress=0.0,
     )
 
-    success_count = 0
+    # Collect results — no DB writes
+    operations = []
+    skipped = 0
+
     for i, row in enumerate(rows):
         label = _row_label(row, table.columns)
         base_progress = i / total
@@ -668,48 +673,74 @@ async def execute_for_each_row(
             and research_result.lower() not in ("n/a", "could not determine an answer.", "")
         )
 
-        if is_valid and research_result:
-            # Write directly to DB
-            current_data = dict(row.data) if row.data else {}
-            current_data[target_col_id] = research_result
-            row.data = current_data
-            await db.commit()
-            success_count += 1
+        if research_result:
+            logger.info(
+                f"for_each_row: row {row.id} ({label}) result "
+                f"(valid={is_valid}, len={len(research_result)}): "
+                f"{research_result[:150]!r}"
+            )
+        else:
+            logger.warning(f"for_each_row: row {row.id} ({label}) returned None")
 
+        if is_valid and research_result:
             short_val = research_result[:60] + "..." if len(research_result) > 60 else research_result
             yield ToolProgress(
                 stage="row_done",
                 message=f"{label} → {short_val}",
                 progress=(i + 1) / total,
-                data={
-                    "row_id": row.id,
-                    "col_id": target_col_id,
-                    "value": research_result,
-                    "action": "row_updated",
-                },
             )
+            # Collect as a data_proposal update operation (using column NAME for frontend mapping)
+            operations.append({
+                "action": "update",
+                "row_id": row.id,
+                "changes": {target_col_name: research_result},
+            })
         else:
+            skipped += 1
             yield ToolProgress(
                 stage="row_skipped",
                 message=f"No result for {label}",
                 progress=(i + 1) / total,
-                data={
-                    "row_id": row.id,
-                    "action": "row_skipped",
-                },
             )
 
+    # Emit final result
+    yield ToolProgress(
+        stage="complete",
+        message=f"Research complete: {len(operations)} found, {skipped} not found",
+        progress=1.0,
+    )
+
+    if not operations:
+        yield ToolResult(
+            text=f"Could not find values for any of the {total} rows.",
+        )
+        return
+
     yield ToolResult(
-        text=f"Updated {success_count} of {total} rows for '{target_col_name}'.",
+        text=(
+            f"Researched {total} rows for '{target_col_name}'. "
+            f"Found values for {len(operations)} rows ({skipped} not found). "
+            f"Presenting results as a Data Proposal for review."
+        ),
+        payload={
+            "type": "data_proposal",
+            "data": {
+                "reasoning": (
+                    f"Web research: {instructions} — "
+                    f"found {len(operations)} of {total} rows"
+                ),
+                "operations": operations,
+            },
+        },
     )
 
 
 register_tool(ToolConfig(
     name="for_each_row",
     description=(
-        "Process table rows one-by-one with web research. For each row, searches the web "
-        "based on the row's data and instructions, then writes the result directly to the "
-        "target column. Streams progress so the table updates live. "
+        "Research table rows one-by-one using web search, then present results as a "
+        "Data Proposal for the user to review and selectively approve. "
+        "Does NOT modify the database — results are shown for review first. "
         "IMPORTANT: Always show the user the rows and get confirmation before calling this tool."
     ),
     input_schema={
@@ -734,4 +765,5 @@ register_tool(ToolConfig(
     executor=execute_for_each_row,
     streaming=True,
     category="table_data",
+    payload_type="data_proposal",
 ))

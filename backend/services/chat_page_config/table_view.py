@@ -100,7 +100,7 @@ You can help users with:
 - search_rows: Full-text search across text columns
 - describe_table: Get schema summary and stats
 - get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
-- for_each_row: Process rows one-by-one with web research, writes results directly to DB (streaming)
+- for_each_row: Research rows one-by-one via web search, presents results as DATA_PROPOSAL for user review (streaming)
 - search_web: Search the web via DuckDuckGo
 - fetch_webpage: Fetch and extract text from a URL
 - research_web: Research agent that answers a question by searching and reading pages

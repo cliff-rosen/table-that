@@ -261,7 +261,7 @@ _RESEARCH_INNER_TOOLS = [
 ]
 
 _RESEARCH_SYSTEM_PROMPT = (
-    "You are a web research assistant. Your job is to find a specific piece of information.\n\n"
+    "You are a web research assistant. Your job is to answer a question using web search.\n\n"
     "## Research workflow\n"
     "1. ALWAYS start by calling search_web with a well-crafted query.\n"
     "2. Review the search results. If the answer is clearly in the snippets, return it.\n"
@@ -269,12 +269,14 @@ _RESEARCH_SYSTEM_PROMPT = (
     "to read the full page content.\n"
     "4. If the first page didn't have the answer, try fetching another result or refine your "
     "search query and search again.\n"
-    "5. When you have a confident answer, respond with ONLY the answer — no explanation, "
-    "no quotes, just the raw value.\n\n"
+    "5. When you have a confident answer, respond with just the answer text. "
+    "Keep it concise — match the scope of what was asked.\n\n"
     "## Rules\n"
     "- NEVER answer from memory or training data. ALWAYS search first.\n"
     "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
     "- For URLs/links: fetch the page to verify the URL is correct.\n"
+    "- Do NOT add preambles like 'Based on my research...' or 'Here is what I found...'. "
+    "Just give the answer directly.\n"
     "- If you truly cannot find the answer after multiple attempts, respond with exactly: "
     "Could not determine an answer."
 )
@@ -295,6 +297,9 @@ async def _research_web_core(
       {"type": "thinking", "message": "..."}    — LLM reasoning (between steps)
       {"type": "result", "value": "..." | None} — final answer (always last)
     """
+    query_short = query[:100] + "..." if len(query) > 100 else query
+    logger.info(f"research_web_core: starting, max_steps={max_steps}, query={query_short!r}")
+
     client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     messages: List[Dict[str, Any]] = [{"role": "user", "content": query}]
 
@@ -312,28 +317,37 @@ async def _research_web_core(
                 api_kwargs["tool_choice"] = {"type": "tool", "name": "search_web"}
 
             response = await client.messages.create(**api_kwargs)
+            logger.info(
+                f"research_web_core: turn {turn}, stop_reason={response.stop_reason}, "
+                f"content_blocks={len(response.content)}"
+            )
         except Exception as e:
-            logger.warning(f"research_web inner LLM call failed (turn {turn}): {e}")
+            logger.warning(f"research_web_core: LLM call failed (turn {turn}): {e}")
             yield {"type": "result", "value": None}
             return
 
         # Check for tool use
         tool_uses = [b for b in response.content if b.type == "tool_use"]
+        text_blocks = [b for b in response.content if b.type == "text"]
 
         if not tool_uses:
             # No more tool calls — extract the final text answer
-            for block in response.content:
-                if block.type == "text":
-                    text = block.text.strip()
-                    if text:
-                        yield {"type": "result", "value": text}
-                        return
+            if text_blocks:
+                text = text_blocks[0].text.strip()
+                logger.info(
+                    f"research_web_core: final answer, length={len(text)}, "
+                    f"preview={text[:120]!r}"
+                )
+                if text:
+                    yield {"type": "result", "value": text}
+                    return
+            logger.warning("research_web_core: no tool calls and no text in response")
             yield {"type": "result", "value": None}
             return
 
         # Emit any thinking text before tool calls
-        for block in response.content:
-            if block.type == "text" and block.text.strip():
+        for block in text_blocks:
+            if block.text.strip():
                 yield {"type": "thinking", "message": block.text.strip()}
 
         # Execute each tool call
@@ -341,6 +355,7 @@ async def _research_web_core(
         tool_results: List[Dict[str, Any]] = []
 
         for tool_use in tool_uses:
+            logger.info(f"research_web_core: turn {turn}, calling {tool_use.name}")
             ctx: Dict[str, Any] = {}
             if tool_use.name == "search_web":
                 search_query = tool_use.input.get("query", query)
@@ -353,6 +368,9 @@ async def _research_web_core(
             else:
                 result_text = f"Unknown tool: {tool_use.name}"
 
+            result_preview = result_text[:100] if result_text else "(empty)"
+            logger.info(f"research_web_core: {tool_use.name} result: {result_preview!r}")
+
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tool_use.id,
@@ -362,6 +380,7 @@ async def _research_web_core(
         messages.append({"role": "user", "content": tool_results})
 
     # Exhausted all turns without a final answer
+    logger.warning(f"research_web_core: exhausted {max_steps} turns without final answer")
     yield {"type": "result", "value": None}
 
 
