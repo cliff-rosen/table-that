@@ -3,10 +3,16 @@ Web Tools
 
 Global tools for searching the web and fetching webpage content.
 Uses DuckDuckGo HTML search (no API key required) and httpx for fetching.
+
+Also includes research_web — a mini search agent that loops over search/fetch
+to answer a natural-language question.
 """
 
 import logging
-from typing import Any, Dict
+import os
+from typing import Any, Dict, List
+
+import anthropic
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -217,6 +223,142 @@ register_tool(ToolConfig(
         "required": ["url"]
     },
     executor=execute_fetch_webpage,
+    category="web",
+    is_global=True,
+    streaming=False,
+))
+
+
+# =============================================================================
+# research_web — Mini search agent
+# =============================================================================
+
+# Inner tool definitions for the research LLM call
+_RESEARCH_INNER_TOOLS = [
+    {
+        "name": "search_web",
+        "description": "Search the web. Returns titles, URLs, and snippets.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"},
+                "num_results": {"type": "integer", "description": "1-10, default 5"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "fetch_webpage",
+        "description": "Fetch a webpage and extract its text content.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL to fetch"},
+            },
+            "required": ["url"],
+        },
+    },
+]
+
+
+async def execute_research_web(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any],
+) -> str:
+    """
+    Mini search agent: takes a natural language query, loops over
+    search_web/fetch_webpage with an inner LLM to arrive at a definitive answer.
+    """
+    query = params.get("query", "").strip()
+    if not query:
+        return "Error: query is required."
+
+    max_steps = min(max(params.get("max_steps", 3), 1), 5)
+
+    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+    messages: List[Dict[str, Any]] = [{"role": "user", "content": query}]
+
+    for _turn in range(max_steps):
+        try:
+            response = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1024,
+                messages=messages,
+                tools=_RESEARCH_INNER_TOOLS,
+                system=(
+                    "You are a research assistant. Your job is to answer a specific question "
+                    "by searching the web and reading pages. Be concise. "
+                    "After researching, respond with ONLY the answer — no explanation, no quotes, "
+                    "just the raw value. If you cannot determine the answer, respond with exactly: "
+                    "Could not determine an answer."
+                ),
+            )
+        except Exception as e:
+            logger.warning(f"research_web inner LLM call failed: {e}")
+            return "Could not determine an answer."
+
+        # Check for tool use
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        if not tool_uses:
+            # Extract text response — we're done
+            for block in response.content:
+                if block.type == "text":
+                    text = block.text.strip()
+                    if text:
+                        return text
+            return "Could not determine an answer."
+
+        # Execute tool calls and continue the conversation
+        messages.append({"role": "assistant", "content": response.content})
+
+        tool_results: List[Dict[str, Any]] = []
+        for tool_use in tool_uses:
+            context_stub: Dict[str, Any] = {}
+            if tool_use.name == "search_web":
+                result_text = await execute_search_web(tool_use.input, db, user_id, context_stub)
+            elif tool_use.name == "fetch_webpage":
+                result_text = await execute_fetch_webpage(tool_use.input, db, user_id, context_stub)
+            else:
+                result_text = f"Unknown tool: {tool_use.name}"
+
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": result_text,
+            })
+
+        messages.append({"role": "user", "content": tool_results})
+
+    # Exhausted turns
+    return "Could not determine an answer."
+
+
+register_tool(ToolConfig(
+    name="research_web",
+    description=(
+        "Research agent: answers a natural language question by searching the web "
+        "and reading pages. Use this for one-off factual lookups like "
+        "'What is Acme Corp's LinkedIn URL?' or 'When was Company X founded?'. "
+        "Returns a concise answer or 'Could not determine an answer.'"
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Natural language question to research, e.g. 'What is Acme Corp\\'s LinkedIn URL?'"
+            },
+            "max_steps": {
+                "type": "integer",
+                "description": "Max search/fetch rounds (1-5, default 3)"
+            },
+        },
+        "required": ["query"]
+    },
+    executor=execute_research_web,
     category="web",
     is_global=True,
     streaming=False,

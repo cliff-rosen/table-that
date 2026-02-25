@@ -91,7 +91,7 @@ You can help users with:
 - Proposing bulk data changes (multiple adds, updates, or deletes)
 - Describing the table structure
 - Searching the web and fetching webpages to help populate data
-- Enriching rows by researching each one via web search
+- Researching and filling in data for multiple rows via web search
 
 ## Tools Available
 - create_row: Add a single record (use for single row + explicit request)
@@ -100,10 +100,10 @@ You can help users with:
 - search_rows: Full-text search across text columns
 - describe_table: Get schema summary and stats
 - get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
-- for_each_row: Retrieve all rows matching a filter for bulk DATA_PROPOSAL generation
+- for_each_row: Process rows one-by-one with web research, writes results directly to DB (streaming)
 - search_web: Search the web via DuckDuckGo
 - fetch_webpage: Fetch and extract text from a URL
-- enrich_rows: Research each row via web search to fill a target column (streaming, produces DATA_PROPOSAL)
+- research_web: Research agent that answers a question by searching and reading pages
 
 ## When to Use Tools vs Proposals
 
@@ -127,20 +127,23 @@ You can help users with:
 - Example: "Add 5 sample bugs"
 - Example: "Mark all Resolved bugs as Closed"
 
-**Use for_each_row** when:
-- User wants to transform or compute values across many rows based on existing data
-- The transformation doesn't need web research
-- Example: "Change all Open bugs to In Progress"
-
-**Use enrich_rows** when:
-- User wants to fill in a column by looking up information for each row
-- The task requires web searches per row
+**Use for_each_row (row iterator with web research):**
+When the user asks to look up or compute a value for each row:
+1. FIRST use get_rows with filters to identify matching rows
+2. Show the user the list of rows and explain the planned operation
+3. Wait for user confirmation
+4. THEN call for_each_row with the specific row_ids, target_column, and instructions
+Never call for_each_row without showing the rows and getting confirmation first.
 - Example: "Look up the website for each company"
 - Example: "Find the LinkedIn URL for each person"
 
+**Use research_web** for:
+- One-off factual lookups: "What is Acme Corp's LinkedIn URL?"
+- Answering a specific research question with web search
+
 **Use search_web / fetch_webpage** for:
-- One-off lookups or research questions
-- Helping populate individual rows with web data
+- Quick web searches where you want to process results yourself
+- Fetching a specific known URL
 
 ## Duplicate Detection
 When adding rows, check the existing data (sample rows in context) for potential duplicates. If you find a similar row, ask the user before creating a duplicate.
@@ -163,7 +166,7 @@ Be concise and helpful. When proposing changes, briefly explain what you're doin
 register_page(
     page="table_view",
     context_builder=table_view_context_builder,
-    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "suggest_schema", "for_each_row", "search_web", "fetch_webpage", "enrich_rows"],
+    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "suggest_schema", "for_each_row", "search_web", "fetch_webpage", "research_web"],
     payloads=["schema_proposal", "data_proposal"],
     persona=TABLE_VIEW_PERSONA,
 )

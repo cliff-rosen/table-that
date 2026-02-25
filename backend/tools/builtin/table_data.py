@@ -2,16 +2,17 @@
 Table Data Tools
 
 Tools for the AI assistant to manipulate table data (create, update, delete, search rows).
+Includes for_each_row — a streaming tool that iterates rows with web research.
 """
 
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, AsyncGenerator, Dict, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from tools.registry import ToolConfig, register_tool
+from tools.registry import ToolConfig, ToolProgress, ToolResult, register_tool
 from models import TableDefinition, TableRow
 
 logger = logging.getLogger(__name__)
@@ -537,103 +538,178 @@ register_tool(ToolConfig(
 
 
 # =============================================================================
-# for_each_row — Retrieve filtered rows for bulk DATA_PROPOSAL generation
+# for_each_row — Streaming row iterator with web research
 # =============================================================================
+
+def _row_label(row: TableRow, columns: list) -> str:
+    """Get a short label for a row (first non-empty text value)."""
+    for col in columns:
+        if col.get("type") in ("text", "select"):
+            val = row.data.get(col["id"])
+            if val:
+                s = str(val)
+                return s[:40] + "..." if len(s) > 40 else s
+    return f"Row #{row.id}"
+
 
 async def execute_for_each_row(
     params: Dict[str, Any],
     db: AsyncSession,
     user_id: int,
     context: Dict[str, Any],
-) -> str:
-    """Retrieve rows matching filter conditions so the LLM can emit a DATA_PROPOSAL."""
+) -> AsyncGenerator[Union[ToolProgress, ToolResult], None]:
+    """
+    Streaming tool: process rows one-by-one using web research.
+    Writes results directly to DB and streams progress for live table updates.
+    """
+    from tools.builtin.web import execute_research_web
+
     table_id = _get_table_id(context)
     if not table_id:
-        return "Error: No table context available."
+        yield ToolResult(text="Error: No table context available.")
+        return
 
     table = await _get_table_for_user(db, table_id, user_id)
     if not table:
-        return "Error: Table not found or access denied."
+        yield ToolResult(text="Error: Table not found or access denied.")
+        return
 
-    filter_conditions = params.get("filter", {})
-    limit = min(max(params.get("limit", 100), 1), 500)
+    row_ids = params.get("row_ids", [])
+    target_column = params.get("target_column", "").strip()
+    instructions = params.get("instructions", "").strip()
 
-    # Build query
+    if not row_ids:
+        yield ToolResult(text="Error: row_ids is required (list of row IDs to process).")
+        return
+    if not target_column:
+        yield ToolResult(text="Error: target_column is required.")
+        return
+    if not instructions:
+        yield ToolResult(text="Error: instructions are required.")
+        return
+
+    # Resolve target column
+    target_col_id = _resolve_column_id(table.columns, target_column)
+    target_col_name = target_column
+    if target_col_id:
+        for col in table.columns:
+            if col["id"] == target_col_id:
+                target_col_name = col["name"]
+                break
+    else:
+        available = ", ".join(c["name"] for c in table.columns)
+        yield ToolResult(text=f"Error: Unknown column '{target_column}'. Available: {available}")
+        return
+
+    # Fetch rows by IDs
     stmt = (
         select(TableRow)
-        .where(TableRow.table_id == table_id)
+        .where(TableRow.table_id == table_id, TableRow.id.in_(row_ids))
         .order_by(TableRow.id)
-        .limit(limit)
     )
     result = await db.execute(stmt)
-    rows = result.scalars().all()
-
-    # Apply column-value filters client-side (JSON columns)
-    if filter_conditions:
-        # Resolve column names to IDs
-        col_filters = {}
-        for key, val in filter_conditions.items():
-            col_id = _resolve_column_id(table.columns, key)
-            if col_id:
-                col_filters[col_id] = val
-            else:
-                return f"Error: Unknown column '{key}'. Available: {', '.join(c['name'] for c in table.columns)}"
-
-        filtered = []
-        for row in rows:
-            match = True
-            for col_id, expected in col_filters.items():
-                actual = row.data.get(col_id)
-                # Flexible comparison: string match
-                if str(actual).lower() != str(expected).lower():
-                    match = False
-                    break
-            if match:
-                filtered.append(row)
-        rows = filtered
+    rows = list(result.scalars().all())
 
     if not rows:
-        cond_text = f" matching filter {json.dumps(filter_conditions, default=str)}" if filter_conditions else ""
-        return f"No rows found{cond_text}."
+        yield ToolResult(text="Error: No matching rows found for the given row_ids.")
+        return
 
-    # Get total count for context
-    count_result = await db.execute(
-        select(func.count(TableRow.id)).where(TableRow.table_id == table_id)
+    total = len(rows)
+    yield ToolProgress(
+        stage="starting",
+        message=f"Processing {total} rows...",
+        progress=0.0,
     )
-    total = count_result.scalar() or 0
 
-    # Format all rows
-    lines = [f"Found {len(rows)} row(s) (of {total} total):\n"]
-    for row in rows:
-        display = {}
+    success_count = 0
+    for i, row in enumerate(rows):
+        label = _row_label(row, table.columns)
+
+        # Build query from row data + instructions
+        parts = []
         for col in table.columns:
             val = row.data.get(col["id"])
             if val is not None:
-                display[col["name"]] = val
-        lines.append(f"  Row #{row.id}: {json.dumps(display, default=str)}")
+                parts.append(f"{col['name']}: {val}")
+        row_context = ", ".join(parts)
+        built_query = f"Given: {row_context}. {instructions}"
 
-    lines.append("")
-    lines.append("You now have all matching rows. Emit a DATA_PROPOSAL with the changes the user requested.")
+        # Call research_web directly
+        research_result = await execute_research_web(
+            {"query": built_query, "max_steps": 3},
+            db, user_id, {},
+        )
 
-    return "\n".join(lines)
+        # Check if we got a valid result
+        is_valid = (
+            research_result
+            and research_result.lower() not in ("n/a", "could not determine an answer.", "")
+        )
+
+        if is_valid:
+            # Write directly to DB
+            current_data = dict(row.data) if row.data else {}
+            current_data[target_col_id] = research_result
+            row.data = current_data
+            await db.commit()
+            success_count += 1
+
+            short_val = research_result[:60] + "..." if len(research_result) > 60 else research_result
+            yield ToolProgress(
+                stage="row_done",
+                message=f"{label} → {short_val}",
+                progress=(i + 1) / total,
+                data={
+                    "row_id": row.id,
+                    "col_id": target_col_id,
+                    "value": research_result,
+                    "action": "row_updated",
+                },
+            )
+        else:
+            yield ToolProgress(
+                stage="row_skipped",
+                message=f"No result for {label}",
+                progress=(i + 1) / total,
+                data={
+                    "row_id": row.id,
+                    "action": "row_skipped",
+                },
+            )
+
+    yield ToolResult(
+        text=f"Updated {success_count} of {total} rows for '{target_col_name}'.",
+    )
 
 
 register_tool(ToolConfig(
     name="for_each_row",
-    description="Retrieve all rows matching a filter so you can generate a DATA_PROPOSAL for bulk changes. Use when the user asks to transform, update, or compute values across multiple rows.",
+    description=(
+        "Process table rows one-by-one with web research. For each row, searches the web "
+        "based on the row's data and instructions, then writes the result directly to the "
+        "target column. Streams progress so the table updates live. "
+        "IMPORTANT: Always show the user the rows and get confirmation before calling this tool."
+    ),
     input_schema={
         "type": "object",
         "properties": {
-            "filter": {
-                "type": "object",
-                "description": "Column name:value pairs to filter rows (optional, omit for all rows)"
+            "row_ids": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "List of row IDs to process (get these from get_rows first)",
             },
-            "limit": {
-                "type": "integer",
-                "description": "Max rows to return (default 100, max 500)"
-            }
+            "target_column": {
+                "type": "string",
+                "description": "Column name to fill with researched values",
+            },
+            "instructions": {
+                "type": "string",
+                "description": "What to research per row, e.g. 'Find the LinkedIn URL for this company'",
+            },
         },
+        "required": ["row_ids", "target_column", "instructions"],
     },
     executor=execute_for_each_row,
+    streaming=True,
     category="table_data",
 ))

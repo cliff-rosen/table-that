@@ -616,7 +616,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, messages, isLoading } = useChatContext();
+  const { updateContext, messages, isLoading, activeToolProgress } = useChatContext();
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -734,8 +734,26 @@ export default function TableViewPage() {
     }
   }, [table, rows, totalRows, sort, filters, updateContext]);
 
+  // Live row updates from for_each_row streaming
+  useEffect(() => {
+    if (!activeToolProgress || activeToolProgress.toolName !== 'for_each_row') return;
+    const updates = activeToolProgress.updates;
+    if (updates.length === 0) return;
+
+    const latest = updates[updates.length - 1];
+    const data = latest.data as {
+      row_id?: number; col_id?: string; value?: unknown; action?: string;
+    } | undefined;
+    if (!data || data.action !== 'row_updated' || !data.row_id || !data.col_id) return;
+
+    setRows(prev => prev.map(r => {
+      if (r.id !== data.row_id) return r;
+      return { ...r, data: { ...r.data, [data.col_id!]: data.value } };
+    }));
+  }, [activeToolProgress]);
+
   // Auto-refresh rows when chat executes data-modifying tools
-  const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
+  const DATA_TOOLS = ['create_row', 'update_row', 'delete_row', 'for_each_row'];
   useEffect(() => {
     // Detect transition from loading → not loading (response complete)
     if (wasLoadingRef.current && !isLoading && messages.length > prevMessageCountRef.current) {
