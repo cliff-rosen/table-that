@@ -225,10 +225,14 @@ function ResearchStepRow({ step }: { step: ResearchStep }) {
         <div className="flex items-start gap-1.5 text-xs">
           <MagnifyingGlassIcon className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <span className="text-gray-500 dark:text-gray-400">Search: </span>
-            <span className="text-gray-700 dark:text-gray-300">{step.query}</span>
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">Search: </span>
+              <span className="text-gray-700 dark:text-gray-300">{step.query}</span>
+            </div>
             {step.detail && (
-              <span className="text-gray-400 dark:text-gray-500"> — {step.detail}</span>
+              <div className="text-gray-400 dark:text-gray-500 mt-0.5 pl-1 border-l-2 border-gray-200 dark:border-gray-700">
+                {step.detail}
+              </div>
             )}
           </div>
         </div>

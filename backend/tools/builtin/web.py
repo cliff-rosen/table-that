@@ -393,9 +393,16 @@ async def _research_web_core(
                 elif result_text.startswith("Error:"):
                     detail = result_text
                 else:
-                    # Count results lines (lines starting with a digit)
-                    n = sum(1 for line in result_text.splitlines() if line and line[0].isdigit())
-                    detail = f"{n} results found"
+                    # Extract top result titles for the trace
+                    result_lines = []
+                    for line in result_text.splitlines():
+                        if line and line[0].isdigit() and '. ' in line:
+                            # Lines like "1. Title of Result"
+                            result_lines.append(line)
+                    n = len(result_lines)
+                    # Show top 3 results so the user can see what was returned
+                    top = "; ".join(r.split('. ', 1)[1] if '. ' in r else r for r in result_lines[:3])
+                    detail = f"{n} results — {top}" if top else f"{n} results found"
 
                 yield {"action": "search", "query": search_query, "detail": detail}
 

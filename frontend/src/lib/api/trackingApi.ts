@@ -20,7 +20,6 @@ export interface TrackEventRequest {
  * Fire-and-forget - errors are logged but don't throw.
  */
 export async function trackEvent(eventType: string, eventData?: TrackEventData): Promise<void> {
-    console.log("eventData", eventData)
     try {
         await api.post('/api/tracking/events', {
             event_type: eventType,
