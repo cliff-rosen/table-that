@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   TableCellsIcon,
-  ChatBubbleLeftRightIcon,
   PencilSquareIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { getTable, updateTable, listRows, createRow, updateRow, deleteRow, bulkDeleteRows, searchRows, exportTableCsv } from '../lib/api/tableApi';
 import type { TableDefinition, TableRow, SortState } from '../types/table';
@@ -380,7 +380,7 @@ export default function TableViewPage() {
         />
       ),
       onAccept: handleDataProposalAccept,
-      renderOptions: { headerTitle: 'Data Proposal', headerIcon: '📊' },
+      renderOptions: { headerTitle: 'AI Research Results', headerIcon: '🔬' },
     },
   }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation, table?.columns]);
 
@@ -456,14 +456,17 @@ export default function TableViewPage() {
                 <PencilSquareIcon className="h-5 w-5" />
                 Edit Schema
               </Button>
-              <Button
-                variant={chatOpen ? 'default' : 'outline'}
+              <button
                 onClick={() => setChatOpen((prev) => !prev)}
-                className="gap-2"
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                  chatOpen
+                    ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'
+                    : 'text-white bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shadow-sm shadow-violet-500/20 hover:shadow-md hover:shadow-violet-500/30'
+                }`}
               >
-                <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                {chatOpen ? 'Hide Chat' : 'Chat'}
-              </Button>
+                <SparklesIcon className="h-5 w-5" />
+                {chatOpen ? 'Hide AI' : 'Ask AI'}
+              </button>
             </div>
           </div>
         </div>
@@ -507,6 +510,14 @@ export default function TableViewPage() {
             onCellClick={handleCellClick}
             onCellSave={handleCellSave}
             onCellCancel={handleCellCancel}
+            onAskAI={() => {
+              setChatOpen(true);
+              sendMessage('Populate this table with data.');
+            }}
+            onColumnResearch={(columnName) => {
+              setChatOpen(true);
+              sendMessage(`Research and fill the "${columnName}" column for all rows.`);
+            }}
           />
         </div>
 

@@ -539,7 +539,7 @@ export default function ChatTray({
                         )}
 
                         {messages.map((message, idx) => (
-                            <div key={idx}>
+                            <div key={idx} className={idx === messages.length - 1 ? 'animate-fade-in' : ''}>
                                 <div
                                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'
                                         }`}
@@ -654,10 +654,10 @@ export default function ChatTray({
                                         <MarkdownRenderer content={streamingText} compact />
                                     </div>
                                     <div className="flex items-center gap-1 mt-1">
-                                        <div className="animate-pulse flex gap-1">
-                                            <div className="w-1 h-1 bg-blue-600 rounded-full"></div>
-                                            <div className="w-1 h-1 bg-blue-600 rounded-full"></div>
-                                            <div className="w-1 h-1 bg-blue-600 rounded-full"></div>
+                                        <div className="flex gap-1">
+                                            <div className="w-1 h-1 bg-blue-600 rounded-full animate-flowing-dot" />
+                                            <div className="w-1 h-1 bg-blue-600 rounded-full animate-flowing-dot [animation-delay:0.2s]" />
+                                            <div className="w-1 h-1 bg-blue-600 rounded-full animate-flowing-dot [animation-delay:0.4s]" />
                                         </div>
                                     </div>
                                 </div>
@@ -666,28 +666,54 @@ export default function ChatTray({
 
                         {/* Tool progress indicator - shown during tool execution even with streaming text */}
                         {isLoading && activeToolProgress && (
-                            <div className="flex justify-start">
-                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="animate-spin h-4 w-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
-                                        <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                                            {activeToolProgress.toolName.replace(/_/g, ' ')}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={cancelRequest}
-                                            className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                            title="Cancel"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                    {activeToolProgress.updates.length > 0 && (
-                                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                                            {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
+                            <div className="flex justify-start animate-fade-in">
+                                {activeToolProgress.toolName === 'for_each_row' ? (
+                                    /* AI Research — rich progress card */
+                                    <div className="bg-gradient-to-br from-violet-50 to-blue-50 dark:from-violet-900/20 dark:to-blue-900/20 border border-violet-200 dark:border-violet-800 rounded-lg px-4 py-3 min-w-[220px]">
+                                        <div className="flex items-center gap-2">
+                                            <div className="animate-spin h-4 w-4 border-2 border-violet-500 border-t-transparent rounded-full"></div>
+                                            <span className="text-sm font-semibold text-violet-800 dark:text-violet-200">
+                                                AI Research
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={cancelRequest}
+                                                className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                                title="Cancel"
+                                            >
+                                                ✕
+                                            </button>
                                         </div>
-                                    )}
-                                </div>
+                                        {activeToolProgress.updates.length > 0 && (
+                                            <div className="mt-2 text-xs text-violet-700 dark:text-violet-300">
+                                                {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    /* Default tool progress card */
+                                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="animate-spin h-4 w-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                                            <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                                {activeToolProgress.toolName.replace(/_/g, ' ')}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={cancelRequest}
+                                                className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                                title="Cancel"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                        {activeToolProgress.updates.length > 0 && (
+                                            <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                                                {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -696,10 +722,10 @@ export default function ChatTray({
                             <div className="flex justify-start">
                                 <div className="bg-white dark:bg-gray-800 rounded-lg px-4 py-2 shadow">
                                     <div className="flex items-center gap-2">
-                                        <div className="animate-pulse flex gap-1">
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                        <div className="flex gap-1">
+                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-flowing-dot" />
+                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-flowing-dot [animation-delay:0.2s]" />
+                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-flowing-dot [animation-delay:0.4s]" />
                                         </div>
                                         <span className="text-sm text-gray-600 dark:text-gray-400">
                                             {statusText || 'Thinking...'}

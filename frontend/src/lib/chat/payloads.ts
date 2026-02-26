@@ -44,7 +44,7 @@ registerPayloadHandler('data_proposal', {
       onReject: callbacks.onReject,
     }),
   renderOptions: {
-    headerTitle: 'Data Proposal',
-    headerIcon: '📊',
+    headerTitle: 'AI Research Results',
+    headerIcon: '🔬',
   },
 });

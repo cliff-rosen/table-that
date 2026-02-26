@@ -7,6 +7,7 @@ Includes for_each_row — a streaming tool that iterates rows with web research.
 
 import json
 import logging
+import re
 from typing import Any, AsyncGenerator, Dict, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -478,6 +479,26 @@ register_tool(ToolConfig(
 # for_each_row — Streaming row iterator with web research
 # =============================================================================
 
+_PREAMBLE_PATTERNS = [
+    re.compile(r"^(?:Based on (?:my |the )?research,?\s*)", re.IGNORECASE),
+    re.compile(r"^(?:According to (?:the |their |my )?\w*[\s,]*)", re.IGNORECASE),
+    re.compile(r"^(?:After (?:searching|researching|looking)[^,]*,\s*)", re.IGNORECASE),
+    re.compile(r"^(?:I found that\s+)", re.IGNORECASE),
+    re.compile(r"^(?:The (?:official )?(?:website|URL|link|homepage|address|answer|result|value) (?:for .+? )?is:?\s+)", re.IGNORECASE),
+    re.compile(r"^(?:(?:It|This) (?:appears|seems|looks like) (?:that |to be )?\s*)", re.IGNORECASE),
+]
+
+
+def _strip_preamble(text: str) -> str:
+    """Remove common LLM preambles so the answer is a clean value."""
+    text = text.strip()
+    for pat in _PREAMBLE_PATTERNS:
+        text = pat.sub("", text)
+    # Remove wrapping quotes if the entire value is quoted
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ('"', "'"):
+        text = text[1:-1]
+    return text.strip()
+
 def _row_label(row: TableRow, columns: list) -> str:
     """Get a short label for a row (first non-empty text value)."""
     for col in columns:
@@ -595,7 +616,11 @@ async def execute_for_each_row(
                 if val is not None:
                     parts.append(f"{col['name']}: {val}")
             row_context = ", ".join(parts)
-            built_query = f"Given: {row_context}. {instructions}"
+            built_query = (
+                f"Given: {row_context}. {instructions}\n\n"
+                "IMPORTANT: Return ONLY the raw answer value. No preamble, no explanation. "
+                "Your output goes directly into a spreadsheet cell."
+            )
 
             async for step in _research_web_core(built_query, 5, db, user_id):
                 action = step["action"]
@@ -647,6 +672,10 @@ async def execute_for_each_row(
                 "action": "error",
                 "detail": f"Research crashed: {e}",
             })
+
+        # Strip common LLM preambles that leak through despite instructions
+        if research_result:
+            research_result = _strip_preamble(research_result)
 
         # Check if we got a valid result
         is_valid = (

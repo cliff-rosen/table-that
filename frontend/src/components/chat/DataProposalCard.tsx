@@ -482,7 +482,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
       <div className="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
           <XMarkIcon className="h-4 w-4" />
-          <span>Data proposal cancelled</span>
+          <span>Proposal cancelled</span>
         </div>
       </div>
     );
@@ -494,7 +494,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            {totalCount === 0 && hasResearchLog ? 'Research Results' : 'Data Proposal'}
+            {totalCount === 0 && hasResearchLog ? 'AI Research Results' : hasResearchLog ? 'AI Research Results' : 'Data Proposal'}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {summaryText}
