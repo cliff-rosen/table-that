@@ -103,7 +103,7 @@ export default function AddRecordModal({ columns, onSave, onClose }: AddRecordMo
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[600px] h-[500px] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[700px] max-h-[calc(100vh-4rem)] flex flex-col">
         {/* Header */}
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Record</h2>
@@ -117,7 +117,7 @@ export default function AddRecordModal({ columns, onSave, onClose }: AddRecordMo
 
         {/* Content - scrollable */}
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-5">
             {columns.map((col) => (
               <div key={col.id} className="space-y-1.5">
                 <Label htmlFor={`add-${col.id}`}>
