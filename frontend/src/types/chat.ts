@@ -282,9 +282,13 @@ export interface ChatMessage {
 /**
  * Payload handler for custom chat payloads
  */
+export interface PayloadRenderOptions {
+    isMaximized?: boolean;
+}
+
 export interface PayloadHandler {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }) => React.ReactNode;
+    render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }, options?: PayloadRenderOptions) => React.ReactNode;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onAccept?: (payload: any, pageState?: any) => void;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

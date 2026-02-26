@@ -61,20 +61,23 @@ interface DataProposalCardProps {
   onExecuteOperation?: (op: DataOperation) => Promise<void>;
   /** Called when all operations finish — use to refresh table immediately */
   onOperationsComplete?: () => void;
+  /** When true, uses larger text, no truncation, expanded rows */
+  isMaximized?: boolean;
 }
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
-function getActionIcon(action: string) {
+function getActionIcon(action: string, large?: boolean) {
+  const cls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
   switch (action) {
     case 'add':
-      return <PlusIcon className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />;
+      return <PlusIcon className={`${cls} text-green-600 dark:text-green-400`} />;
     case 'update':
-      return <PencilIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />;
+      return <PencilIcon className={`${cls} text-amber-600 dark:text-amber-400`} />;
     case 'delete':
-      return <TrashIcon className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />;
+      return <TrashIcon className={`${cls} text-red-600 dark:text-red-400`} />;
     default:
       return null;
   }
@@ -83,19 +86,21 @@ function getActionIcon(action: string) {
 function truncate(val: unknown, maxLen = 40): string {
   if (val === null || val === undefined) return '';
   const s = String(val);
+  if (maxLen <= 0) return s; // no truncation
   return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 }
 
-function OpStatusIcon({ result }: { result: OpResult }) {
+function OpStatusIcon({ result, large }: { result: OpResult; large?: boolean }) {
+  const cls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
   switch (result.status) {
     case 'running':
-      return <div className="h-3.5 w-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />;
+      return <div className={`${cls} border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0`} />;
     case 'success':
-      return <CheckIcon className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />;
+      return <CheckIcon className={`${cls} text-green-600 dark:text-green-400 flex-shrink-0`} />;
     case 'error':
       return (
         <span title={result.error || 'Failed'}>
-          <XMarkIcon className="h-3.5 w-3.5 text-red-600 dark:text-red-400 flex-shrink-0" />
+          <XMarkIcon className={`${cls} text-red-600 dark:text-red-400 flex-shrink-0`} />
         </span>
       );
     default:
@@ -107,29 +112,30 @@ function OpStatusIcon({ result }: { result: OpResult }) {
 // AddOperationRow
 // =============================================================================
 
-function AddOperationRow({ op, checked, onToggle, result, disabled }: {
-  op: DataAddOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean;
+function AddOperationRow({ op, checked, onToggle, result, disabled, large }: {
+  op: DataAddOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean; large?: boolean;
 }) {
   const entries = Object.entries(op.data);
-  const displayEntries = entries.slice(0, 3);
+  const displayEntries = large ? entries : entries.slice(0, 3);
   const moreCount = entries.length - displayEntries.length;
+  const textCls = large ? 'text-sm' : 'text-xs';
 
   return (
     <div className="flex items-start gap-2 py-2 px-3 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-colors">
-      {result ? <OpStatusIcon result={result} /> : (
+      {result ? <OpStatusIcon result={result} large={large} /> : (
         <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" disabled={disabled} />
       )}
-      {getActionIcon('add')}
+      {getActionIcon('add', large)}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           {displayEntries.map(([key, val]) => (
-            <span key={key} className="text-xs">
+            <span key={key} className={textCls}>
               <span className="text-gray-500 dark:text-gray-400">{key}:</span>{' '}
-              <span className="text-gray-900 dark:text-gray-100">{truncate(val, 30)}</span>
+              <span className="text-gray-900 dark:text-gray-100">{truncate(val, large ? 0 : 30)}</span>
             </span>
           ))}
           {moreCount > 0 && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">+{moreCount} more</span>
+            <span className={`${textCls} text-gray-400 dark:text-gray-500`}>+{moreCount} more</span>
           )}
         </div>
       </div>
@@ -141,27 +147,28 @@ function AddOperationRow({ op, checked, onToggle, result, disabled }: {
 // UpdateOperationRow
 // =============================================================================
 
-function UpdateOperationRow({ op, checked, onToggle, result, disabled }: {
-  op: DataUpdateOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean;
+function UpdateOperationRow({ op, checked, onToggle, result, disabled, large }: {
+  op: DataUpdateOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean; large?: boolean;
 }) {
   const changes = Object.entries(op.changes);
+  const textCls = large ? 'text-sm' : 'text-xs';
 
   return (
     <div className="flex items-start gap-2 py-2 px-3 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors">
-      {result ? <OpStatusIcon result={result} /> : (
+      {result ? <OpStatusIcon result={result} large={large} /> : (
         <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" disabled={disabled} />
       )}
-      {getActionIcon('update')}
+      {getActionIcon('update', large)}
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+        <div className={`${textCls} font-medium text-gray-700 dark:text-gray-300`}>
           Row #{op.row_id}
         </div>
         <div className="space-y-0.5 mt-0.5">
           {changes.map(([key, val]) => (
-            <div key={key} className="text-xs">
+            <div key={key} className={textCls}>
               <span className="text-gray-500 dark:text-gray-400">{key}</span>
               <span className="text-gray-400 dark:text-gray-500"> → </span>
-              <span className="text-amber-700 dark:text-amber-300 font-medium">{truncate(val)}</span>
+              <span className="text-amber-700 dark:text-amber-300 font-medium">{truncate(val, large ? 0 : 40)}</span>
             </div>
           ))}
         </div>
@@ -174,17 +181,18 @@ function UpdateOperationRow({ op, checked, onToggle, result, disabled }: {
 // DeleteOperationRow
 // =============================================================================
 
-function DeleteOperationRow({ op, checked, onToggle, result, disabled }: {
-  op: DataDeleteOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean;
+function DeleteOperationRow({ op, checked, onToggle, result, disabled, large }: {
+  op: DataDeleteOperation; checked: boolean; onToggle: () => void; result?: OpResult; disabled?: boolean; large?: boolean;
 }) {
+  const textCls = large ? 'text-sm' : 'text-xs';
   return (
     <div className="flex items-start gap-2 py-2 px-3 hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
-      {result ? <OpStatusIcon result={result} /> : (
+      {result ? <OpStatusIcon result={result} large={large} /> : (
         <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1" disabled={disabled} />
       )}
-      {getActionIcon('delete')}
+      {getActionIcon('delete', large)}
       <div className="flex-1 min-w-0">
-        <span className="text-xs text-red-700 dark:text-red-400 line-through">
+        <span className={`${textCls} text-red-700 dark:text-red-400 line-through`}>
           Row #{op.row_id}
         </span>
       </div>
@@ -218,12 +226,14 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 // ResearchStepRow — a single step in the research trace
 // =============================================================================
 
-function ResearchStepRow({ step }: { step: ResearchStep }) {
+function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean }) {
+  const textCls = large ? 'text-sm' : 'text-xs';
+  const iconCls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
   switch (step.action) {
     case 'search':
       return (
-        <div className="flex items-start gap-1.5 text-xs">
-          <MagnifyingGlassIcon className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <MagnifyingGlassIcon className={`${iconCls} text-blue-500 flex-shrink-0 mt-0.5`} />
           <div className="min-w-0">
             <div>
               <span className="text-gray-500 dark:text-gray-400">Search: </span>
@@ -239,8 +249,8 @@ function ResearchStepRow({ step }: { step: ResearchStep }) {
       );
     case 'fetch':
       return (
-        <div className="flex items-start gap-1.5 text-xs">
-          <GlobeAltIcon className="h-3.5 w-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <GlobeAltIcon className={`${iconCls} text-purple-500 flex-shrink-0 mt-0.5`} />
           <div className="min-w-0">
             <span className="text-gray-500 dark:text-gray-400">Fetch: </span>
             <span className="text-gray-700 dark:text-gray-300 break-all">{step.url}</span>
@@ -252,22 +262,22 @@ function ResearchStepRow({ step }: { step: ResearchStep }) {
       );
     case 'thinking':
       return (
-        <div className="flex items-start gap-1.5 text-xs">
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
           <span className="text-gray-400 flex-shrink-0 mt-0.5">💭</span>
           <span className="text-gray-500 dark:text-gray-400 italic">{step.text}</span>
         </div>
       );
     case 'error':
       return (
-        <div className="flex items-start gap-1.5 text-xs">
-          <ExclamationTriangleIcon className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <ExclamationTriangleIcon className={`${iconCls} text-red-500 flex-shrink-0 mt-0.5`} />
           <span className="text-red-600 dark:text-red-400">{step.detail}</span>
         </div>
       );
     case 'answer':
       return (
-        <div className="flex items-start gap-1.5 text-xs">
-          <CheckIcon className="h-3.5 w-3.5 text-green-500 flex-shrink-0 mt-0.5" />
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <CheckIcon className={`${iconCls} text-green-500 flex-shrink-0 mt-0.5`} />
           <div className="min-w-0">
             <span className="text-gray-500 dark:text-gray-400">Result: </span>
             <span className="text-gray-700 dark:text-gray-300 font-medium">
@@ -285,9 +295,11 @@ function ResearchStepRow({ step }: { step: ResearchStep }) {
 // ResearchLogRow — expandable row showing research trace for one table row
 // =============================================================================
 
-function ResearchLogRow({ entry }: { entry: ResearchLogEntry }) {
-  const [expanded, setExpanded] = useState(false);
+function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: ResearchLogEntry; large?: boolean; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const isFound = entry.status === 'found';
+  const textCls = large ? 'text-sm' : 'text-xs';
+  const iconCls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
 
   return (
     <div className="border-b border-gray-100 dark:border-gray-800 last:border-b-0">
@@ -296,33 +308,33 @@ function ResearchLogRow({ entry }: { entry: ResearchLogEntry }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
       >
-        <ChevronRightIcon className={`h-3.5 w-3.5 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-        <span className={`text-xs font-medium ${
+        <ChevronRightIcon className={`${iconCls} text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        <span className={`${textCls} font-medium ${
           isFound
             ? 'text-green-700 dark:text-green-400'
             : 'text-gray-500 dark:text-gray-400'
         }`}>
           {isFound ? '✓' : '✗'}
         </span>
-        <span className="text-xs text-gray-700 dark:text-gray-300 font-medium truncate">
+        <span className={`${textCls} text-gray-700 dark:text-gray-300 font-medium ${large ? '' : 'truncate'}`}>
           {entry.label}
         </span>
         {isFound && entry.value && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 truncate ml-auto">
-            → {entry.value.length > 50 ? entry.value.slice(0, 50) + '...' : entry.value}
+          <span className={`${textCls} text-gray-500 dark:text-gray-400 ${large ? '' : 'truncate'} ml-auto`}>
+            → {large ? entry.value : (entry.value.length > 50 ? entry.value.slice(0, 50) + '...' : entry.value)}
           </span>
         )}
-        <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+        <span className={`${textCls} text-gray-400 dark:text-gray-500 flex-shrink-0`}>
           {entry.steps.length} step{entry.steps.length !== 1 ? 's' : ''}
         </span>
       </button>
       {expanded && (
         <div className="pl-8 pr-3 pb-2 space-y-1.5">
           {entry.steps.map((step, i) => (
-            <ResearchStepRow key={i} step={step} />
+            <ResearchStepRow key={i} step={step} large={large} />
           ))}
           {entry.steps.length === 0 && (
-            <span className="text-xs text-gray-400 italic">No research steps recorded</span>
+            <span className={`${textCls} text-gray-400 italic`}>No research steps recorded</span>
           )}
         </div>
       )}
@@ -334,31 +346,33 @@ function ResearchLogRow({ entry }: { entry: ResearchLogEntry }) {
 // ResearchLog — the full research trace section
 // =============================================================================
 
-function ResearchLog({ log, defaultExpanded = false }: { log: ResearchLogEntry[]; defaultExpanded?: boolean }) {
+function ResearchLog({ log, defaultExpanded = false, large }: { log: ResearchLogEntry[]; defaultExpanded?: boolean; large?: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const foundCount = log.filter(e => e.status === 'found').length;
   const notFoundCount = log.filter(e => e.status === 'not_found').length;
+  const textCls = large ? 'text-sm' : 'text-xs';
+  const iconCls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700">
+    <div className="border-t border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left flex-shrink-0"
       >
-        <ChevronRightIcon className={`h-3.5 w-3.5 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-        <MagnifyingGlassIcon className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
-        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+        <ChevronRightIcon className={`${iconCls} text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        <MagnifyingGlassIcon className={`${iconCls} text-gray-500 flex-shrink-0`} />
+        <span className={`${textCls} font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider`}>
           Research Log
         </span>
-        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+        <span className={`${textCls} text-gray-400 dark:text-gray-500 ml-auto`}>
           {foundCount} found, {notFoundCount} not found
         </span>
       </button>
       {expanded && (
-        <div className="max-h-[400px] overflow-y-auto">
+        <div className={large ? 'flex-1 min-h-0 overflow-y-auto' : 'max-h-[400px] overflow-y-auto'}>
           {log.map((entry, i) => (
-            <ResearchLogRow key={i} entry={entry} />
+            <ResearchLogRow key={i} entry={entry} large={large} defaultExpanded={large} />
           ))}
         </div>
       )}
@@ -370,7 +384,7 @@ function ResearchLog({ log, defaultExpanded = false }: { log: ResearchLogEntry[]
 // DataProposalCard
 // =============================================================================
 
-export default function DataProposalCard({ data, onAccept, onReject, onExecuteOperation, onOperationsComplete }: DataProposalCardProps) {
+export default function DataProposalCard({ data, onAccept, onReject, onExecuteOperation, onOperationsComplete, isMaximized }: DataProposalCardProps) {
   const [checkedOps, setCheckedOps] = useState<boolean[]>(
     () => data.operations.map(() => true)
   );
@@ -519,7 +533,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
       </div>
 
       {/* Operations grouped by type */}
-      <div className="max-h-[300px] overflow-y-auto">
+      <div className={isMaximized ? 'overflow-y-auto' : 'max-h-[300px] overflow-y-auto'}>
         {adds.length > 0 && (
           <div>
             <div className="px-4 py-1.5 bg-green-50/50 dark:bg-green-900/10 border-b border-gray-100 dark:border-gray-800">
@@ -537,6 +551,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
                   onToggle={() => toggleOp(globalIndex)}
                   result={getOpResult(globalIndex)}
                   disabled={phase !== 'idle'}
+                  large={isMaximized}
                 />
               );
             })}
@@ -560,6 +575,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
                   onToggle={() => toggleOp(globalIndex)}
                   result={getOpResult(globalIndex)}
                   disabled={phase !== 'idle'}
+                  large={isMaximized}
                 />
               );
             })}
@@ -583,6 +599,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
                   onToggle={() => toggleOp(globalIndex)}
                   result={getOpResult(globalIndex)}
                   disabled={phase !== 'idle'}
+                  large={isMaximized}
                 />
               );
             })}
@@ -592,7 +609,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
 
       {/* Research log (when present) */}
       {hasResearchLog && (
-        <ResearchLog log={data.research_log!} defaultExpanded={totalCount === 0} />
+        <ResearchLog log={data.research_log!} defaultExpanded large={isMaximized} />
       )}
 
       {/* Progress bar (when running) */}

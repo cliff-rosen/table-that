@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
 import { trackEvent } from '../../lib/api/trackingApi';
@@ -238,6 +238,8 @@ export default function ChatTray({
     const [pendingPayload, setPendingPayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
     // Payload currently being displayed in the panel (user has clicked to view)
     const [activePayload, setActivePayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
+    // Whether payload panel is shown as fullscreen modal
+    const [payloadMaximized, setPayloadMaximized] = useState(false);
     // Track which message indices have had their payloads dismissed
     // Initialize with all existing payloads to prevent auto-opening old payloads on remount
     const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(() => {
@@ -397,6 +399,7 @@ export default function ChatTray({
         }
         setActivePayload(null);
         setPendingPayload(null);
+        setPayloadMaximized(false);
     }, [pendingPayload, activePayload]);
 
     // Handle full chat reset - clears messages and all payload state
@@ -837,7 +840,7 @@ export default function ChatTray({
                 )}
             </div>
 
-            {/* Floating Payload Panel - positioned next to chat tray */}
+            {/* Floating Payload Panel - positioned next to chat tray (or fullscreen modal when maximized) */}
             {activePayload && (() => {
                 // Check local handlers first, then fall back to global registry
                 const handler = payloadHandlers?.[activePayload.type] || getPayloadHandler(activePayload.type);
@@ -846,18 +849,26 @@ export default function ChatTray({
                 const headerTitle = renderOptions.headerTitle || getDefaultHeaderTitle(activePayload.type);
                 const headerIcon = renderOptions.headerIcon || getDefaultHeaderIcon(activePayload.type);
 
-                return (
-                    <div
-                        className="h-full bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden"
-                        style={{ width: panelWidth }}
-                    >
-                        <div className="flex flex-col h-full">
-                            {/* Header */}
-                            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <span>{headerIcon}</span>
-                                    {headerTitle}
-                                </h3>
+                const payloadContent = (
+                    <>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20 flex-shrink-0">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <span>{headerIcon}</span>
+                                {headerTitle}
+                            </h3>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setPayloadMaximized(!payloadMaximized)}
+                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                    aria-label={payloadMaximized ? 'Restore panel' : 'Maximize panel'}
+                                >
+                                    {payloadMaximized
+                                        ? <ArrowsPointingInIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                        : <ArrowsPointingOutIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                    }
+                                </button>
                                 <button
                                     type="button"
                                     onClick={handleClosePayload}
@@ -867,30 +878,51 @@ export default function ChatTray({
                                     <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                                 </button>
                             </div>
+                        </div>
 
-                            {/* Payload Content - scrollable area for card content */}
-                            <div className="flex-1 min-h-0 p-4 overflow-y-auto scrollbar-thin">
-                                {handler ? (
-                                    handler.render(activePayload.data, {
-                                        onAccept: (data) => {
-                                            if (handler.onAccept) {
-                                                handler.onAccept(data);
-                                            }
-                                            handleClosePayload();
-                                        },
-                                        onReject: () => {
-                                            if (handler.onReject) {
-                                                handler.onReject(activePayload.data);
-                                            }
-                                            handleClosePayload();
+                        {/* Payload Content - scrollable area for card content */}
+                        <div className="flex-1 min-h-0 p-4 overflow-y-auto scrollbar-thin">
+                            {handler ? (
+                                handler.render(activePayload.data, {
+                                    onAccept: (data) => {
+                                        if (handler.onAccept) {
+                                            handler.onAccept(data);
                                         }
-                                    })
-                                ) : (
-                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                        <p>No handler configured for payload type: {activePayload.type}</p>
-                                    </div>
-                                )}
+                                        handleClosePayload();
+                                    },
+                                    onReject: () => {
+                                        if (handler.onReject) {
+                                            handler.onReject(activePayload.data);
+                                        }
+                                        handleClosePayload();
+                                    }
+                                }, { isMaximized: payloadMaximized })
+                            ) : (
+                                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    <p>No handler configured for payload type: {activePayload.type}</p>
+                                </div>
+                            )}
+                        </div>
+                    </>
+                );
+
+                if (payloadMaximized) {
+                    return (
+                        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1200px] h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+                                {payloadContent}
                             </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div
+                        className="h-full bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden"
+                        style={{ width: panelWidth }}
+                    >
+                        <div className="flex flex-col h-full">
+                            {payloadContent}
                         </div>
                     </div>
                 );

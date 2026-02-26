@@ -37,11 +37,12 @@ registerPayloadHandler('schema_proposal', {
 // ============================================================================
 
 registerPayloadHandler('data_proposal', {
-  render: (payload: DataProposalData, callbacks) =>
+  render: (payload: DataProposalData, callbacks, options) =>
     React.createElement(DataProposalCard, {
       data: payload,
       onAccept: callbacks.onAccept,
       onReject: callbacks.onReject,
+      isMaximized: options?.isMaximized,
     }),
   renderOptions: {
     headerTitle: 'AI Research Results',
