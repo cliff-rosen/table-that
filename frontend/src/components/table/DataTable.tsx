@@ -216,8 +216,6 @@ export interface DataTableProps {
   onCellClick: (rowId: number, columnId: string) => void;
   onCellSave: (rowId: number, columnId: string, value: unknown) => void;
   onCellCancel: () => void;
-  /** Called when user clicks "Ask AI to populate" in the empty state */
-  onAskAI?: () => void;
   /** Called when user clicks the sparkle icon on a column header */
   onColumnResearch?: (columnName: string) => void;
 }
@@ -234,7 +232,6 @@ export default function DataTable({
   onCellClick,
   onCellSave,
   onCellCancel,
-  onAskAI,
   onColumnResearch,
 }: DataTableProps) {
   const allSelected = rows.length > 0 && selectedRowIds.size === rows.length;
@@ -298,35 +295,11 @@ export default function DataTable({
       <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={columns.length + 1} className="px-4 py-16 text-center">
-              {onAskAI ? (
-                <div className="flex flex-col items-center gap-4">
-                  <SparklesIcon className="h-12 w-12 text-blue-400" />
-                  <div>
-                    <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-                      Your table is ready for data
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-md mx-auto">
-                      Ask AI to populate rows, import a CSV, or add rows manually.
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 max-w-sm mx-auto">
-                      Tip: Once you have rows, click <SparklesIcon className="h-3.5 w-3.5 inline text-violet-400" /> on any column header to run AI Research across all rows.
-                    </p>
-                  </div>
-                  <button
-                    onClick={onAskAI}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-md hover:from-violet-500 hover:to-blue-500 shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/30 transition-all"
-                  >
-                    <SparklesIcon className="h-5 w-5" />
-                    Ask AI to populate
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
-                  <TableCellsIcon className="h-8 w-8" />
-                  <p className="text-sm">No rows found</p>
-                </div>
-              )}
+            <td colSpan={columns.length + 1} className="px-4 py-12 text-center">
+              <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+                <TableCellsIcon className="h-8 w-8" />
+                <p className="text-sm">No rows yet</p>
+              </div>
             </td>
           </tr>
         ) : (

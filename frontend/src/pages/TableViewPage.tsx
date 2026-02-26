@@ -510,10 +510,6 @@ export default function TableViewPage() {
             onCellClick={handleCellClick}
             onCellSave={handleCellSave}
             onCellCancel={handleCellCancel}
-            onAskAI={() => {
-              setChatOpen(true);
-              sendMessage('Populate this table with data.');
-            }}
             onColumnResearch={(columnName) => {
               setChatOpen(true);
               sendMessage(`Research and fill the "${columnName}" column for all rows.`);
