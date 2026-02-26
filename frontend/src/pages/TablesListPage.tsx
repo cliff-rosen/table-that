@@ -7,7 +7,6 @@ import {
   XMarkIcon,
   ArrowUpTrayIcon,
   PencilSquareIcon,
-  ChatBubbleLeftRightIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { STARTERS } from '../config/starters';
@@ -204,7 +203,7 @@ function CreateTableModal({ onClose, onCreate }: CreateTableModalProps) {
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Create New Table
+              Manual Table Builder
             </h2>
             <button
               onClick={onClose}
@@ -213,11 +212,16 @@ function CreateTableModal({ onClose, onCreate }: CreateTableModalProps) {
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            Don't want to set up columns manually? Close this and use the{' '}
-            <span className="font-medium text-blue-600 dark:text-blue-400">AI Chat</span>{' '}
-            button instead — just describe the table you need and AI will design it for you.
-          </p>
+          <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+            <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+              Honestly? You probably don't want to be here.
+            </p>
+            <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+              Defining columns by hand is very 2025. Close this and hit{' '}
+              <span className="font-semibold">Ask AI</span>{' '}
+              — just describe what you're building and the AI handles the rest.
+            </p>
+          </div>
         </div>
 
         {/* Content - scrollable */}
@@ -439,20 +443,19 @@ function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
         Create your first table to start organizing and managing your data.
         Tables let you define custom columns and store structured information.
       </p>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onCreateClick}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-        >
-          <PlusIcon className="h-5 w-5" />
-          Create Your First Table
-        </button>
+      <div className="flex flex-col items-center gap-3">
         <button
           onClick={onChatClick}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-md hover:from-violet-500 hover:to-blue-500 shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/30 transition-all"
         >
           <SparklesIcon className="h-5 w-5" />
-          Design with AI
+          Build a Table with AI
+        </button>
+        <button
+          onClick={onCreateClick}
+          className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          or create one manually
         </button>
       </div>
     </div>
@@ -671,14 +674,14 @@ export default function TablesListPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setChatOpen(!chatOpen)}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border ${
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
                   chatOpen
-                    ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600'
-                    : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'
+                    : 'text-white bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shadow-sm shadow-violet-500/20 hover:shadow-md hover:shadow-violet-500/30'
                 }`}
               >
-                <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                AI Chat
+                <SparklesIcon className="h-5 w-5" />
+                Ask AI
               </button>
               {tables.length > 0 && (
                 <>

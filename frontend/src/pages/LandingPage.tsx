@@ -1,27 +1,50 @@
 import { Link } from 'react-router-dom';
-import { ChatBubbleLeftRightIcon, ArrowDownTrayIcon, PencilSquareIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import {
+    SparklesIcon,
+    TableCellsIcon,
+    BoltIcon,
+    ArrowDownTrayIcon,
+} from '@heroicons/react/24/outline';
 import PublicTopBar from '../components/layout/PublicTopBar';
+
+const steps = [
+    {
+        num: '1',
+        title: 'Describe it',
+        description: 'Tell the AI what you\'re tracking. "Compare SaaS competitors" or "Plan my trip to Italy." It builds the table.',
+    },
+    {
+        num: '2',
+        title: 'Populate it',
+        description: 'AI fills your rows with real data — research, examples, or structure. You edit from there or let it keep going.',
+    },
+    {
+        num: '3',
+        title: 'Put AI to work on it',
+        description: 'Add AI-powered columns that analyze, score, summarize, or enrich every row. Your data actually works for you.',
+    },
+];
 
 const features = [
     {
-        icon: ChatBubbleLeftRightIcon,
-        title: 'AI Chat Assistant',
-        description: 'Describe what you need in plain English. Our AI builds and modifies your tables through conversation.',
+        icon: SparklesIcon,
+        title: 'AI that builds the whole table',
+        description: 'Describe what you need. AI designs the schema, populates the rows, and gets you to a working table in one conversation.',
+    },
+    {
+        icon: BoltIcon,
+        title: 'Row-by-row AI processing',
+        description: 'Add a column and let AI process every row — scoring, categorizing, summarizing, enriching. Like having a research assistant for each cell.',
+    },
+    {
+        icon: TableCellsIcon,
+        title: 'Structure without the fight',
+        description: 'Stop wrestling with spreadsheets. Say what you\'re organizing, get a clean table with the right columns, types, and constraints.',
     },
     {
         icon: ArrowDownTrayIcon,
-        title: 'Import & Export CSV',
-        description: 'Bring in data from spreadsheets or export your tables to CSV with one click.',
-    },
-    {
-        icon: PencilSquareIcon,
-        title: 'Inline Editing',
-        description: 'Click any cell to edit. Add rows, reorder columns, and manage your data directly in the table.',
-    },
-    {
-        icon: SparklesIcon,
-        title: 'Schema Proposals',
-        description: 'Let AI suggest the perfect table structure for your data, then refine it to fit your needs.',
+        title: 'Import, export, keep moving',
+        description: 'Bring in CSV data, export when you need to. Your data is never locked in.',
     },
 ];
 
@@ -34,11 +57,13 @@ export default function LandingPage() {
                 {/* Hero */}
                 <section className="px-6 py-24 text-center max-w-4xl mx-auto">
                     <h1 className="text-5xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl">
-                        Build smarter tables with AI
+                        Tell AI what you're tracking.
+                        <br />
+                        <span className="text-blue-600 dark:text-blue-400">Get a table that works.</span>
                     </h1>
                     <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-                        Create, populate, and manage structured data tables through natural conversation.
-                        No spreadsheet skills required.
+                        table.that turns a plain-English description into a structured, populated table —
+                        then lets you unleash AI on every row to analyze, enrich, and score your data.
                     </p>
                     <div className="mt-10 flex items-center justify-center gap-4">
                         <Link
@@ -56,12 +81,31 @@ export default function LandingPage() {
                     </div>
                 </section>
 
+                {/* How it works */}
+                <section className="px-6 py-16 max-w-4xl mx-auto">
+                    <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-14">
+                        Three steps. No spreadsheet wrestling.
+                    </h2>
+                    <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
+                        {steps.map((step) => (
+                            <div key={step.num} className="text-center">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-lg font-bold mb-4">
+                                    {step.num}
+                                </div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                    {step.title}
+                                </h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                                    {step.description}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
                 {/* Features */}
                 <section className="px-6 py-16 max-w-6xl mx-auto">
-                    <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-12">
-                        Everything you need to work with data
-                    </h2>
-                    <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                         {features.map((feature) => (
                             <div
                                 key={feature.title}
@@ -71,7 +115,7 @@ export default function LandingPage() {
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                                     {feature.title}
                                 </h3>
-                                <p className="text-sm text-gray-600 dark:text-gray-300">
+                                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                                     {feature.description}
                                 </p>
                             </div>
@@ -83,10 +127,10 @@ export default function LandingPage() {
                 <section className="px-6 py-20 text-center">
                     <div className="max-w-2xl mx-auto rounded-2xl bg-blue-600 dark:bg-blue-700 px-8 py-12">
                         <h2 className="text-3xl font-bold text-white mb-4">
-                            Ready to get started?
+                            Stop organizing. Start deciding.
                         </h2>
                         <p className="text-blue-100 mb-8">
-                            Create your first AI-powered table in seconds.
+                            Build your first AI-powered table in under a minute.
                         </p>
                         <Link
                             to="/register"
