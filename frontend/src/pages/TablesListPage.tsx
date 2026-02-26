@@ -10,6 +10,7 @@ import {
   ChatBubbleLeftRightIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
+import { STARTERS } from '../config/starters';
 import { listTables, createTable, deleteTable } from '../lib/api/tableApi';
 import type { TableListItem, ColumnDefinition, ColumnType } from '../types/table';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
@@ -425,9 +426,10 @@ function TableCard({ table, onClick, onEdit, onDelete }: TableCardProps) {
 interface EmptyStateProps {
   onCreateClick: () => void;
   onChatClick: () => void;
+  onStarterClick: (prompt: string) => void;
 }
 
-function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
+function EmptyState({ onCreateClick, onChatClick, onStarterClick }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <TableCellsIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
@@ -454,6 +456,32 @@ function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
           Design with AI
         </button>
       </div>
+
+      {/* Starter prompts */}
+      <div className="w-full max-w-4xl mt-12">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 text-center mb-4">
+          Or try a starter
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {STARTERS.map((starter) => (
+            <button
+              key={starter.title}
+              onClick={() => onStarterClick(starter.prompt)}
+              className="flex items-start gap-3 p-4 text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
+            >
+              <starter.icon className="h-5 w-5 mt-0.5 flex-shrink-0 text-blue-500 dark:text-blue-400" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                  {starter.title}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {starter.description}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -464,7 +492,7 @@ function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext } = useChatContext();
+  const { updateContext, sendMessage } = useChatContext();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -472,6 +500,11 @@ export default function TablesListPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TableListItem | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+
+  const handleStarterClick = useCallback((prompt: string) => {
+    setChatOpen(true);
+    sendMessage(prompt);
+  }, [sendMessage]);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -644,6 +677,7 @@ export default function TablesListPage() {
             <EmptyState
               onCreateClick={() => setShowCreateModal(true)}
               onChatClick={() => setChatOpen(true)}
+              onStarterClick={handleStarterClick}
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
