@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   TableCellsIcon,
   ChatBubbleLeftRightIcon,
@@ -29,8 +29,6 @@ export default function TableViewPage() {
   const { tableId: tableIdParam } = useParams<{ tableId: string }>();
   const tableId = Number(tableIdParam);
   const navigate = useNavigate();
-  const location = useLocation();
-  const fromProposal = (location.state as any)?.fromProposal === true;
 
   // Data state
   const [table, setTable] = useState<TableDefinition | null>(null);
@@ -39,7 +37,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, sendMessage, messages, isLoading, context: chatContext } = useChatContext();
+  const { updateContext, sendMessage, messages, isLoading } = useChatContext();
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,19 +166,6 @@ export default function TableViewPage() {
       });
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
-
-  // Continue chat after arriving from a schema proposal acceptance.
-  // Wait for chatContext to include this table's id so sendMessage sends correct context.
-  const proposalContinuedRef = useRef(false);
-  useEffect(() => {
-    if (fromProposal && table && !proposalContinuedRef.current) {
-      // Don't fire until updateContext has propagated with this table's info
-      if (chatContext.table_id !== table.id) return;
-      proposalContinuedRef.current = true;
-      window.history.replaceState({}, '');
-      sendMessage(`[User accepted the schema proposal and created the table "${table.name}".]`);
-    }
-  }, [fromProposal, table, sendMessage, chatContext]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];

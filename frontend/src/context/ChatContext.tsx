@@ -42,7 +42,8 @@ interface ChatProviderProps {
 
 export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [context, setContext] = useState<Record<string, unknown>>({});
+    const [context, setContextState] = useState<Record<string, unknown>>({});
+    const contextRef = useRef<Record<string, unknown>>({});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
@@ -96,7 +97,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         try {
             for await (const event of chatApi.streamMessage({
                 message: content,
-                context,
+                context: contextRef.current,
                 interaction_type: interactionType,
                 action_metadata: actionMetadata,
                 conversation_id: chatIdRef.current
@@ -204,7 +205,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             setIsLoading(false);
             abortControllerRef.current = null;
         }
-    }, [context]);
+    }, []);
 
     const cancelRequest = useCallback(() => {
         if (abortControllerRef.current) {
@@ -214,11 +215,14 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     }, []);
 
     const updateContext = useCallback((updates: Record<string, unknown>) => {
-        setContext(prev => ({ ...prev, ...updates }));
+        const merged = { ...contextRef.current, ...updates };
+        contextRef.current = merged;
+        setContextState(merged);
     }, []);
 
     const replaceContext = useCallback((newContext: Record<string, unknown>) => {
-        setContext(newContext);
+        contextRef.current = newContext;
+        setContextState(newContext);
     }, []);
 
     const reset = useCallback(() => {

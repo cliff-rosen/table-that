@@ -572,7 +572,9 @@ export default function TablesListPage() {
     }
   }
 
-  // Handle accepted schema proposal — create a new table
+  // Handle accepted schema proposal — create a new table, then continue the conversation.
+  // Sequence: create → update context (ref writes synchronously) → send message → navigate.
+  // Messages and streaming persist in the shared ChatContext across the navigation.
   const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
     const columns = applySchemaOperations([], proposalData.operations);
 
@@ -588,11 +590,27 @@ export default function TablesListPage() {
         columns,
       });
       showSuccessToast(`Table "${created.name}" created.`);
-      navigate(`/tables/${created.id}`, { state: { fromProposal: true } });
+
+      // Set table context so the AI can operate on it (contextRef updates synchronously)
+      updateContext({
+        current_page: 'table_view',
+        table_id: created.id,
+        table_name: created.name,
+        table_description: created.description || '',
+        columns: created.columns,
+        row_count: 0,
+        sample_rows: [],
+      });
+
+      // Continue the conversation — sendMessage reads contextRef, which already has table info
+      sendMessage(`[User accepted the schema proposal and created the table "${created.name}".]`);
+
+      // Navigate — messages + streaming persist in shared ChatContext
+      navigate(`/tables/${created.id}`);
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate]);
+  }, [navigate, updateContext, sendMessage]);
 
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
