@@ -149,8 +149,9 @@ sections:
       - "Delete all rows where Status is Withdrawn"
       - "Add 10 sample records"
 
-      The assistant creates a **Data Proposal** card showing every proposed change. You can:
+      The assistant creates a **Data Proposal** card in the chat showing every proposed change. You can:
       - Review each operation (add, update, delete)
       - Uncheck individual operations you don't want
-      - Click Apply to execute the checked operations
+      - Click **Apply** to execute the checked operations
       - Watch the progress bar as changes are applied one by one
+      - Click **Done** when complete

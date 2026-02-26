@@ -49,6 +49,7 @@ Always use SCHEMA_PROPOSAL when the user wants to create a new table. Always set
 - table_name: A clear, concise name for the table
 - table_description: A brief description of what the table tracks
 - operations: A list of "add" operations, one per column
+- After emitting: In your text, briefly describe the proposed schema, then tell the user: "You can uncheck any columns you don't need, then click **Create Table** to build it, or **Cancel** to start over."
 
 ## Schema Design Guidance
 - Be proactive: propose a complete, ready-to-use schema right away rather than asking too many questions

@@ -88,12 +88,12 @@ sections:
 
       ### Reviewing and Applying
 
-      1. Review each proposed change in the card
+      1. Review each proposed change in the proposal card
       2. Uncheck any changes you don't want
-      3. Click **Apply** to execute the checked changes
+      3. Click **Create Table** (for new tables) or **Apply** (for schema updates) to execute the checked changes
       4. The table schema updates immediately
 
-      If you click **Cancel**, no changes are made.
+      Click **Cancel** to dismiss the proposal without making any changes.
 
       ### Important Notes
       - Removing a column deletes all data in that column permanently
@@ -135,11 +135,11 @@ sections:
 
       ### Reviewing and Applying
 
-      1. Review the proposed changes — each row is shown with its data
+      1. Review the proposed changes in the proposal card — each row is shown with its data
       2. Uncheck any operations you don't want
       3. Click **Apply** to execute the checked operations
       4. Watch the progress bar as changes are applied one by one
-      5. The data table refreshes when complete
+      5. When complete, click **Done** — the data table refreshes
 
       ### How Apply Works
 
@@ -273,8 +273,8 @@ sections:
       3. On confirmation, it calls **for_each_row** with the specific row IDs
       4. For each row, **research_web** searches the web and reads pages to find the value
       5. You can watch the progress as each row is researched (search queries, page fetches)
-      6. All results are presented as a **Data Proposal** for you to review
-      7. You can uncheck any incorrect results, then click Apply
+      6. All results are presented as a **Data Proposal** card in the chat for you to review
+      7. You can uncheck any incorrect results, then click **Apply**
 
       ### Examples
 
@@ -290,8 +290,8 @@ sections:
       3. The assistant shows you the matching rows and explains what it will do
       4. Confirm the operation
       5. Watch the research progress (searching, fetching pages)
-      6. Review the Data Proposal showing all found values
-      7. Uncheck any incorrect results, then click Apply
+      6. Review the Data Proposal card showing all found values
+      7. Uncheck any incorrect results, then click **Apply**
 
       ### Bulk Transformations (No Web Required)
 
@@ -302,7 +302,7 @@ sections:
 
       ### Key Points
 
-      - Results are always presented as a Data Proposal — nothing changes until you approve
-      - You can selectively approve individual row updates
+      - Results are always presented as a Data Proposal card — nothing changes until you click **Apply**
+      - You can uncheck individual row updates you don't want before applying
       - The assistant always asks for confirmation before starting the research
       - The research tool processes up to 20 rows per call — for larger tables, the assistant runs multiple batches

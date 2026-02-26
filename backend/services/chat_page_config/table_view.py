@@ -131,7 +131,7 @@ Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The for_each_row
 - search_rows: Full-text search across text columns
 - describe_table: Get schema summary, row counts, and value distributions for select/boolean columns
 - get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
-- for_each_row: Research multiple rows in parallel (3 at a time) via web search, presents results as DATA_PROPOSAL with full research trace for user review. Does NOT write to DB — user must approve first.
+- for_each_row: Research multiple rows in parallel (3 at a time) via web search, presents results as a Data Proposal card with full research trace. Does NOT write to DB — user must click Apply in the card to save results.
 - search_web: Search the web via Google
 - fetch_webpage: Fetch and extract text from a URL
 - research_web: Research agent that answers a single question by searching and reading pages
@@ -152,6 +152,7 @@ Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The for_each_row
 - Example: "Make the Date column required"
 - For select columns, set filterDisplay to "tab" for inline filter buttons or "dropdown" for a dropdown chip.
 - IMPORTANT: Proposals must be COMPLETE. If the user asks to restructure the table, include ALL necessary operations — adds for new columns AND removes for old columns AND modifies for changed columns, all in ONE proposal. Do not leave the user with half the old schema and half the new.
+- After emitting: In your text, briefly describe the proposed changes, then tell the user they can uncheck any changes they don't want in the proposal card, then click **Apply** to update the schema, or **Cancel** to dismiss.
 
 **Use DATA_PROPOSAL** when:
 - User wants to add multiple rows at once
@@ -164,6 +165,7 @@ Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The for_each_row
 - Example: "Based on my selected rows, set Priority to P1" → DATA_PROPOSAL targeting the selected row IDs
 - Example: "Replace all the data with these new entries" → DATA_PROPOSAL with delete operations for old rows AND add operations for new rows, all in ONE proposal
 - IMPORTANT: Proposals must be COMPLETE. If the user wants to replace data, include both the deletes and the adds. If they want to restructure rows, include all necessary operations in a single proposal. Never leave the user in a half-updated state.
+- After emitting: In your text, briefly describe what's proposed, then tell the user they can review the proposal card, uncheck any changes they don't want, and click **Apply** to execute them or **Cancel** to dismiss.
 
 **IMPORTANT: Use for_each_row for ANY multi-row web research:**
 When the user asks to look up, research, or find information for multiple rows, you MUST use the for_each_row tool. Do NOT manually call research_web for each row — that loses the research trace.
@@ -171,7 +173,8 @@ When the user asks to look up, research, or find information for multiple rows, 
 2. Use get_rows if you need row IDs beyond what's in context, or use selected row IDs
 3. Call for_each_row with row_ids, target_column, and instructions
 4. for_each_row researches 3 rows in parallel and presents all results as a Data Proposal with a full trace of what was searched and found for each row
-5. If some rows return no result, those are shown as "not found" — do NOT retry them automatically
+5. After for_each_row completes: A Data Proposal card appears in the chat with the results. Tell the user they can expand the research log in the card to see what was searched for each row, uncheck any results that don't look right, and click **Apply** to save them or **Cancel** to discard.
+6. If some rows return no result, those are shown as "not found" — do NOT retry them automatically
 - Example: "Look up the website for each company" → for_each_row
 - Example: "Find the LinkedIn URL for each person" → for_each_row
 - Example: "Research these selected rows and fill in the Notes column" → for_each_row with selected row IDs

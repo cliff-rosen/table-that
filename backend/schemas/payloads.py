@@ -201,7 +201,7 @@ Rules:
 - For select columns, always include the full options list (not just additions).
 - filterDisplay controls the filter UI for select columns: "tab" for inline buttons, "dropdown" for a dropdown chip. Always use a string value, never null.
 - Always include a brief "reasoning" field.
-- The user will see this as an interactive card where they can review and selectively apply changes."""
+- The user will see this as an interactive proposal card in the chat panel. For new tables, the button says **Create Table**. For schema updates, it says **Apply**. They can uncheck individual changes before acting."""
 
 
 DATA_PROPOSAL_INSTRUCTIONS = """DATA_PROPOSAL (propose bulk data changes):
@@ -221,7 +221,7 @@ Rules:
 - Use column NAMES (not IDs) in data values and changes.
 - For updates, only include the columns being changed (not all columns).
 - For adds, include values for all relevant columns.
-- The user will see this as an interactive card showing proposed additions (green), updates (highlighted diff), and deletions (red). They can uncheck individual operations before applying.
+- The user will see this as an interactive proposal card in the chat panel showing additions (green), updates (amber), and deletions (red). They can uncheck individual operations, then click **Apply** to execute or **Cancel** to dismiss.
 
 When to use DATA_PROPOSAL vs direct tools:
 - Single row + explicit user request → use create_row/update_row/delete_row tools directly

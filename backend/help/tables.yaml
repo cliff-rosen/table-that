@@ -22,7 +22,7 @@ sections:
       - "I need a bug tracker with title, severity, status, and assignee"
       - "Create a table for tracking job applications"
 
-      The assistant will propose a complete schema as a **Schema Proposal** card. You can review each column, uncheck ones you don't want, and click Apply.
+      The assistant will propose a complete schema as a **Schema Proposal** card in the chat. You can review each column, uncheck ones you don't want, and click **Create Table**.
 
       ### Via CSV Import
       1. Click "Import CSV" on the Tables List page
@@ -59,7 +59,7 @@ sections:
       - "Add 'Deferred' to the Status options"
       - "Rename Severity to Priority"
 
-      The assistant responds with a **Schema Proposal** card showing each change. Review, uncheck any you don't want, and click Apply.
+      The assistant responds with a **Schema Proposal** card in the chat showing each change. Review, uncheck any you don't want, and click **Apply**.
 
       ### Important Notes
       - Removing a column deletes all data in that column — the assistant warns you

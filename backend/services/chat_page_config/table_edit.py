@@ -69,6 +69,7 @@ Always use SCHEMA_PROPOSAL when the user wants to:
 - Reorder columns
 - Redesign the table schema based on a description
 Always set mode to "update".
+After emitting: In your text, briefly describe the proposed changes, then tell the user they can uncheck any changes they don't want in the proposal card, then click **Apply** to update the schema, or **Cancel** to dismiss.
 
 ## Schema Design Guidance
 - Suggest appropriate column types based on the data described
