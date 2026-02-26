@@ -377,12 +377,13 @@ export default function TableViewPage() {
           onAccept={callbacks.onAccept}
           onReject={callbacks.onReject}
           onExecuteOperation={executeSingleDataOperation}
+          onOperationsComplete={fetchRows}
         />
       ),
       onAccept: handleDataProposalAccept,
       renderOptions: { headerTitle: 'AI Research Results', headerIcon: '🔬' },
     },
-  }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation, table?.columns]);
+  }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation, fetchRows, table?.columns]);
 
   // -----------------------------------------------------------------------
   // Render: loading state

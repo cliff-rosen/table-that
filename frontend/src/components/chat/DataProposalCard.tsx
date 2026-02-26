@@ -59,6 +59,8 @@ interface DataProposalCardProps {
   onAccept?: (data: DataProposalData) => void;
   onReject?: () => void;
   onExecuteOperation?: (op: DataOperation) => Promise<void>;
+  /** Called when all operations finish — use to refresh table immediately */
+  onOperationsComplete?: () => void;
 }
 
 // =============================================================================
@@ -364,7 +366,7 @@ function ResearchLog({ log, defaultExpanded = false }: { log: ResearchLogEntry[]
 // DataProposalCard
 // =============================================================================
 
-export default function DataProposalCard({ data, onAccept, onReject, onExecuteOperation }: DataProposalCardProps) {
+export default function DataProposalCard({ data, onAccept, onReject, onExecuteOperation, onOperationsComplete }: DataProposalCardProps) {
   const [checkedOps, setCheckedOps] = useState<boolean[]>(
     () => data.operations.map(() => true)
   );
@@ -445,7 +447,12 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
     setSuccessCount(successes);
     setErrorCount(errors);
     setPhase('done');
-  }, [data.operations, checkedOps, onExecuteOperation]);
+
+    // Refresh table immediately so user sees changes
+    if (successes > 0) {
+      onOperationsComplete?.();
+    }
+  }, [data.operations, checkedOps, onExecuteOperation, onOperationsComplete]);
 
   const handleDone = useCallback(() => {
     // Build data with only successful ops for the refresh callback
