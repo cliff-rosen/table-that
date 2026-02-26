@@ -536,10 +536,34 @@ export default function ChatTray({
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
                         {messages.length === 0 && (
-                            <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
-                                <ChatBubbleLeftRightIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">Start a new conversation</p>
-                                <p className="text-xs mt-1 opacity-75">Ask me anything about the application</p>
+                            <div className="mx-auto max-w-sm mt-8 space-y-5">
+                                <div className="space-y-3 text-center px-2">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">Ask me how things work</span>
+                                        {' '}&mdash; I can explain features, walk you through workflows, or help you figure out what to do next.
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">Or tell me what to build</span>
+                                        {' '}&mdash; I'll create tables, research the web, fill in data, and analyze what we find.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2 justify-center">
+                                    {[
+                                        'What can I do here?',
+                                        'I need to track my job applications',
+                                        'Help me compare laptops under $1500',
+                                        'What are some things you can build for me?',
+                                    ].map((suggestion) => (
+                                        <button
+                                            key={suggestion}
+                                            type="button"
+                                            onClick={() => sendMessage(suggestion)}
+                                            className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all cursor-pointer"
+                                        >
+                                            {suggestion}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
