@@ -1,12 +1,14 @@
 import { useTheme } from '../../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, UserCircleIcon, TableCellsIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, TableCellsIcon, ShieldCheckIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import settings from '../../config/settings';
 import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../lib/api/trackingApi';
+interface TopBarProps {
+    newVersionAvailable?: boolean;
+}
 
-
-export default function TopBar() {
+export default function TopBar({ newVersionAvailable }: TopBarProps) {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
     const { logout, isPlatformAdmin } = useAuth();
@@ -21,7 +23,20 @@ export default function TopBar() {
 
 
     return (
-        <header className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 flex items-center justify-between px-6">
+        <>
+        {newVersionAvailable && (
+            <div className="fixed top-0 left-0 right-0 z-[60] bg-blue-600 text-white text-sm text-center py-1.5 px-4 flex items-center justify-center gap-2">
+                <span>A new version is available.</span>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="inline-flex items-center gap-1 underline font-medium hover:text-blue-100 transition-colors"
+                >
+                    <ArrowPathIcon className="h-3.5 w-3.5" />
+                    Refresh now
+                </button>
+            </div>
+        )}
+        <header className={`fixed left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 flex items-center justify-between px-6 ${newVersionAvailable ? 'top-9' : 'top-0'}`}>
             <div className="flex items-center gap-6">
                 <div className="flex items-center">
                     <span className="text-lg font-semibold text-gray-900 dark:text-white">{settings.appName}</span>
@@ -56,5 +71,6 @@ export default function TopBar() {
                 </button>
             </div>
         </header>
+        </>
     );
 }

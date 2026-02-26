@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 import os
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
@@ -15,9 +16,26 @@ else:
     load_dotenv(_backend_dir / ".env", override=True)
 
 
+def _get_git_version() -> str:
+    """Get version from git SHA. Falls back to BUILD_VERSION env var, then '0.0.1'."""
+    # Check env var first (set during deploy)
+    env_version = os.environ.get("BUILD_VERSION")
+    if env_version:
+        return env_version
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        ).decode().strip()
+        return sha or "0.0.1"
+    except Exception:
+        return "0.0.1"
+
+
 class Settings(BaseSettings):
     APP_NAME: str = "table.that"
-    SETTING_VERSION: str = "0.0.1"
+    SETTING_VERSION: str = _get_git_version()
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")  # Dev default
 
     # Database settings

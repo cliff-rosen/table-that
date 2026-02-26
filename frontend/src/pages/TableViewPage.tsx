@@ -16,6 +16,7 @@ import AddRecordModal from '../components/table/AddRecordModal';
 import TableToolbar from '../components/table/TableToolbar';
 import { Button } from '../components/ui/button';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
+import { trackEvent } from '../lib/api/trackingApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import DataProposalCard, { type DataOperation } from '../components/chat/DataProposalCard';
 import { applySchemaOperations } from '../lib/utils/schemaOperations';
@@ -276,6 +277,7 @@ export default function TableViewPage() {
   };
 
   const handleImportComplete = (result: { imported: number }) => {
+    trackEvent('csv_import', { source: 'table_view', table_id: tableId, row_count: result.imported });
     setShowImportModal(false);
     if (result.imported > 0) {
       fetchRows();
@@ -451,14 +453,14 @@ export default function TableViewPage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => navigate(`/tables/${tableId}/edit`)}
+                onClick={() => { trackEvent('edit_schema', { table_id: tableId }); navigate(`/tables/${tableId}/edit`); }}
                 className="gap-2"
               >
                 <PencilSquareIcon className="h-5 w-5" />
                 Edit Schema
               </Button>
               <button
-                onClick={() => setChatOpen((prev) => !prev)}
+                onClick={() => { if (!chatOpen) trackEvent('chat_open', { page: 'table_view', table_id: tableId }); setChatOpen((prev) => !prev); }}
                 className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
                   chatOpen
                     ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'

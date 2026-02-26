@@ -13,6 +13,7 @@ import { STARTERS } from '../config/starters';
 import { listTables, createTable, deleteTable } from '../lib/api/tableApi';
 import type { TableListItem, ColumnDefinition, ColumnType } from '../types/table';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
+import { trackEvent } from '../lib/api/trackingApi';
 import ImportModal from '../components/table/ImportModal';
 import { useChatContext } from '../context/ChatContext';
 import ChatTray from '../components/chat/ChatTray';
@@ -555,6 +556,7 @@ export default function TablesListPage() {
   }) {
     try {
       const created = await createTable(data);
+      trackEvent('table_create', { method: 'manual', table_id: created.id });
       showSuccessToast(`Table "${created.name}" created.`);
       setShowCreateModal(false);
       await fetchTables();
@@ -592,6 +594,7 @@ export default function TablesListPage() {
         description: proposalData.table_description,
         columns,
       });
+      trackEvent('table_create', { method: 'chat', table_id: created.id });
       showSuccessToast(`Table "${created.name}" created.`);
 
       // Set table context so the AI can operate on it (contextRef updates synchronously)
@@ -673,7 +676,7 @@ export default function TablesListPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setChatOpen(!chatOpen)}
+                onClick={() => { if (!chatOpen) trackEvent('chat_open', { page: 'tables_list' }); setChatOpen(!chatOpen); }}
                 className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
                   chatOpen
                     ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'
@@ -745,6 +748,7 @@ export default function TablesListPage() {
         <ImportModal
           onClose={() => setShowImportModal(false)}
           onImported={(result) => {
+            trackEvent('csv_import', { source: 'tables_list', table_id: result.tableId });
             setShowImportModal(false);
             if (result.tableId) {
               navigate(`/tables/${result.tableId}`);

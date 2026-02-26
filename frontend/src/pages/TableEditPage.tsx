@@ -19,6 +19,7 @@ import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
+import { trackEvent } from '../lib/api/trackingApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import { applySchemaOperations, generateColumnId } from '../lib/utils/schemaOperations';
 import type { SchemaProposalData } from '../lib/utils/schemaOperations';
@@ -455,7 +456,7 @@ export default function TableEditPage() {
               {/* View Data toggle */}
               <Button
                 variant="outline"
-                onClick={() => navigate(`/tables/${tableId}`)}
+                onClick={() => { trackEvent('view_data', { table_id: tableId }); navigate(`/tables/${tableId}`); }}
                 className="gap-2"
               >
                 <EyeIcon className="h-5 w-5" />
@@ -464,7 +465,7 @@ export default function TableEditPage() {
               {/* Chat toggle */}
               <Button
                 variant={chatOpen ? 'default' : 'outline'}
-                onClick={() => setChatOpen((prev) => !prev)}
+                onClick={() => { if (!chatOpen) trackEvent('chat_open', { page: 'table_edit', table_id: tableId }); setChatOpen((prev) => !prev); }}
                 className="gap-2"
               >
                 <ChatBubbleLeftRightIcon className="h-5 w-5" />
