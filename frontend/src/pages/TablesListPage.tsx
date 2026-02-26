@@ -426,10 +426,9 @@ function TableCard({ table, onClick, onEdit, onDelete }: TableCardProps) {
 interface EmptyStateProps {
   onCreateClick: () => void;
   onChatClick: () => void;
-  onStarterClick: (prompt: string) => void;
 }
 
-function EmptyState({ onCreateClick, onChatClick, onStarterClick }: EmptyStateProps) {
+function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <TableCellsIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
@@ -456,31 +455,43 @@ function EmptyState({ onCreateClick, onChatClick, onStarterClick }: EmptyStatePr
           Design with AI
         </button>
       </div>
+    </div>
+  );
+}
 
-      {/* Starter prompts */}
-      <div className="w-full max-w-4xl mt-12">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 text-center mb-4">
-          Or try a starter
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {STARTERS.map((starter) => (
-            <button
-              key={starter.title}
-              onClick={() => onStarterClick(starter.prompt)}
-              className="flex items-start gap-3 p-4 text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
-            >
-              <starter.icon className="h-5 w-5 mt-0.5 flex-shrink-0 text-blue-500 dark:text-blue-400" />
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  {starter.title}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {starter.description}
-                </div>
+// =============================================================================
+// Starter Grid
+// =============================================================================
+
+interface StarterGridProps {
+  onStarterClick: (prompt: string) => void;
+  compact?: boolean;
+}
+
+function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
+  return (
+    <div className={compact ? 'mt-10' : 'mt-12'}>
+      <h3 className={`text-sm font-medium text-gray-500 dark:text-gray-400 mb-4 ${compact ? '' : 'text-center'}`}>
+        {compact ? 'Build a new table with AI' : 'Or try a starter'}
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {STARTERS.map((starter) => (
+          <button
+            key={starter.title}
+            onClick={() => onStarterClick(starter.prompt)}
+            className="flex items-start gap-3 p-4 text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
+          >
+            <starter.icon className="h-5 w-5 mt-0.5 flex-shrink-0 text-blue-500 dark:text-blue-400" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                {starter.title}
               </div>
-            </button>
-          ))}
-        </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {starter.description}
+              </div>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -578,10 +589,14 @@ export default function TablesListPage() {
       });
       showSuccessToast(`Table "${created.name}" created.`);
       navigate(`/tables/${created.id}`);
+      // Tell chat the table was created so it can continue the workflow
+      sendMessage(
+        `I created the "${created.name}" table. What's next?`,
+      );
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate]);
+  }, [navigate, sendMessage]);
 
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
@@ -677,7 +692,6 @@ export default function TablesListPage() {
             <EmptyState
               onCreateClick={() => setShowCreateModal(true)}
               onChatClick={() => setChatOpen(true)}
-              onStarterClick={handleStarterClick}
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -692,6 +706,12 @@ export default function TablesListPage() {
               ))}
             </div>
           )}
+
+          {/* Starter prompts — always visible */}
+          <StarterGrid
+            onStarterClick={handleStarterClick}
+            compact={tables.length > 0}
+          />
         </div>
       </div>
 

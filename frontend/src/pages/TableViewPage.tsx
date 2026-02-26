@@ -37,7 +37,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, messages, isLoading } = useChatContext();
+  const { updateContext, sendMessage, messages, isLoading } = useChatContext();
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -322,10 +322,12 @@ export default function TableViewPage() {
       const updated = await updateTable(tableId, updateData);
       setTable(updated);
       showSuccessToast('Schema updated successfully');
+      // Tell chat the schema was applied so it can continue the workflow
+      sendMessage(`I applied the schema changes to "${updated.name}". What's next?`);
     } catch (err) {
       showErrorToast(err, 'Failed to apply schema changes');
     }
-  }, [table, tableId]);
+  }, [table, tableId, sendMessage]);
 
   const executeSingleDataOperation = useCallback(async (op: DataOperation) => {
     if (!table) throw new Error('No table loaded');
@@ -356,7 +358,9 @@ export default function TableViewPage() {
   const handleDataProposalAccept = useCallback(async () => {
     // Called when the user clicks "Done" after all operations complete
     await fetchRows();
-  }, [fetchRows]);
+    // Tell chat the data was applied so it can continue the workflow
+    sendMessage('I applied the data changes. What else can we do?');
+  }, [fetchRows, sendMessage]);
 
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
