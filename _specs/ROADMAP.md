@@ -22,6 +22,11 @@
 
 | ID | P | Title | Status | Created | Resolved |
 |----|---|-------|--------|---------|----------|
+| #9 | P1 | Backend API test foundation + table/auth tests | open | 2026-02-26 | |
+| #10 | P1 | Playwright MCP browser automation setup | open | 2026-02-26 | |
+| #11 | P1 | User test agent (browser-driven E2E) | open | 2026-02-26 | |
+| #12 | P1 | Pre-deploy smoke test suite + /smoke skill | open | 2026-02-26 | |
+| #13 | P2 | Full API endpoint test coverage (P1-P3 routers) | open | 2026-02-26 | |
 
 ## Details
 
@@ -48,3 +53,18 @@ Connect to email and text messages as data sources. Users have a wealth of perso
 
 ### #8 — Research effort thresholds and prompting
 The for_each_row web research pipeline needs better prompting and tooling around effort thresholds at each stage. Key issues: (1) When has enough searching been done to answer the question? Currently Claude often takes the first snippet answer without verifying. (2) When should it fetch a page vs trust snippets? (3) When should it refine the search query vs give up? (4) The search result snippets themselves aren't logged in the research trace, so users can't evaluate whether Claude made good decisions. Need to tune the system prompt, add structured decision points, and ensure the research log captures enough detail (especially the actual search result snippets) for users to audit research quality.
+
+### #9 — Backend API test foundation + table/auth tests
+Set up proper test infrastructure: FastAPI TestClient, JWT token factory fixture, test DB configuration in conftest.py. Fix the missing frontend setupTests.ts. Then write the first high-value tests: full CRUD coverage for tables.py (12 endpoints) and auth.py (8 endpoints) — happy paths, auth failures, not-found, validation errors, and cross-user access control. See `_specs/testing-roadmap.md` for full details.
+
+### #10 — Playwright MCP browser automation setup
+Install and configure the Playwright MCP server so Claude can drive a real browser. Config goes in `.claude/settings.json` under `mcpServers`. This gives Claude tools like browser_navigate, browser_click, browser_fill, browser_screenshot. Enables visual testing, real user flow validation, and debugging UI issues by literally looking at the page.
+
+### #11 — User test agent (browser-driven E2E)
+Create `.claude/agents/user-test.md` — a sub-agent that uses Playwright MCP to run user-journey tests. Has a library of scenarios (login, create table, import CSV, chat interaction, inline editing, filter/sort). Invokable via `/test` slash command with optional scenario name. Takes screenshots at key checkpoints, reports pass/fail with visual evidence.
+
+### #12 — Pre-deploy smoke test suite + /smoke skill
+Create `tests/test_smoke.py` — a fast pytest suite that validates core functionality against a live server: health check, auth flow, table CRUD, row CRUD, import/export, chat stream initiation. Also create a `/smoke` slash command that runs the pytest suite and optionally follows up with a quick browser check. Integrate into deploy.ps1 as a gate — fail deploy if smoke tests fail.
+
+### #13 — Full API endpoint test coverage (P1-P3 routers)
+After the foundation (#9) is in place, extend test coverage to all remaining routers: chat (5 endpoints), organization (5), admin (14), user (4), help (14), tracking (3). Priority order matches the testing roadmap. Goal: every endpoint has at least a happy-path test and an auth-failure test. 71 endpoints total.
