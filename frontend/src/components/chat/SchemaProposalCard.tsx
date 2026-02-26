@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
@@ -211,6 +211,15 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
   );
   const [applied, setApplied] = useState(false);
   const [rejected, setRejected] = useState(false);
+
+  // Reset state when proposal data changes (e.g. user asks for a different proposal)
+  const prevDataRef = useRef(data);
+  if (data !== prevDataRef.current) {
+    prevDataRef.current = data;
+    setCheckedOps(data.operations.map(() => true));
+    setApplied(false);
+    setRejected(false);
+  }
 
   const isCreate = data.mode === 'create';
 
