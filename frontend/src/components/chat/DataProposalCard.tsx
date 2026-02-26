@@ -168,7 +168,7 @@ function UpdateOperationRow({ op, checked, onToggle, result, disabled, large }: 
             <div key={key} className={textCls}>
               <span className="text-gray-500 dark:text-gray-400">{key}</span>
               <span className="text-gray-400 dark:text-gray-500"> → </span>
-              <span className="text-amber-700 dark:text-amber-300 font-medium">{truncate(val, large ? 0 : 40)}</span>
+              <span className={`text-amber-700 dark:text-amber-300 font-medium ${large ? 'whitespace-pre-wrap break-words' : ''}`}>{truncate(val, large ? 0 : 40)}</span>
             </div>
           ))}
         </div>
@@ -319,9 +319,9 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
         <span className={`${textCls} text-gray-700 dark:text-gray-300 font-medium ${large ? '' : 'truncate'}`}>
           {entry.label}
         </span>
-        {isFound && entry.value && (
-          <span className={`${textCls} text-gray-500 dark:text-gray-400 ${large ? '' : 'truncate'} ml-auto`}>
-            → {large ? entry.value : (entry.value.length > 50 ? entry.value.slice(0, 50) + '...' : entry.value)}
+        {isFound && entry.value && !large && (
+          <span className={`${textCls} text-gray-500 dark:text-gray-400 truncate ml-auto`}>
+            → {entry.value.length > 50 ? entry.value.slice(0, 50) + '...' : entry.value}
           </span>
         )}
         <span className={`${textCls} text-gray-400 dark:text-gray-500 flex-shrink-0`}>
@@ -330,6 +330,12 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
       </button>
       {expanded && (
         <div className="pl-8 pr-3 pb-2 space-y-1.5">
+          {large && isFound && entry.value && (
+            <div className={`${textCls} bg-green-50 dark:bg-green-900/20 rounded p-2 mb-2 text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words`}>
+              <span className="font-medium text-green-700 dark:text-green-400">Answer: </span>
+              {entry.value}
+            </div>
+          )}
           {entry.steps.map((step, i) => (
             <ResearchStepRow key={i} step={step} large={large} />
           ))}
@@ -514,7 +520,7 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 overflow-hidden">
+    <div className={`border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 ${isMaximized ? '' : 'overflow-hidden'}`}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center justify-between">

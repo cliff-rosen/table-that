@@ -373,13 +373,14 @@ export default function TableViewPage() {
       renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
     },
     data_proposal: {
-      render: (payload: any, callbacks: any) => (
+      render: (payload: any, callbacks: any, options?: any) => (
         <DataProposalCard
           data={payload}
           onAccept={callbacks.onAccept}
           onReject={callbacks.onReject}
           onExecuteOperation={executeSingleDataOperation}
           onOperationsComplete={fetchRows}
+          isMaximized={options?.isMaximized}
         />
       ),
       onAccept: handleDataProposalAccept,

@@ -284,12 +284,14 @@ class SomeOtherService:
 **Service ownership:**
 | Table | Owning Service | Other services MUST use |
 |-------|----------------|-------------------------|
-| `Report` | `ReportService` | `report_service.get_report()` |
-| `WipArticle` | `WipArticleService` | `wip_article_service.get_by_*()` |
-| `ReportArticleAssociation` | `ReportArticleAssociationService` | `association_service.get_*()` |
-| `Article` | `ArticleService` | `article_service.get_*()` |
-| `User` | `UserService` | `user_service.get_*()` |
-| `ResearchStream` | `ResearchStreamService` | `stream_service.get_*()` |
+| `TableDefinition` | `TableService` | `table_service.get_table()`, `table_service.get_tables_for_user()` |
+| `TableRow` | `RowService` | `row_service.get_rows()`, `row_service.get_row()` |
+| `User` | `UserService` | `user_service.get_user_by_id()`, `user_service.get_user_by_email()` |
+| `Organization` | `OrganizationService` | `org_service.get_org()`, `org_service.get_org_members()` |
+| `Invitation` | `InvitationService` | `invitation_service.validate_token()`, `invitation_service.accept_invitation()` |
+| `Conversation` / `Message` | `ChatService` | `chat_service.get_user_chats()`, `chat_service.get_messages()` |
+| `ToolTrace` | `ToolTraceService` | `tool_trace_service.get_trace()`, `tool_trace_service.get_user_traces()` |
+| `UserEvent` | `EventTrackingService` | `event_service.track()`, `event_service.list_events()` |
 
 **If you find yourself writing `self.db.query(ModelYouDontOwn)`, STOP and use the owning service instead.**
 
@@ -302,7 +304,7 @@ class SomeOtherService:
 - Pydantic models representing **business/domain concepts**
 - Shared across services
 - NOT for API-specific response shapes (those go in routers)
-- Examples: `Report`, `ReportArticle`, `ResearchStream`, `PipelineExecution`
+- Examples: `TableSchema`, `ColumnDefinition`, `TableRowSchema`, `RowsListResponse`
 
 ---
 
