@@ -329,16 +329,19 @@ export default function ChatTray({
         scrollToBottom();
     }, [messages, streamingText]);
 
-    // Clear dismissed payloads when conversation resets (messages cleared)
-    const prevMessageCountRef = useRef(messages.length);
+    // Clear all conversation-scoped state when conversation resets (chatId goes to null)
+    const prevChatIdRef = useRef(chatId);
     useEffect(() => {
-        if (messages.length === 0 && prevMessageCountRef.current > 0) {
+        if (chatId === null && prevChatIdRef.current !== null) {
             setDismissedPayloads(new Set());
             setPendingPayload(null);
             setActivePayload(null);
+            setToolsToShow(null);
+            setToolsTrace(undefined);
+            setDiagnosticsToShow(null);
         }
-        prevMessageCountRef.current = messages.length;
-    }, [messages.length]);
+        prevChatIdRef.current = chatId;
+    }, [chatId]);
 
     // Detect new payloads and auto-open the panel
     // Payloads come through custom_payload regardless of source (tool or LLM)

@@ -23,7 +23,7 @@ interface ChatContextType {
     activeToolProgress: ActiveToolProgress | null;
     chatId: number | null;
     // Chat actions
-    sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata) => Promise<void>;
+    sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
     cancelRequest: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
@@ -61,14 +61,26 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const sendMessage = useCallback(async (
         content: string,
         interactionType: InteractionType = InteractionType.TEXT_INPUT,
-        actionMetadata?: ActionMetadata
+        actionMetadata?: ActionMetadata,
+        options?: { newConversation?: boolean }
     ) => {
+        // Atomically start a fresh conversation: clear chatId and replace messages
+        if (options?.newConversation) {
+            chatIdRef.current = null;
+            setChatIdState(null);
+        }
+
         const userMessage: ChatMessage = {
             role: 'user',
             content,
             timestamp: new Date().toISOString()
         };
-        setMessages(prev => [...prev, userMessage]);
+
+        if (options?.newConversation) {
+            setMessages([userMessage]);
+        } else {
+            setMessages(prev => [...prev, userMessage]);
+        }
 
         setIsLoading(true);
         setError(null);
