@@ -10,6 +10,16 @@ sections:
 
       table.that is a modern data table builder. You define table schemas with typed columns, manage records through a clean spreadsheet-like interface, and use the AI chat assistant to help you build, populate, and analyze your data.
 
+      ## The Three Phases
+
+      Most users follow a natural three-phase workflow:
+
+      1. **Define** — Design your table schema. Decide what to track and set up columns with the right types. The chat assistant can propose a complete schema from a description (e.g., "I need a bug tracker" or "Track my job applications").
+      2. **Populate** — Fill your table with data. Import a CSV, add records manually, have the chat generate sample data, or research entries via web search.
+      3. **Enhance** — Make your data richer. Add new columns for additional dimensions, then use the AI to research and fill in values across all your rows (e.g., "find the LinkedIn URL for each company").
+
+      You can revisit any phase at any time — add more columns, import more data, or enrich with new research.
+
       ## Navigation
 
       - **Tables List** (`/tables`): Your home page. Shows all your tables as cards. Click a table to view its data. Click the pencil icon to edit its schema.
@@ -24,7 +34,7 @@ sections:
       4. Add columns — choose a name, type, and whether it's required
       5. Click "Create Table"
 
-      Or use the chat assistant: open any table's chat and describe what you want to track. The assistant will propose a schema for you.
+      Or use the chat assistant: on the Tables List page, describe what you want to track. The assistant will propose a complete schema for you.
 
       ## Column Types
 

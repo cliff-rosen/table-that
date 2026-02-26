@@ -8,7 +8,21 @@ sections:
     content: |
       ## Chat Assistant Overview
 
-      The chat panel is available on the **Table View** and **Schema Editor** pages. It's the primary power interface — every significant operation flows through chat as a reviewable proposal.
+      The chat panel is available on the **Tables List**, **Table View**, and **Schema Editor** pages. It's the primary power interface — every significant operation flows through chat as a reviewable proposal.
+
+      ### What the Chat Helps With at Each Phase
+
+      1. **Define** (Tables List & Schema Editor) — Describe what you want to track and the assistant proposes a complete table schema. Refine columns, types, and options through conversation.
+         - "I need a bug tracker with title, severity, status, and assignee"
+         - "Add a Priority column with options P0, P1, P2, P3"
+
+      2. **Populate** (Table View) — Get data into your table. The assistant can generate sample data, help you add records one by one, or research entries from the web.
+         - "Add 10 sample bugs"
+         - "Add a bug: Login timeout, Critical, Open"
+
+      3. **Enhance** (Table View) — Enrich your data. Ask the assistant to add new columns and then research values across your rows.
+         - "Add a Website column and look up the URL for each company"
+         - "Find the LinkedIn page for each person in the table"
 
       ### Three Interaction Modes
 
@@ -291,3 +305,4 @@ sections:
       - Results are always presented as a Data Proposal — nothing changes until you approve
       - You can selectively approve individual row updates
       - The assistant always asks for confirmation before starting the research
+      - The research tool processes up to 20 rows per call — for larger tables, the assistant runs multiple batches

@@ -100,6 +100,9 @@ sections:
       - Select: text columns with 10 or fewer unique values
       - Text: everything else
 
+      ### Limits
+      Tables are limited to 100 rows. If your CSV has more rows, only the first 100 are imported.
+
   - category: tables
     topic: exporting-data
     title: Exporting Data
