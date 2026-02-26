@@ -233,7 +233,7 @@ export default function ChatTray({
     const [input, setInput] = useState('');
     const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
     // Payload that's available but not yet opened by user
     const [pendingPayload, setPendingPayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
     // Payload currently being displayed in the panel (user has clicked to view)
@@ -428,6 +428,8 @@ export default function ChatTray({
             trackEvent('chat_message_send', { page: initialContext?.current_page });
             sendMessage(input.trim(), InteractionType.TEXT_INPUT);
             setInput('');
+            // Reset textarea height
+            if (inputRef.current) inputRef.current.style.height = 'auto';
         }
     };
 
@@ -787,20 +789,32 @@ export default function ChatTray({
                     </div>
 
                     {/* Input */}
-                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                        <form onSubmit={handleSubmit} className="flex gap-2">
-                            <input
+                    <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                        <form onSubmit={handleSubmit} className="flex items-end gap-2">
+                            <textarea
                                 ref={inputRef}
-                                type="text"
                                 value={input}
-                                onChange={(e) => setInput(e.target.value)}
+                                onChange={(e) => {
+                                    setInput(e.target.value);
+                                    // Auto-resize
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSubmit(e);
+                                    }
+                                }}
                                 placeholder="Type your message..."
-                                className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isLoading ? 'opacity-50' : ''}`}
+                                rows={1}
+                                className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
+                                style={{ minHeight: '36px', maxHeight: '150px' }}
                             />
                             <button
                                 type="submit"
                                 disabled={!input.trim() || isLoading}
-                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                             >
                                 <PaperAirplaneIcon className="h-4 w-4" />
                             </button>
