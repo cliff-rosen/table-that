@@ -316,9 +316,10 @@ export default function ChatTray({
         if (chatId !== null) {
             // A conversation exists - save its ID
             sessionStorage.setItem(CHAT_ID_KEY, chatId.toString());
+        } else {
+            // Conversation was reset (new conversation started) - persist so remount doesn't reload old chat
+            sessionStorage.setItem(CHAT_ID_KEY, 'new');
         }
-        // Note: We don't clear on chatId === null here because reset() handles that
-        // by explicitly setting 'new' in sessionStorage
     }, [chatId]);
 
     const scrollToBottom = () => {
