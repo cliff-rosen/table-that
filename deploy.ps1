@@ -1,5 +1,5 @@
 # =============================================================================
-# table.that — Unified Deploy Script
+# table.that - Unified Deploy Script
 #
 # Usage:
 #   .\deploy.ps1                  Deploy both frontend + backend
@@ -8,7 +8,7 @@
 #   .\deploy.ps1 -SkipTag         Deploy without creating a new version tag
 #
 # What this does:
-#   1. Auto-increments version tag (v1.0.0 → v1.0.1)
+#   1. Auto-increments version tag (v1.0.0 -> v1.0.1)
 #   2. Tags the commit and pushes to GitHub
 #   3. Builds frontend with version baked in, syncs to S3
 #   4. Deploys backend to Elastic Beanstalk (immutable deploy)
@@ -28,12 +28,12 @@ if (-not $Frontend -and -not $Backend) {
     $Backend = $true
 }
 
-# ── Configuration ──────────────────────────────────────────────────────────
+# -- Configuration ------------------------------------------------------------
 $S3_BUCKET = "tablethat.ironcliff.ai"
 $FRONTEND_DIR = "frontend"
 $BACKEND_DIR = "backend"
 
-# ── Preflight checks ──────────────────────────────────────────────────────
+# -- Preflight checks ---------------------------------------------------------
 
 # Must be in repo root
 if (-not (Test-Path ".git")) {
@@ -49,7 +49,7 @@ if ($status) {
     exit 1
 }
 
-# ── Version tagging ───────────────────────────────────────────────────────
+# -- Version tagging ----------------------------------------------------------
 
 if (-not $SkipTag) {
     # Get latest version tag
@@ -101,11 +101,11 @@ if (-not $SkipTag) {
     Write-Host "Deploying with existing version: $VERSION (no new tag)" -ForegroundColor Yellow
 }
 
-# ── Frontend deploy ───────────────────────────────────────────────────────
+# -- Frontend deploy -----------------------------------------------------------
 
 if ($Frontend) {
     Write-Host ""
-    Write-Host "═══ Frontend Deploy ═══" -ForegroundColor Magenta
+    Write-Host "--- Frontend Deploy ---" -ForegroundColor Magenta
 
     Push-Location $FRONTEND_DIR
 
@@ -139,11 +139,11 @@ if ($Frontend) {
     Write-Host "Frontend deployed ($VERSION)" -ForegroundColor Green
 }
 
-# ── Backend deploy ────────────────────────────────────────────────────────
+# -- Backend deploy ------------------------------------------------------------
 
 if ($Backend) {
     Write-Host ""
-    Write-Host "═══ Backend Deploy ═══" -ForegroundColor Magenta
+    Write-Host "--- Backend Deploy ---" -ForegroundColor Magenta
 
     Push-Location $BACKEND_DIR
 
@@ -167,13 +167,11 @@ if ($Backend) {
     Write-Host "Backend deployed ($VERSION)" -ForegroundColor Green
 }
 
-# ── Done ──────────────────────────────────────────────────────────────────
+# -- Done ----------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║  Deploy complete: $VERSION             ║" -ForegroundColor Green
-Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "=== Deploy complete: $VERSION ===" -ForegroundColor Green
 Write-Host ""
 Write-Host "Verify:"
-Write-Host "  Frontend: https://tablethat.ironcliff.ai" -ForegroundColor Cyan
-Write-Host "  Backend:  https://tablethat-api.ironcliff.ai/api/health" -ForegroundColor Cyan
+Write-Host '  Frontend: https://tablethat.ironcliff.ai' -ForegroundColor Cyan
+Write-Host '  Backend:  https://tablethat-api.ironcliff.ai/api/health' -ForegroundColor Cyan

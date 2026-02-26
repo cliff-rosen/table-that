@@ -232,6 +232,12 @@ export default function Profile() {
                                     {user?.registration_date ? new Date(user.registration_date).toLocaleDateString() : '-'}
                                 </dd>
                             </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500 dark:text-gray-400">App version</dt>
+                                <dd className="text-gray-900 dark:text-white font-mono text-xs">
+                                    {import.meta.env.VITE_APP_VERSION || 'dev'}
+                                </dd>
+                            </div>
                         </dl>
                     </div>
 
