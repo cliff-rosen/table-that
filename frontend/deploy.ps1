@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 
 # Configuration - put your S3 bucket name between the quotes
-$S3_BUCKET = "www.knowledgehorizon.ai"
+$S3_BUCKET = "tablethat.ironcliff.ai"
 
 if ($S3_BUCKET -eq "your-bucket-name-here") {
     Write-Host "Error: Edit deploy.ps1 and set your S3 bucket name on line 6" -ForegroundColor Red
