@@ -588,15 +588,11 @@ export default function TablesListPage() {
         columns,
       });
       showSuccessToast(`Table "${created.name}" created.`);
-      navigate(`/tables/${created.id}`);
-      // Tell chat the table was created so it can continue the workflow
-      sendMessage(
-        `I created the "${created.name}" table. What's next?`,
-      );
+      navigate(`/tables/${created.id}`, { state: { fromProposal: true } });
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate, sendMessage]);
+  }, [navigate]);
 
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {

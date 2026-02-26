@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   TableCellsIcon,
   ChatBubbleLeftRightIcon,
@@ -29,6 +29,8 @@ export default function TableViewPage() {
   const { tableId: tableIdParam } = useParams<{ tableId: string }>();
   const tableId = Number(tableIdParam);
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromProposal = (location.state as any)?.fromProposal === true;
 
   // Data state
   const [table, setTable] = useState<TableDefinition | null>(null);
@@ -166,6 +168,17 @@ export default function TableViewPage() {
       });
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
+
+  // Continue chat after arriving from a schema proposal acceptance
+  const proposalContinuedRef = useRef(false);
+  useEffect(() => {
+    if (fromProposal && table && !proposalContinuedRef.current) {
+      proposalContinuedRef.current = true;
+      // Clear the navigation state so a page refresh doesn't re-trigger
+      window.history.replaceState({}, '');
+      sendMessage(`I created the "${table.name}" table. What's next?`);
+    }
+  }, [fromProposal, table, sendMessage]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
