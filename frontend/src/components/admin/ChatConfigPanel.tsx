@@ -65,6 +65,7 @@ export function ChatConfigPanel() {
     const [isSavingSystem, setIsSavingSystem] = useState(false);
     const [systemError, setSystemError] = useState<string | null>(null);
     const [editingMaxIterations, setEditingMaxIterations] = useState<number>(5);
+    const [editingMaxResearchSteps, setEditingMaxResearchSteps] = useState<number>(5);
     const [editingPreamble, setEditingPreamble] = useState<string>('');
     const [isPreambleMaximized, setIsPreambleMaximized] = useState(false);
 
@@ -184,6 +185,7 @@ export function ChatConfigPanel() {
             const config = await adminApi.getSystemConfig();
             setSystemConfig(config);
             setEditingMaxIterations(config.max_tool_iterations);
+            setEditingMaxResearchSteps(config.max_research_steps);
             // Only show the override in the editor, not the effective value
             setEditingPreamble(config.global_preamble || '');
         } catch (err) {
@@ -1680,6 +1682,51 @@ export function ChatConfigPanel() {
                                             {editingMaxIterations !== systemConfig.max_tool_iterations && (
                                                 <button
                                                     onClick={saveSystemConfig}
+                                                    disabled={isSavingSystem}
+                                                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                                >
+                                                    {isSavingSystem ? 'Saving...' : 'Save'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Max Research Steps
+                                        </label>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                            Maximum number of search/fetch turns per row during for_each_row web research. Higher values allow more thorough research but increase time and cost per row.
+                                        </p>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={15}
+                                                value={editingMaxResearchSteps}
+                                                onChange={(e) => setEditingMaxResearchSteps(Math.max(1, Math.min(15, parseInt(e.target.value) || 1)))}
+                                                className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                            />
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                (1-15, default: 5)
+                                            </span>
+                                            {editingMaxResearchSteps !== systemConfig.max_research_steps && (
+                                                <button
+                                                    onClick={async () => {
+                                                        setIsSavingSystem(true);
+                                                        setSystemError(null);
+                                                        try {
+                                                            const updated = await adminApi.updateSystemConfig({
+                                                                max_research_steps: editingMaxResearchSteps
+                                                            });
+                                                            setSystemConfig(updated);
+                                                            setEditingMaxResearchSteps(updated.max_research_steps);
+                                                        } catch (err) {
+                                                            setSystemError(handleApiError(err));
+                                                        } finally {
+                                                            setIsSavingSystem(false);
+                                                        }
+                                                    }}
                                                     disabled={isSavingSystem}
                                                     className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                                                 >

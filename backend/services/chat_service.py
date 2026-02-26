@@ -312,6 +312,59 @@ class ChatService:
         logger.info(f"Updated max_tool_iterations to {value} by user {user_id}")
         return value
 
+    DEFAULT_MAX_RESEARCH_STEPS = 5
+
+    async def get_max_research_steps(self) -> int:
+        """Get the maximum research steps per row setting, or default."""
+        from models import ChatConfig
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "max_research_steps"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                value = int(config.content.strip())
+                return max(1, min(value, 15))
+        except Exception as e:
+            logger.warning(f"Failed to load max_research_steps config: {e}")
+
+        return self.DEFAULT_MAX_RESEARCH_STEPS
+
+    async def set_max_research_steps(self, value: int, user_id: int) -> int:
+        """Set the maximum research steps setting. Returns the saved value."""
+        from models import ChatConfig
+
+        value = max(1, min(value, 15))
+
+        result = await self.db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "system",
+                ChatConfig.scope_key == "max_research_steps"
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            existing.content = str(value)
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = user_id
+        else:
+            new_config = ChatConfig(
+                scope="system",
+                scope_key="max_research_steps",
+                content=str(value),
+                updated_by=user_id
+            )
+            self.db.add(new_config)
+
+        await self.db.commit()
+        logger.info(f"Updated max_research_steps to {value} by user {user_id}")
+        return value
+
     async def get_global_preamble(self) -> Optional[str]:
         """Get the global preamble override, or None to use default."""
         from models import ChatConfig
@@ -373,6 +426,7 @@ class ChatService:
         """Get all system configuration values."""
         return {
             "max_tool_iterations": await self.get_max_tool_iterations(),
+            "max_research_steps": await self.get_max_research_steps(),
             "global_preamble": await self.get_global_preamble()
         }
 
@@ -380,12 +434,15 @@ class ChatService:
         self,
         user_id: int,
         max_tool_iterations: Optional[int] = None,
+        max_research_steps: Optional[int] = None,
         global_preamble: Optional[str] = None,
         clear_global_preamble: bool = False
     ) -> dict:
         """Update system configuration values. Returns the updated config."""
         if max_tool_iterations is not None:
             await self.set_max_tool_iterations(max_tool_iterations, user_id)
+        if max_research_steps is not None:
+            await self.set_max_research_steps(max_research_steps, user_id)
         if clear_global_preamble:
             await self.set_global_preamble(None, user_id)
         elif global_preamble is not None:

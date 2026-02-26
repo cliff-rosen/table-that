@@ -16,6 +16,7 @@
 | #5 | P2 | Google social login | open | 2026-02-26 | |
 | #6 | P2 | Mobile experience | open | 2026-02-26 | |
 | #7 | P2 | Email and SMS integration | open | 2026-02-26 | |
+| #8 | P1 | Research effort thresholds and prompting | open | 2026-02-26 | |
 
 ## Tasks
 
@@ -44,3 +45,6 @@ Make table.that work well on mobile devices. Key challenges: table display on na
 
 ### #7 — Email and SMS integration
 Connect to email and text messages as data sources. Users have a wealth of personal information in their inbox and messages that could drive table population and enrichment (e.g., pull contacts from email, extract order details, track conversations). Could work as an import source, an ongoing sync, or an AI-assisted extraction pipeline.
+
+### #8 — Research effort thresholds and prompting
+The for_each_row web research pipeline needs better prompting and tooling around effort thresholds at each stage. Key issues: (1) When has enough searching been done to answer the question? Currently Claude often takes the first snippet answer without verifying. (2) When should it fetch a page vs trust snippets? (3) When should it refine the search query vs give up? (4) The search result snippets themselves aren't logged in the research trace, so users can't evaluate whether Claude made good decisions. Need to tune the system prompt, add structured decision points, and ensure the research log captures enough detail (especially the actual search result snippets) for users to audit research quality.

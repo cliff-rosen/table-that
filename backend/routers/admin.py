@@ -968,6 +968,7 @@ async def delete_page_config(
 class SystemConfigResponse(BaseModel):
     """System configuration settings."""
     max_tool_iterations: int = Field(description="Maximum tool call iterations per chat request")
+    max_research_steps: int = Field(description="Maximum research steps per row during for_each_row web research")
     global_preamble: Optional[str] = Field(None, description="Global preamble override (None = use default)")
     default_global_preamble: str = Field(description="Default global preamble from code")
 
@@ -975,6 +976,7 @@ class SystemConfigResponse(BaseModel):
 class SystemConfigUpdate(BaseModel):
     """Update system configuration."""
     max_tool_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max tool iterations (1-20)")
+    max_research_steps: Optional[int] = Field(None, ge=1, le=15, description="Max research steps per row (1-15)")
     global_preamble: Optional[str] = Field(None, description="Global preamble override")
     clear_global_preamble: bool = Field(False, description="Set to True to remove preamble override")
 
@@ -1026,6 +1028,7 @@ async def update_system_config_endpoint(
         config = await chat_service.update_system_config(
             user_id=current_user.user_id,
             max_tool_iterations=update.max_tool_iterations,
+            max_research_steps=update.max_research_steps,
             global_preamble=update.global_preamble,
             clear_global_preamble=update.clear_global_preamble
         )

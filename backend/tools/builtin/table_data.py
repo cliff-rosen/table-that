@@ -580,6 +580,11 @@ async def execute_for_each_row(
         yield ToolResult(text="Error: No matching rows found for the given row_ids.")
         return
 
+    # Fetch configurable max research steps once (not per-row)
+    from services.chat_service import ChatService
+    chat_service = ChatService(db)
+    max_research_steps = await chat_service.get_max_research_steps()
+
     import asyncio
 
     CONCURRENCY = 3
@@ -622,7 +627,7 @@ async def execute_for_each_row(
                 "Your output goes directly into a spreadsheet cell."
             )
 
-            async for step in _research_web_core(built_query, 5, db, user_id):
+            async for step in _research_web_core(built_query, max_research_steps, db, user_id):
                 action = step["action"]
 
                 if action == "search":

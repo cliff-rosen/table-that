@@ -438,8 +438,29 @@ async def _research_web_core(
 
         messages.append({"role": "user", "content": tool_results})
 
-    # Exhausted all turns without a final answer
-    logger.warning(f"research_web_core: exhausted {max_steps} turns without final answer")
+    # Exhausted all turns — force a final answer (no tools)
+    logger.warning(f"research_web_core: exhausted {max_steps} turns, forcing final answer")
+    messages.append({
+        "role": "user",
+        "content": "You've used all available research steps. Based on everything you've found so far, provide your best answer now. If you found relevant information, synthesize it into a direct answer. If you truly found nothing useful, respond with: Could not determine an answer."
+    })
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            messages=messages,
+            system=_build_research_system_prompt(),
+            # No tools — forces text response
+        )
+        text_blocks = [b for b in response.content if b.type == "text"]
+        if text_blocks:
+            text = text_blocks[0].text.strip()
+            if text:
+                yield {"action": "answer", "text": text}
+                return
+    except Exception as e:
+        logger.warning(f"research_web_core: final answer call failed: {e}")
+
     yield {"action": "error", "detail": f"Exhausted all {max_steps} research turns without reaching an answer"}
     yield {"action": "answer", "text": None}
 
