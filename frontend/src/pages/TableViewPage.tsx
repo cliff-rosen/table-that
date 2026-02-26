@@ -176,7 +176,7 @@ export default function TableViewPage() {
       proposalContinuedRef.current = true;
       // Clear the navigation state so a page refresh doesn't re-trigger
       window.history.replaceState({}, '');
-      sendMessage(`I created the "${table.name}" table. What's next?`);
+      sendMessage(`[User accepted the schema proposal and created the table "${table.name}".]`);
     }
   }, [fromProposal, table, sendMessage]);
 
@@ -336,7 +336,7 @@ export default function TableViewPage() {
       setTable(updated);
       showSuccessToast('Schema updated successfully');
       // Tell chat the schema was applied so it can continue the workflow
-      sendMessage(`I applied the schema changes to "${updated.name}". What's next?`);
+      sendMessage(`[User accepted the schema proposal and applied changes to "${updated.name}".]`);
     } catch (err) {
       showErrorToast(err, 'Failed to apply schema changes');
     }
@@ -372,7 +372,7 @@ export default function TableViewPage() {
     // Called when the user clicks "Done" after all operations complete
     await fetchRows();
     // Tell chat the data was applied so it can continue the workflow
-    sendMessage('I applied the data changes. What else can we do?');
+    sendMessage('[User accepted the data proposal and applied all changes.]');
   }, [fetchRows, sendMessage]);
 
   const payloadHandlers = useMemo(() => ({
