@@ -46,7 +46,7 @@ function AppContent() {
     return (
       <div className="h-screen flex flex-col dark:bg-gray-900 bg-gray-50">
         <TopBar newVersionAvailable={newVersionAvailable} />
-        <main className={`flex-1 min-h-0 flex flex-col ${newVersionAvailable ? 'pt-[100px]' : 'pt-16'}`}>
+        <main className={`flex-1 min-h-0 flex flex-col overflow-hidden ${newVersionAvailable ? 'pt-[100px]' : 'pt-16'}`}>
           <Routes>
             <Route path="/" element={<Navigate to="/tables" />} />
             <Route path="/tables" element={<TablesListPage />} />

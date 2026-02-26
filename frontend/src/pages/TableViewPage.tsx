@@ -423,7 +423,7 @@ export default function TableViewPage() {
   // -----------------------------------------------------------------------
 
   return (
-    <div className="flex-1 min-h-0 flex flex-row">
+    <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
       {/* Chat Tray (left side) */}
       <ChatTray
         isOpen={chatOpen}
@@ -437,7 +437,7 @@ export default function TableViewPage() {
       />
 
       {/* Main content */}
-      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         {/* Page title */}
         <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <div className="flex items-center justify-between">

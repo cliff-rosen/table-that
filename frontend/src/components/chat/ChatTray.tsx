@@ -529,7 +529,7 @@ export default function ChatTray({
                     )}
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+                    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
                         {messages.length === 0 && (
                             <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
                                 <ChatBubbleLeftRightIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -855,7 +855,7 @@ export default function ChatTray({
                             </div>
 
                             {/* Payload Content - scrollable area for card content */}
-                            <div className="flex-1 min-h-0 p-4 overflow-y-auto">
+                            <div className="flex-1 min-h-0 p-4 overflow-y-auto scrollbar-thin">
                                 {handler ? (
                                     handler.render(activePayload.data, {
                                         onAccept: (data) => {

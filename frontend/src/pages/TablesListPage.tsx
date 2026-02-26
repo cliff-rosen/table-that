@@ -631,7 +631,7 @@ export default function TablesListPage() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-w-0 min-h-0 overflow-auto">
         <div className="max-w-6xl mx-auto w-full px-6 py-8">
           <div className="flex items-center justify-between mb-8">
             <div className="h-8 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
@@ -651,7 +651,7 @@ export default function TablesListPage() {
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-row">
+    <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
@@ -660,7 +660,7 @@ export default function TablesListPage() {
         }}
         payloadHandlers={payloadHandlers}
       />
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-w-0 min-h-0 overflow-auto">
         <div className="max-w-6xl mx-auto w-full px-6 py-8">
           {/* Page header */}
           <div className="flex-shrink-0 flex items-center justify-between mb-8">
