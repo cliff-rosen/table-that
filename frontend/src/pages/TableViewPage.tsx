@@ -39,7 +39,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, sendMessage, messages, isLoading } = useChatContext();
+  const { updateContext, sendMessage, messages, isLoading, context: chatContext } = useChatContext();
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -169,16 +169,18 @@ export default function TableViewPage() {
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
 
-  // Continue chat after arriving from a schema proposal acceptance
+  // Continue chat after arriving from a schema proposal acceptance.
+  // Wait for chatContext to include this table's id so sendMessage sends correct context.
   const proposalContinuedRef = useRef(false);
   useEffect(() => {
     if (fromProposal && table && !proposalContinuedRef.current) {
+      // Don't fire until updateContext has propagated with this table's info
+      if (chatContext.table_id !== table.id) return;
       proposalContinuedRef.current = true;
-      // Clear the navigation state so a page refresh doesn't re-trigger
       window.history.replaceState({}, '');
       sendMessage(`[User accepted the schema proposal and created the table "${table.name}".]`);
     }
-  }, [fromProposal, table, sendMessage]);
+  }, [fromProposal, table, sendMessage, chatContext]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
