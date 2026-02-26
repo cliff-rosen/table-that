@@ -17,20 +17,38 @@ else:
 
 
 def _get_git_version() -> str:
-    """Get version from git SHA. Falls back to BUILD_VERSION env var, then '0.0.1'."""
-    # Check env var first (set during deploy)
-    env_version = os.environ.get("BUILD_VERSION")
-    if env_version:
-        return env_version
+    """Get version from BUILD_VERSION file, git tag, or fallback."""
+    # 1. Check BUILD_VERSION file (written by deploy script)
+    version_file = _backend_dir / "BUILD_VERSION"
+    if version_file.exists():
+        v = version_file.read_text().strip()
+        if v:
+            return v
+    # 2. Try git describe (gets latest tag like "v1.0.3")
+    try:
+        tag = subprocess.check_output(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            stderr=subprocess.DEVNULL,
+            cwd=str(_backend_dir),
+            timeout=5,
+        ).decode().strip()
+        if tag:
+            return tag
+    except Exception:
+        pass
+    # 3. Fall back to short SHA
     try:
         sha = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
             stderr=subprocess.DEVNULL,
+            cwd=str(_backend_dir),
             timeout=5,
         ).decode().strip()
-        return sha or "0.0.1"
+        if sha:
+            return sha
     except Exception:
-        return "0.0.1"
+        pass
+    return "0.0.1"
 
 
 class Settings(BaseSettings):
