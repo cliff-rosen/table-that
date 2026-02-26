@@ -636,8 +636,9 @@ export default function TableViewPage() {
     [rows, filters, table]
   );
 
-  // Search debounce ref
+  // Refs
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedRef = useRef(false);
 
   // Track message count for auto-refresh after tool execution
   const prevMessageCountRef = useRef(messages.length);
@@ -700,8 +701,11 @@ export default function TableViewPage() {
   // -----------------------------------------------------------------------
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchTable(), fetchRows()]).finally(() => setLoading(false));
+    if (!hasLoadedRef.current) setLoading(true);
+    Promise.all([fetchTable(), fetchRows()]).finally(() => {
+      setLoading(false);
+      hasLoadedRef.current = true;
+    });
   }, [fetchTable, fetchRows]);
 
   // Debounced search
