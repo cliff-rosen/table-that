@@ -2,9 +2,9 @@ import {
   HeartIcon,
   BriefcaseIcon,
   ChartBarIcon,
-  GlobeAltIcon,
-  UserGroupIcon,
+  MapPinIcon,
   WrenchScrewdriverIcon,
+  TvIcon,
 } from '@heroicons/react/24/outline';
 import type { ComponentType } from 'react';
 
@@ -17,11 +17,25 @@ export interface Starter {
 
 export const STARTERS: Starter[] = [
   {
-    title: 'Wedding Venue Research',
-    icon: HeartIcon,
-    description: 'Compare local venues with capacity, price range, and reviews',
+    title: 'Competitor Analysis',
+    icon: ChartBarIcon,
+    description: 'Compare competitors on pricing, features, and target audience',
     prompt:
-      'Create a table to research wedding venues. I want columns for venue name, location, max capacity, price range, indoor/outdoor, catering included (yes/no), average rating, and notes. Add 5 example rows with realistic fictional venues.',
+      'Build a competitor analysis table. Columns: company name, website, pricing tier, free plan (yes/no), target audience, key differentiator, number of employees, and founded year. Add 5 example SaaS competitors.',
+  },
+  {
+    title: 'Product Comparison',
+    icon: TvIcon,
+    description: 'Compare options side-by-side on specs, price, and ratings',
+    prompt:
+      'Create a product comparison table for buying a new TV. Columns: model name, brand, screen size, resolution, panel type (OLED/QLED/LED), price, smart TV platform, average review score, and notes. Add 5 popular models with realistic specs and prices.',
+  },
+  {
+    title: 'Favorite Restaurants',
+    icon: MapPinIcon,
+    description: 'Track your favorite spots with cuisine, price, and ratings',
+    prompt:
+      'Create a favorite restaurants table. Columns: restaurant name, cuisine type, neighborhood, price range ($/$$/$$$/$$$$), my rating (1-5), want to try again (yes/no), best dish, and notes. Add 5 example restaurants in the Austin, TX area with realistic details. After creating, suggest ways I could expand the list — like adding more restaurants or new columns.',
   },
   {
     title: 'Job Application Tracker',
@@ -31,25 +45,11 @@ export const STARTERS: Starter[] = [
       'Create a job application tracker table. Columns: company name, role/title, date applied, status (applied/phone screen/interview/offer/rejected), salary range, location, remote (yes/no), and notes. Add a few example rows.',
   },
   {
-    title: 'Competitor Analysis',
-    icon: ChartBarIcon,
-    description: 'Compare competitors on pricing, features, and target audience',
+    title: 'Wedding Venue Research',
+    icon: HeartIcon,
+    description: 'Compare local venues with capacity, price range, and reviews',
     prompt:
-      'Build a competitor analysis table. Columns: company name, website, pricing tier, free plan (yes/no), target audience, key differentiator, number of employees, and founded year. Add 5 example SaaS competitors.',
-  },
-  {
-    title: 'Trip Planning',
-    icon: GlobeAltIcon,
-    description: 'Organize an itinerary with dates, cities, activities, and costs',
-    prompt:
-      'Create a trip planning table for a 7-day vacation. Columns: day number, date, city, activity/attraction, estimated cost, booked (yes/no), and notes. Fill in a sample itinerary for a trip through Italy.',
-  },
-  {
-    title: 'Sales Prospect List',
-    icon: UserGroupIcon,
-    description: 'Build a prospect list with company info and outreach status',
-    prompt:
-      'Create a sales prospect list table. Columns: company name, contact person, email, industry, company size, outreach status (not contacted/emailed/call scheduled/negotiating/closed), deal value, and last contact date. Add 5 example prospects.',
+      'Create a table to research wedding venues. I want columns for venue name, location, max capacity, price range, indoor/outdoor, catering included (yes/no), average rating, and notes. Add 5 example rows with realistic fictional venues.',
   },
   {
     title: 'Home Renovation Tracker',

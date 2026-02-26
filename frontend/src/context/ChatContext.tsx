@@ -47,8 +47,14 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
     const [statusText, setStatusText] = useState<string | null>(null);
-    const [chatId, setChatId] = useState<number | null>(null);
+    const [chatId, setChatIdState] = useState<number | null>(null);
+    const chatIdRef = useRef<number | null>(null);
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
+
+    const setChatId = useCallback((id: number | null) => {
+        chatIdRef.current = id;
+        setChatIdState(id);
+    }, []);
 
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -81,7 +87,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                 context,
                 interaction_type: interactionType,
                 action_metadata: actionMetadata,
-                conversation_id: chatId
+                conversation_id: chatIdRef.current
             }, abortController.signal)) {
                 switch (event.type) {
                     case 'text_delta':
@@ -186,7 +192,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             setIsLoading(false);
             abortControllerRef.current = null;
         }
-    }, [context, chatId]);
+    }, [context]);
 
     const cancelRequest = useCallback(() => {
         if (abortControllerRef.current) {

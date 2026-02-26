@@ -503,7 +503,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage } = useChatContext();
+  const { updateContext, sendMessage, reset } = useChatContext();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -513,9 +513,10 @@ export default function TablesListPage() {
   const [chatOpen, setChatOpen] = useState(false);
 
   const handleStarterClick = useCallback((prompt: string) => {
+    reset();
     setChatOpen(true);
     sendMessage(prompt);
-  }, [sendMessage]);
+  }, [reset, sendMessage]);
 
   const fetchTables = useCallback(async () => {
     try {
