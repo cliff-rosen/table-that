@@ -156,6 +156,40 @@ interface CellRendererProps {
   value: unknown;
 }
 
+const TEXT_TRUNCATE_LENGTH = 80;
+
+function TextCellRenderer({ value }: { value: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = value !== null && value !== undefined ? String(value) : '';
+  const isLong = text.length > TEXT_TRUNCATE_LENGTH || text.includes('\n');
+
+  if (!isLong) {
+    return (
+      <span className="text-sm text-gray-900 dark:text-gray-100 truncate block">
+        {text}
+      </span>
+    );
+  }
+
+  return (
+    <div className="text-sm text-gray-900 dark:text-gray-100">
+      <div className={expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}>
+        {text}
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded(!expanded);
+        }}
+        className="text-xs text-purple-600 dark:text-purple-400 hover:underline mt-0.5"
+      >
+        {expanded ? 'Show less' : 'Show more'}
+      </button>
+    </div>
+  );
+}
+
 function CellRenderer({ column, value }: CellRendererProps) {
   switch (column.type) {
     case 'boolean':
@@ -192,11 +226,7 @@ function CellRenderer({ column, value }: CellRendererProps) {
       );
 
     default: // text
-      return (
-        <span className="text-sm text-gray-900 dark:text-gray-100 truncate block">
-          {value !== null && value !== undefined ? String(value) : ''}
-        </span>
-      );
+      return <TextCellRenderer value={value} />;
   }
 }
 

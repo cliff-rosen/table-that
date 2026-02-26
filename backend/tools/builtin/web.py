@@ -319,7 +319,14 @@ def _strip_preamble(text: str) -> str:
     """Strip common LLM preamble phrases from the answer."""
     result = text.strip()
     for pattern in _PREAMBLE_PATTERNS:
-        result = pattern.sub('', result).strip()
+        new_result = pattern.sub('', result).strip()
+        if new_result != result:
+            logger.warning(
+                f"strip_preamble: detected preamble in answer. "
+                f"Pattern: {pattern.pattern!r}, "
+                f"before={result[:100]!r}, after={new_result[:100]!r}"
+            )
+            result = new_result
     # Strip wrapping quotes if the entire answer is quoted
     if len(result) > 2 and result[0] == result[-1] and result[0] in ('"', "'"):
         result = result[1:-1].strip()
