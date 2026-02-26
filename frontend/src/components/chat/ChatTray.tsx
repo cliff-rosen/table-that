@@ -329,6 +329,17 @@ export default function ChatTray({
         scrollToBottom();
     }, [messages, streamingText]);
 
+    // Clear dismissed payloads when conversation resets (messages cleared)
+    const prevMessageCountRef = useRef(messages.length);
+    useEffect(() => {
+        if (messages.length === 0 && prevMessageCountRef.current > 0) {
+            setDismissedPayloads(new Set());
+            setPendingPayload(null);
+            setActivePayload(null);
+        }
+        prevMessageCountRef.current = messages.length;
+    }, [messages.length]);
+
     // Detect new payloads and auto-open the panel
     // Payloads come through custom_payload regardless of source (tool or LLM)
     useEffect(() => {
