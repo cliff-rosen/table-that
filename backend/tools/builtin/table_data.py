@@ -17,6 +17,10 @@ from models import TableDefinition, TableRow
 
 logger = logging.getLogger(__name__)
 
+# ── Limits ────────────────────────────────────────────────────────────────
+MAX_ROWS_PER_TABLE = 100        # Hard cap on rows in any single table
+MAX_ROWS_PER_FOR_EACH = 20      # Max row_ids accepted by the for_each_row tool
+
 
 def _get_table_id(context: Dict[str, Any]) -> int | None:
     """Extract table_id from chat context."""
@@ -62,6 +66,14 @@ async def execute_create_row(
     table = await _get_table_for_user(db, table_id, user_id)
     if not table:
         return "Error: Table not found or access denied."
+
+    # Check row limit
+    count_result = await db.execute(
+        select(func.count(TableRow.id)).where(TableRow.table_id == table_id)
+    )
+    current_count = count_result.scalar() or 0
+    if current_count >= MAX_ROWS_PER_TABLE:
+        return f"Error: Table has reached the maximum of {MAX_ROWS_PER_TABLE} rows."
 
     values = params.get("values", {})
     if not values:
@@ -509,6 +521,11 @@ async def execute_for_each_row(
     if not row_ids:
         yield ToolResult(text="Error: row_ids is required (list of row IDs to process).")
         return
+    if len(row_ids) > MAX_ROWS_PER_FOR_EACH:
+        yield ToolResult(
+            text=f"Error: Too many rows ({len(row_ids)}). Maximum is {MAX_ROWS_PER_FOR_EACH} rows per call."
+        )
+        return
     if not target_column:
         yield ToolResult(text="Error: target_column is required.")
         return
@@ -769,6 +786,7 @@ register_tool(ToolConfig(
         "Research table rows in parallel using web search, then present results as a "
         "Data Proposal for the user to review and selectively approve. "
         "Processes up to 3 rows concurrently for faster results. "
+        f"Maximum {MAX_ROWS_PER_FOR_EACH} rows per call. "
         "Does NOT modify the database — results are shown for review first. "
         "IMPORTANT: Always show the user the rows and get confirmation before calling this tool."
     ),
@@ -778,7 +796,7 @@ register_tool(ToolConfig(
             "row_ids": {
                 "type": "array",
                 "items": {"type": "integer"},
-                "description": "List of row IDs to process (get these from get_rows first)",
+                "description": f"List of row IDs to process (max {MAX_ROWS_PER_FOR_EACH}; get these from get_rows first)",
             },
             "target_column": {
                 "type": "string",

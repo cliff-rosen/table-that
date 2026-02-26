@@ -12,7 +12,7 @@ const currentHost = window.location.hostname;
 const isLocalhost = currentHost === 'localhost' || currentHost === '127.0.0.1';
 
 const productionSettings: Settings = {
-    apiUrl: 'https://api.tablethat.com',
+    apiUrl: 'https://tablethat-api.ironcliff.ai',
     appName: 'table.that',
     logoUrl: '/logo.png'
 };

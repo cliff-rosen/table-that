@@ -4,7 +4,7 @@ import settings from '@/config/settings';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, type InvitationValidation } from '@/lib/api/authApi';
 
-export default function LoginForm() {
+export default function LoginForm({ initialMode = 'login' }: { initialMode?: 'login' | 'register' }) {
     const [searchParams] = useSearchParams();
     const invitationToken = searchParams.get('token');
 
@@ -19,7 +19,7 @@ export default function LoginForm() {
     } = useAuth();
 
     // Local state - now managed within LoginForm
-    const [isRegistering, setIsRegistering] = useState(false);
+    const [isRegistering, setIsRegistering] = useState(initialMode === 'register');
     const [formData, setFormData] = useState({
         email: '',
         password: '',

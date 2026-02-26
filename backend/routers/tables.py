@@ -2,7 +2,7 @@
 Tables Router - REST endpoints for table and row CRUD, import/export.
 """
 
-from fastapi import APIRouter, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
@@ -22,6 +22,7 @@ from schemas.table import (
     RowCreate, RowUpdate, TableRowSchema, RowsListResponse,
     BulkDeleteRequest, SearchRequest, ColumnDefinition,
 )
+from tools.builtin.table_data import MAX_ROWS_PER_TABLE
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,15 @@ async def create_row(
 ):
     """Create a new row in a table."""
     await table_service.get(table_id, current_user.user_id)
+
+    # Enforce row limit
+    current_count = await table_service.get_row_count(table_id)
+    if current_count >= MAX_ROWS_PER_TABLE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Table has reached the maximum of {MAX_ROWS_PER_TABLE} rows.",
+        )
+
     row = await row_service.create(table_id, data)
     return TableRowSchema.model_validate(row)
 
@@ -258,7 +268,10 @@ async def import_csv(
     content = await file.read()
     csv_text = content.decode("utf-8-sig")  # Handle BOM
 
-    count = await import_csv_to_table(db, table, csv_text)
+    try:
+        count = await import_csv_to_table(db, table, csv_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True, "imported": count}
 
 
@@ -278,7 +291,6 @@ async def import_with_schema(
     # Detect schema
     columns, header_names = detect_schema(csv_text)
     if not columns:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Could not detect columns from CSV")
 
     # Create table
@@ -290,7 +302,10 @@ async def import_with_schema(
     table = await table_service.create(current_user.user_id, table_data)
 
     # Import rows
-    count = await import_csv_to_table(db, table, csv_text)
+    try:
+        count = await import_csv_to_table(db, table, csv_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     row_count = await table_service.get_row_count(table.id)
     return TableSchema(

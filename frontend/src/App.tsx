@@ -16,6 +16,7 @@ import TopBar from './components/layout/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // pages
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import Profile from './pages/Profile';
 import TokenLogin from './pages/TokenLogin';
@@ -63,10 +64,12 @@ function AppContent() {
       <ErrorBoundary>
         {!isAuthenticated ? (
           <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<LoginPage />} />
             <Route path="/auth/token-login" element={<TokenLogin />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/register" element={<LoginPage />} />
-            <Route path="*" element={<LoginPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         ) : (
           <ChatProvider>

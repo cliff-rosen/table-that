@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from fastapi import Depends
 
 from models import TableDefinition, TableRow
@@ -260,10 +260,28 @@ async def import_csv_to_table(
     Returns:
         Number of rows imported
     """
+    from tools.builtin.table_data import MAX_ROWS_PER_TABLE
+
     rows_data = parse_csv_rows(csv_content, table.columns, has_header)
 
     if not rows_data:
         return 0
+
+    # Enforce row limit: check existing rows and truncate if needed
+    existing_count_result = await db.execute(
+        select(func.count(TableRow.id)).where(TableRow.table_id == table.id)
+    )
+    existing_count = existing_count_result.scalar() or 0
+    room = max(MAX_ROWS_PER_TABLE - existing_count, 0)
+
+    if room == 0:
+        raise ValueError(
+            f"Table already has {existing_count} rows (limit: {MAX_ROWS_PER_TABLE}). "
+            f"Cannot import more rows."
+        )
+
+    if len(rows_data) > room:
+        rows_data = rows_data[:room]
 
     # Batch create rows
     new_rows = [
