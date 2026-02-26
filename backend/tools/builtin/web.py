@@ -302,6 +302,30 @@ def _build_research_system_prompt() -> str:
     )
 
 
+import re as _re
+
+_PREAMBLE_PATTERNS = [
+    _re.compile(r'^(?:based on (?:my |the )?(?:research|search|findings|results)[\s,]*)', _re.IGNORECASE),
+    _re.compile(r'^(?:according to (?:the |my )?(?:search|results|findings|webpage|article|page)[\s,]*)', _re.IGNORECASE),
+    _re.compile(r'^(?:(?:I |i )?found (?:that )?)', _re.IGNORECASE),
+    _re.compile(r'^(?:after (?:searching|researching|looking)[\s,]*)', _re.IGNORECASE),
+    _re.compile(r'^(?:the (?:answer|result|latest|information) (?:is|was|to .+? is) )', _re.IGNORECASE),
+    _re.compile(r'^(?:(?:I )?need to (?:fetch|search|look).+?[:\.]\s*)', _re.IGNORECASE | _re.DOTALL),
+    _re.compile(r'^(?:let me .+?[:\.]\s*)', _re.IGNORECASE | _re.DOTALL),
+]
+
+
+def _strip_preamble(text: str) -> str:
+    """Strip common LLM preamble phrases from the answer."""
+    result = text.strip()
+    for pattern in _PREAMBLE_PATTERNS:
+        result = pattern.sub('', result).strip()
+    # Strip wrapping quotes if the entire answer is quoted
+    if len(result) > 2 and result[0] == result[-1] and result[0] in ('"', "'"):
+        result = result[1:-1].strip()
+    return result
+
+
 async def _research_web_core(
     query: str,
     max_steps: int,
@@ -357,7 +381,8 @@ async def _research_web_core(
         if not tool_uses:
             # No more tool calls — extract the final text answer
             if text_blocks:
-                text = text_blocks[0].text.strip()
+                raw_text = text_blocks[0].text.strip()
+                text = _strip_preamble(raw_text)
                 logger.info(
                     f"research_web_core: final answer, length={len(text)}, "
                     f"preview={text[:120]!r}"
@@ -442,7 +467,17 @@ async def _research_web_core(
     logger.warning(f"research_web_core: exhausted {max_steps} turns, forcing final answer")
     messages.append({
         "role": "user",
-        "content": "You've used all available research steps. Based on everything you've found so far, provide your best answer now. If you found relevant information, synthesize it into a direct answer. If you truly found nothing useful, respond with: Could not determine an answer."
+        "content": (
+            "STOP RESEARCHING. You have no more search/fetch steps available. "
+            "You MUST answer NOW using ONLY information you already found above.\n\n"
+            "CRITICAL OUTPUT RULES:\n"
+            "- Return ONLY the raw answer value. Your output goes directly into a spreadsheet cell.\n"
+            "- NEVER include preambles like 'Based on...', 'I found...', 'The answer is...', "
+            "'I need to fetch...', 'Let me search...'\n"
+            "- Do NOT describe what you would do next or what you still need to find.\n"
+            "- If you found partial information, return what you have.\n"
+            "- If you truly found NOTHING useful, respond with exactly: Could not determine an answer."
+        )
     })
     try:
         response = await client.messages.create(
@@ -454,7 +489,8 @@ async def _research_web_core(
         )
         text_blocks = [b for b in response.content if b.type == "text"]
         if text_blocks:
-            text = text_blocks[0].text.strip()
+            raw_text = text_blocks[0].text.strip()
+            text = _strip_preamble(raw_text)
             if text:
                 yield {"action": "answer", "text": text}
                 return
