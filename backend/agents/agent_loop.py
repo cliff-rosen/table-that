@@ -198,7 +198,9 @@ class TraceBuilder:
         self._max_iterations = max_iterations
         self._temperature = temperature
         self._system_prompt = system_prompt
-        self._context = context
+        # Strip internal keys (like _cancellation_token) from the trace context
+        # so it stays JSON-serializable
+        self._context = {k: v for k, v in context.items() if not k.startswith("_")}
         self._initial_messages = copy.deepcopy(initial_messages)
         self._tool_definitions = [
             ToolDefinition(

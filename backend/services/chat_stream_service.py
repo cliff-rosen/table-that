@@ -332,8 +332,16 @@ class ChatStreamService:
             #   - cancellation via CancellationToken
             #   - unhandled errors
             # On the normal path message_saved is already True so we skip.
+            #
+            # We use asyncio.shield + a fresh DB session because SSE's
+            # cancel_on_finish sends CancelledError through the entire task,
+            # which would kill any DB operation we try to run here.
             if not message_saved and chat_id:
                 try:
+                    import asyncio
+                    from database import AsyncSessionLocal
+                    from services.chat_service import ChatService
+
                     content = collected_text.strip() if collected_text else ""
                     if not content:
                         content = "*[Response cancelled]*"
@@ -341,9 +349,19 @@ class ChatStreamService:
                         f"Persisting partial assistant message on teardown "
                         f"(len={len(content)})"
                     )
-                    await self._save_assistant_message(
-                        chat_id, content, request.context,
-                    )
+
+                    async def _persist():
+                        async with AsyncSessionLocal() as fresh_db:
+                            fresh_chat_service = ChatService(fresh_db)
+                            await fresh_chat_service.add_message(
+                                chat_id=chat_id,
+                                user_id=self.user_id,
+                                role="assistant",
+                                content=content,
+                                context=request.context,
+                            )
+
+                    await asyncio.shield(_persist())
                 except Exception:
                     logger.warning(
                         "Failed to persist assistant message on teardown",
