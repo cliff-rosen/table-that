@@ -39,8 +39,17 @@
 ### #1 — Background/scheduled for_each_row
 Currently for_each_row runs synchronously in the chat stream. Need a background variant that can be kicked off and run asynchronously, with support for scheduling (e.g., "refresh LinkedIn URLs every week"). Enables long-running research jobs without blocking the chat, and opens the door to scheduled/recurring table maintenance.
 
-### #2 — Extensible for_each_row framework
-Generalize for_each_row beyond just web research. Support simple tool calls, agentic multi-step tool chains, and custom operations per row. The framework should be pluggable so new row-level operations can be added without changing the orchestration layer.
+### #2 — Extensible for_each_row framework (strategy-based enrichment)
+Redesign for_each_row as a strategy dispatcher. The outer loop is fixed (iterate rows, collect results, present data_proposal), but the inner operation per cell varies based on what's being asked. Strategies:
+
+- **Quick lookup** — Single search, snippet-level answer. For factual questions with short answers (city, founding year, yes/no). 1-2 search steps max, no page fetches. Cheapest and fastest.
+- **Extraction** — Targeted fetch of a known page (e.g., the URL column value + `/pricing`) followed by structured extraction of specific fields. No searching — go directly to the source. For prices, ratings, feature lists, contact info.
+- **Deep research** — Full agentic research loop with scorecard, multi-source synthesis, and explicit exit criteria. For judgment calls, analysis columns, qualitative assessments. This is what `research_web` does today, but with better prompting and effort calibration (ties to #8).
+- **API lookup** — Direct call to a structured data source (PubMed, Google Places, ClinicalTrials.gov). No web search at all. Deterministic, fast, authoritative. Each API adapter (#15) becomes a strategy option.
+- **Computation** — Derive a value from other columns in the same row. No external data needed. Math, concatenation, conditional logic.
+- **Recommendation harvest** — Use SerpAPI (#19) to find curated lists, extract entities. Primarily for the Populate step rather than per-cell enrichment.
+
+Strategy selection can be: (a) explicit from the user ("look up the pricing page for each"), (b) inferred by the AI from the column type and question, or (c) driven by entity type metadata (#17). Each strategy has its own context curation (sterile context per the orchestration principles), and all strategies pass through value coercion before reaching the data_proposal. The framework is pluggable — new strategies register like tools do today.
 
 ### #3 — Improved for_each_row results UX
 Better real-time progress and results display for row-level operations. User shouldn't have to bounce between chat, data table, and side panel. Show results inline with clear per-row status, let user selectively accept/reject individual row results, and stream updates as each row completes rather than waiting for the whole batch.
