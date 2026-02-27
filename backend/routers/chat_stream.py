@@ -4,7 +4,10 @@ Chat Streaming Router
 Handles streaming chat endpoint with LLM interaction and tool support.
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends
+from starlette.requests import Request
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Literal, Callable
@@ -19,6 +22,7 @@ from schemas.chat import (
     ErrorEvent,
 )
 from services.chat_stream_service import ChatStreamService, get_chat_stream_service_factory
+from agents.agent_loop import CancellationToken
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,7 @@ class ChatRequest(BaseModel):
 )
 async def chat_stream(
     request: ChatRequest,
+    raw_request: Request,
     service_factory: Callable[[int], ChatStreamService] = Depends(get_chat_stream_service_factory),
     current_user: User = Depends(get_current_user)
 ) -> EventSourceResponse:
@@ -61,6 +66,18 @@ async def chat_stream(
     - complete: Final structured response
     - error: Error occurred
     """
+    cancellation_token = CancellationToken()
+
+    async def monitor_disconnect():
+        """Poll for client disconnection and trigger cancellation."""
+        while not cancellation_token.is_cancelled:
+            if await raw_request.is_disconnected():
+                logger.info("Client disconnected, cancelling chat stream")
+                cancellation_token.cancel()
+                return
+            await asyncio.sleep(0.5)
+
+    monitor_task = asyncio.create_task(monitor_disconnect())
 
     async def event_generator():
         """Generate SSE events"""
@@ -71,7 +88,9 @@ async def chat_stream(
             request.context["user_role"] = current_user.role.value if current_user.role else "member"
 
             # Stream typed events from the service
-            async for event_json in service.stream_chat_message(request):
+            async for event_json in service.stream_chat_message(
+                request, cancellation_token=cancellation_token
+            ):
                 yield {
                     "event": "message",
                     "data": event_json
@@ -84,6 +103,8 @@ async def chat_stream(
                 "event": "message",
                 "data": error_event.model_dump_json()
             }
+        finally:
+            monitor_task.cancel()
 
     return EventSourceResponse(
         event_generator(),

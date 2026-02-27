@@ -51,4 +51,7 @@ backend/migrations/schema_*.sql
 logs/
 *.log
 nul
+
+# Playwright screenshots
+playwright-*.png
  

@@ -580,6 +580,9 @@ async def execute_for_each_row(
         yield ToolResult(text="Error: No matching rows found for the given row_ids.")
         return
 
+    # Extract cancellation token from context (injected by agent_loop)
+    cancel_token = context.get("_cancellation_token")
+
     # Fetch configurable max research steps once (not per-row)
     from services.chat_service import ChatService
     chat_service = ChatService(db)
@@ -604,6 +607,20 @@ async def execute_for_each_row(
         nonlocal completed_count
         label = _row_label(row_obj, table.columns)
 
+        # Check cancellation before starting this row
+        if cancel_token and cancel_token.is_cancelled:
+            completed_count += 1
+            return {
+                "operation": None,
+                "log": {
+                    "row_id": row_obj.id,
+                    "label": label,
+                    "status": "cancelled",
+                    "value": None,
+                    "steps": [{"action": "error", "detail": "Cancelled by user"}],
+                },
+            }
+
         await progress_queue.put(ToolProgress(
             stage="researching",
             message=f"Starting: {label}",
@@ -627,7 +644,7 @@ async def execute_for_each_row(
                 "Your output goes directly into a spreadsheet cell."
             )
 
-            async for step in _research_web_core(built_query, max_research_steps, db, user_id):
+            async for step in _research_web_core(built_query, max_research_steps, db, user_id, cancellation_token=cancel_token):
                 action = step["action"]
 
                 if action == "search":
@@ -761,15 +778,36 @@ async def execute_for_each_row(
         item = await progress_queue.get()
         if item is _DONE:
             break
+        if cancel_token and cancel_token.is_cancelled:
+            logger.info("for_each_row: cancellation detected, stopping workers")
+            runner.cancel()
+            break
         yield item
 
-    # Collect results (gather preserves order)
-    results = runner.result()
+    # Collect results (gather preserves order); handle cancellation
+    cancelled = cancel_token and cancel_token.is_cancelled
+    try:
+        results = runner.result()
+    except (asyncio.CancelledError, asyncio.InvalidStateError):
+        results = []
+        cancelled = True
 
     operations = [r["operation"] for r in results if r["operation"]]
     research_log = [r["log"] for r in results]
     skipped = sum(1 for r in results if r["operation"] is None)
     found_count = len(operations)
+
+    if cancelled:
+        yield ToolProgress(
+            stage="cancelled",
+            message=f"Cancelled — {found_count} found before cancellation",
+            progress=completed_count / total if total else 1.0,
+        )
+        yield ToolResult(
+            text=f"Research cancelled by user after processing {completed_count} of {total} rows. "
+                 f"Found values for {found_count} rows before cancellation.",
+        )
+        return
 
     # Emit final result
     yield ToolProgress(

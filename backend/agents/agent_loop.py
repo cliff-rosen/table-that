@@ -308,8 +308,9 @@ async def run_agent_loop(
     Yields:
         AgentEvent subclasses representing loop progress
     """
-    context = context or {}
+    context = dict(context) if context else {}  # Shallow copy to avoid mutating caller's dict
     cancellation_token = cancellation_token or CancellationToken()
+    context["_cancellation_token"] = cancellation_token
 
     # Initialize trace builder and API kwargs
     trace_builder = TraceBuilder(

@@ -72,7 +72,12 @@
       "Bash(cd /c/code/table-that/backend && venv/Scripts/python.exe -c \"\nfrom dotenv import load_dotenv\nload_dotenv\\(\\)\nfrom tools.builtin import web, table_data\nprint\\('OK: all imports work'\\)\nprint\\('Research prompt preview:'\\)\nprint\\(web._build_research_system_prompt\\(\\)[:150]\\)\n\" 2>&1)",
       "Bash(powershell.exe:*)",
       "Bash(aws elasticbeanstalk:*)",
-      "WebFetch(domain:elasticbeanstalk-us-east-1-183944926635.s3.amazonaws.com)"
+      "WebFetch(domain:elasticbeanstalk-us-east-1-183944926635.s3.amazonaws.com)",
+      "Bash(npx playwright:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_fill_form"
     ],
     "deny": [],
     "ask": [],

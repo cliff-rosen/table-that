@@ -338,6 +338,7 @@ async def _research_web_core(
     max_steps: int,
     db: AsyncSession,
     user_id: int,
+    cancellation_token=None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Core research loop as an async generator.
@@ -358,6 +359,11 @@ async def _research_web_core(
     messages: List[Dict[str, Any]] = [{"role": "user", "content": query}]
 
     for turn in range(max_steps):
+        if cancellation_token and cancellation_token.is_cancelled:
+            logger.info(f"research_web_core: cancelled before turn {turn}")
+            yield {"action": "error", "detail": "Cancelled by user"}
+            yield {"action": "answer", "text": None}
+            return
         try:
             api_kwargs: Dict[str, Any] = dict(
                 model="claude-haiku-4-5-20251001",
@@ -525,8 +531,9 @@ async def execute_research_web(
 
     max_steps = min(max(params.get("max_steps", 5), 1), 8)
 
+    cancel_token = context.get("_cancellation_token")
     answer = "Could not determine an answer."
-    async for step in _research_web_core(query, max_steps, db, user_id):
+    async for step in _research_web_core(query, max_steps, db, user_id, cancellation_token=cancel_token):
         if step["action"] == "answer":
             answer = step.get("text") or "Could not determine an answer."
 
