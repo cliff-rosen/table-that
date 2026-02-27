@@ -114,6 +114,201 @@ Table That's three-step formula (Build, Populate, Enrich) works across many doma
 
 ---
 
+## Part 1B: Entity Types — The Missing Abstraction
+
+The vertical analysis above treats each domain as a collection of "research challenges." But there's a deeper structural pattern: **every table row represents a typed entity**, and the system doesn't know that today.
+
+Currently a table is just rows × columns with generic types (text, number, select, boolean, date). A row in a publisher table and a row in a SaaS comparison table are both just "a bunch of cells." The system has no idea that one row *is* a publisher and the other *is* a software product. This means every enrichment operation starts from zero — generic web search with no domain knowledge.
+
+### What an Entity Type Carries
+
+An entity type is metadata attached to the table (not individual rows) that tells the system what kind of thing each row represents. It carries:
+
+| Property | Description | Example (SaaS Product) | Example (PubMed Article) |
+|----------|-------------|----------------------|------------------------|
+| **Identity anchor** | How you uniquely identify this entity | Product name + homepage URL | PMID (PubMed ID) |
+| **Canonical data source** | Where authoritative data lives | Product website, pricing page | PubMed API (E-utilities) |
+| **Known attributes** | What columns make sense and their extraction logic | Price/seat/mo, free plan, G2 rating, integrations | Title, authors, journal, citation count, DOI |
+| **Verification method** | How to confirm the entity is real | Does the homepage resolve? Is it a real product? | Does the PMID exist in PubMed? |
+| **Research strategy** | API lookup vs web search vs hybrid | Structured extraction from pricing page + review site scrape | Direct API query — no web search needed |
+
+### Why This Matters for Tooling
+
+Without entity types, the tooling has to be general-purpose. With entity types, each step in the pipeline can specialize:
+
+- **Populate:** A SaaS Product table searches G2 category pages and "best X for Y" roundups. A PubMed Article table queries the PubMed API directly. A Publisher table searches literary directories.
+- **Enrich:** A "price" column on a SaaS Product knows to check the pricing page and extract a number. A "citation count" column on a PubMed Article calls Semantic Scholar. The system doesn't just "research" — it knows *where to look* and *what format to expect*.
+- **Verify:** A SaaS Product is verified by checking if the homepage URL resolves and the product name appears on it. A PubMed Article is verified by checking if the PMID exists. A Publisher is verified by checking the submission guidelines URL.
+- **Refresh:** A SaaS Product's price might change monthly. A PubMed Article's citation count changes over weeks. The entity type informs refresh cadence.
+
+### Candidate Entity Types
+
+Starting from the verticals above, here are the entity types that cover the most ground:
+
+| Entity Type | Verticals Served | Identity Anchor | Primary Data Source |
+|-------------|-----------------|-----------------|-------------------|
+| **Website / URL** | Generic (any web-searchable entity) | URL | Web search + fetch |
+| **SaaS Product** | Product Comparisons, Competitive Intel | Name + homepage URL | Product page, pricing page, G2/Capterra |
+| **Local Business** | Local Business Research | Name + address (or Google Place ID) | Google Places API |
+| **Publisher** | Publishing & Creative Submissions | Name + website URL | Publisher website, literary directories |
+| **PubMed Article** | Academic & Scientific Research | PMID | PubMed E-utilities API |
+| **Clinical Trial** | Medical Research | NCT Number | ClinicalTrials.gov API v2 |
+| **Event / Conference** | Event & Conference Research | Name + URL + dates | Event website |
+| **Grant / Funding** | Grants & Funding Sources | Grant name + program URL | Grants.gov, foundation sites |
+| **Job Listing** | Job Market Research | Title + company + listing URL | Job board APIs |
+| **Company** | Vendor Eval, Competitive Intel | Name + domain | Crunchbase, company website |
+
+**The simplest entity type is "Website / URL"** — it's the fallback. If the system doesn't recognize a more specific type, every row is just "a thing with a URL." This is what the system effectively does today. Entity types are a progressive enhancement: you start with Website and specialize as the system learns the domain.
+
+### Where Entity Type Lives in the Data Model
+
+Entity type is a **table-level** property, not a column or row property. All rows in a table share the same entity type. This means:
+
+- The `TableDefinition` gets a new optional field: `entity_type: Optional[str]`
+- The AI infers the entity type during table creation (or the user specifies it)
+- System prompts, enrichment strategies, and verification logic branch on entity type
+- Column suggestions are entity-type-aware ("SaaS Product tables usually have a pricing column")
+
+This is lightweight — it's a single string field that the rest of the system can use as a dispatch key.
+
+---
+
+## Deep Dive: Product Comparisons (SaaS Product Entity Type)
+
+This section traces a concrete user journey through the system, showing where entity type awareness changes the tooling at each step.
+
+### The User Request
+
+> "Compare project management tools for a 10-person team"
+
+### Step 1: Table Creation (Build)
+
+**Today:** The main agent (Sonnet) creates a table with columns it thinks are useful, drawing from training data. Column choices are reasonable but generic — it might pick "Price" (text) instead of "Price/seat/mo" (number).
+
+**With entity type:** The system recognizes this as a SaaS Product table. It knows:
+- There should be a **URL column** (the product's homepage — this is the identity anchor)
+- Pricing should be a **number** column normalized to $/seat/month
+- "Free Plan" should be a **select** column with options: Yes / No / Limited
+- "Best For" should be a **select** column: Small teams / Mid-size / Enterprise
+- "G2 Rating" should be a **number** column (1.0-5.0)
+
+The column schema proposal becomes entity-type-aware. Instead of the AI improvising columns, it starts from a template and customizes.
+
+### Step 2: Entity Selection (Populate)
+
+**Today:** The AI populates rows largely from its training data. It knows Asana, Monday, Jira, Linear because those are in the training set. It might use `search_web` to supplement, but there's no structured approach to *discovering* entities.
+
+**With entity type:** The SaaS Product entity type carries a populate strategy:
+1. Search G2 category pages ("best project management software for small teams")
+2. Search "best X for Y" roundup articles from authoritative sources
+3. Extract a candidate list of 15-20 products from those pages (using structured extraction)
+4. AI curates to 10-12 based on the user's criteria ("10-person team" filters out enterprise-only)
+5. For each selected product, grab the homepage URL (identity anchor) and verify it resolves
+
+This is the difference between "list some project management tools" and "research which project management tools are actually relevant."
+
+### Step 3: Enrichment (Enrich)
+
+This is where entity type has the biggest impact. Let's trace three columns:
+
+#### Column: "Price/seat/mo" (number)
+
+**Today's pipeline:**
+```
+for_each_row("Find the price") →
+  research_web("Asana pricing per seat monthly") →
+  Haiku searches, maybe fetches pricing page →
+  Returns: "Plans start at $10.99/user/month for Starter, $24.99 for Business" →
+  Raw string goes into number column (broken)
+```
+
+**With entity type + tooling:**
+```
+for_each_row("Find the price") →
+  Entity type says: check {homepage_url}/pricing →
+  fetch_webpage(url + "/pricing") →
+  structured_extraction(page_text, {"monthly_price_per_seat": "number"}, context="10-person team, most relevant plan") →
+  Returns: 10.99 →
+  value_coercion confirms it's a valid number →
+  Clean number in cell
+```
+
+Key differences: (a) the system knows *where* to look (pricing page, not random web search), (b) structured extraction pulls the specific number, (c) the user's context ("10-person team") guides which plan to select.
+
+#### Column: "G2 Rating" (number)
+
+**Today's pipeline:**
+```
+research_web("Asana G2 rating") →
+  Haiku searches, gets snippets like "Asana has a 4.3 rating on G2" →
+  Returns: "4.3" or "Asana has a 4.3/5 rating on G2 based on 12,000+ reviews"
+```
+
+**With entity type + tooling:**
+```
+Entity type says: G2 rating comes from g2.com/products/{slug}/reviews →
+  search_web("{product_name} site:g2.com") →
+  structured_extraction(g2_page, {"rating": "number", "review_count": "number"}) →
+  Returns: 4.3 →
+  value_coercion confirms valid number in 1.0-5.0 range
+```
+
+This could also be a future G2 API adapter — but even without an API, knowing to search G2 specifically is a big improvement over generic web search.
+
+#### Column: "Best For" (select: Small teams / Mid-size / Enterprise)
+
+**Today's pipeline:**
+```
+research_web("What team size is Asana best for") →
+  Haiku searches, reads product page and reviews →
+  Returns: "Asana is best suited for mid-size to large teams of 10-500 people,
+  with features like portfolios and workload management that shine at scale..." →
+  Paragraph goes into select column (broken)
+```
+
+**With entity type + tooling:**
+```
+research_web("What team size is {product_name} best for") →
+  Returns same paragraph →
+  value_coercion(raw_answer, type="select", options=["Small teams", "Mid-size", "Enterprise"]) →
+  Returns: "Mid-size" →
+  Clean select value in cell
+```
+
+Value coercion alone fixes this — no entity-type-specific logic needed.
+
+### Step 4: Cross-Row Normalization
+
+**Today:** Each row is enriched independently. Row 1's price might be monthly, row 2's might be annual. No consistency check.
+
+**With entity type:** After all rows are enriched, run a normalization pass:
+1. Scan all "Price/seat/mo" values — are they all monthly? Flag any that look annual.
+2. Scan all "G2 Rating" values — are they all on the same scale?
+3. Check for duplicate products (did the AI include both "Jira" and "Jira Software"?)
+
+This is a single LLM call that reviews the full table, not per-row research. The entity type tells the system *what* to normalize (prices should all be monthly, ratings should all be 1-5).
+
+### Step 5: Verification
+
+**With entity type:**
+- For each row, HTTP HEAD the homepage URL. If it 404s, flag the row.
+- Fetch the homepage, check that the product name appears and it's actually a project management tool (not a different product with a similar name).
+- For critical columns (price), compare the researched value against what's currently on the pricing page.
+
+### Summary: What Entity Types Unlock for Product Comparisons
+
+| Pipeline Step | Without Entity Type | With Entity Type |
+|--------------|-------------------|-----------------|
+| **Column design** | AI improvises | Starts from SaaS Product template |
+| **Entity discovery** | Training data + generic search | G2 categories, roundup articles |
+| **Price extraction** | Generic web search, raw string | Fetch /pricing, structured extraction, number |
+| **Rating extraction** | Generic search | Search G2 specifically, extract number |
+| **Select columns** | Paragraphs in cells | Value coercion to valid options |
+| **Consistency** | None | Cross-row normalization pass |
+| **Verification** | None | Homepage URL check + name confirmation |
+
+---
+
 ## Part 2: Cross-Cutting Orchestration Challenges
 
 These challenges appear across most verticals. They're not specific to any one domain — they're structural problems in how AI researches and populates data.
