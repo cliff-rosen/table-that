@@ -83,7 +83,9 @@
       "mcp__playwright__browser_resize",
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_evaluate",
-      "mcp__playwright__browser_console_messages"
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_wait_for",
+      "Bash(\"/c/Program Files/ImageMagick-7.1.2-Q16-HDRI/magick.exe\":*)"
     ],
     "deny": [],
     "ask": [],

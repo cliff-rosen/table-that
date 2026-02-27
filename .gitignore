@@ -52,6 +52,16 @@ logs/
 *.log
 nul
 
-# Playwright screenshots
+# QA & Playwright screenshots
 playwright-*.png
- 
+qa-*.png
+
+# Demo assets (audio, video, frames)
+_demo/
+
+# Media files (never commit large binaries)
+*.mp3
+*.mp4
+*.wav
+*.avi
+*.mov

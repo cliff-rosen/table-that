@@ -92,4 +92,6 @@ export function setUserData<T>(user: T): void {
 export function clearAuthData(): void {
   localStorage.removeItem(getTokenStorageKey());
   localStorage.removeItem(getUserStorageKey());
+  // Clear chat session state so a different user doesn't load stale conversations
+  sessionStorage.removeItem('chatCurrentConversationId');
 }

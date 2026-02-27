@@ -182,8 +182,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const handleSessionExpired = () => {
+        // Only show "session expired" if user was previously authenticated.
+        // Otherwise unauthenticated API calls (e.g. tracking) would show this
+        // to brand-new visitors who never had a session.
+        const wasAuthenticated = !!getAuthToken()
         logout()
-        setError('Your session has expired. Please login again.')
+        if (wasAuthenticated) {
+            setError('Your session has expired. Please login again.')
+        }
     }
 
     /**
