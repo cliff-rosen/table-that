@@ -3,6 +3,7 @@ import { UserIcon, KeyIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/ou
 import { useAuth } from '../context/AuthContext';
 import { userApi, type UserUpdateRequest } from '../lib/api/userApi';
 import { handleApiError } from '../lib/api';
+import { getHealth } from '../lib/api/healthApi';
 import type { User } from '../types/user';
 
 export default function Profile() {
@@ -12,6 +13,7 @@ export default function Profile() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [backendVersion, setBackendVersion] = useState<string>('...');
 
     // Form state
     const [form, setForm] = useState({
@@ -34,6 +36,7 @@ export default function Profile() {
     // Load user profile
     useEffect(() => {
         loadProfile();
+        getHealth().then(h => setBackendVersion(h.version)).catch(() => setBackendVersion('?'));
     }, []);
 
     const loadProfile = async () => {
@@ -233,9 +236,15 @@ export default function Profile() {
                                 </dd>
                             </div>
                             <div className="flex justify-between">
-                                <dt className="text-gray-500 dark:text-gray-400">App version</dt>
+                                <dt className="text-gray-500 dark:text-gray-400">Frontend</dt>
                                 <dd className="text-gray-900 dark:text-white font-mono text-xs">
                                     {import.meta.env.VITE_APP_VERSION || 'dev'}
+                                </dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500 dark:text-gray-400">Backend</dt>
+                                <dd className="text-gray-900 dark:text-white font-mono text-xs">
+                                    {backendVersion}
                                 </dd>
                             </div>
                         </dl>

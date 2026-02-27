@@ -13,13 +13,13 @@ const isLocalhost = currentHost === 'localhost' || currentHost === '127.0.0.1';
 
 const productionSettings: Settings = {
     apiUrl: 'https://api.tablethat.ai',
-    appName: 'table.that',
+    appName: 'table that',
     logoUrl: '/logo.png'
 };
 
 const developmentSettings: Settings = {
     apiUrl: isLocalhost ? 'http://localhost:8000' : `http://${currentHost}:8000`,
-    appName: 'table.that (Dev)',
+    appName: 'table that (Dev)',
     logoUrl: '/logo.png'
 };
 
