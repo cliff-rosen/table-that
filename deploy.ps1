@@ -30,6 +30,7 @@ if (-not $Frontend -and -not $Backend) {
 
 # -- Configuration ------------------------------------------------------------
 $S3_BUCKET = "tablethat.ironcliff.ai"
+$CF_DISTRIBUTION_ID = "E2A8470O3LXIJS"
 $FRONTEND_DIR = "frontend"
 $BACKEND_DIR = "backend"
 
@@ -136,6 +137,17 @@ if ($Frontend) {
     }
 
     Pop-Location
+
+    # Invalidate CloudFront cache so new files are served immediately
+    Write-Host "Invalidating CloudFront cache..." -ForegroundColor Yellow
+    aws cloudfront create-invalidation --distribution-id $CF_DISTRIBUTION_ID --paths "/*" | Out-Null
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "CloudFront invalidation failed (non-fatal, cache will expire naturally)" -ForegroundColor Yellow
+    } else {
+        Write-Host "CloudFront cache invalidated" -ForegroundColor Green
+    }
+
     Write-Host "Frontend deployed ($VERSION)" -ForegroundColor Green
 }
 
@@ -173,5 +185,5 @@ Write-Host ""
 Write-Host "=== Deploy complete: $VERSION ===" -ForegroundColor Green
 Write-Host ""
 Write-Host "Verify:"
-Write-Host '  Frontend: https://tablethat.ironcliff.ai' -ForegroundColor Cyan
-Write-Host '  Backend:  https://tablethat-api.ironcliff.ai/api/health' -ForegroundColor Cyan
+Write-Host '  Frontend: https://tablethat.ai' -ForegroundColor Cyan
+Write-Host '  Backend:  https://api.tablethat.ai/api/health' -ForegroundColor Cyan
