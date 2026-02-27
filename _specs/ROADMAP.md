@@ -18,6 +18,7 @@
 | #7 | P2 | Email and SMS integration | open | 2026-02-26 | |
 | #8 | P1 | Research effort thresholds and prompting | open | 2026-02-26 | |
 | #14 | P1 | AI-driven development automation | open | 2026-02-26 | |
+| #15 | P1 | Vertical-specific tooling & prompting | open | 2026-02-27 | |
 
 ## Tasks
 
@@ -69,6 +70,9 @@ Create `tests/test_smoke.py` — a fast pytest suite that validates core functio
 
 ### #13 — Full API endpoint test coverage (P1-P3 routers)
 After the foundation (#9) is in place, extend test coverage to all remaining routers: chat (5 endpoints), organization (5), admin (14), user (4), help (14), tracking (3). Priority order matches the testing roadmap. Goal: every endpoint has at least a happy-path test and an auth-failure test. 71 endpoints total.
+
+### #15 — Vertical-specific tooling & prompting
+Research and develop domain-specific tool configurations, data source integrations, and prompt strategies for target verticals (product comparison, lead research, academic research, etc.). Includes new tool abstractions (structured extraction, API adapters, verification) and per-vertical prompt templates. See `_specs/verticals-and-tooling.md` for the full analysis of candidate verticals, orchestration challenges, and tooling design requirements.
 
 ### #14 — AI-driven development automation
 Use AI automation to drive as much of the product development lifecycle as possible — from roadmap management to implementation to release. The goal is to get a product-market-fit version of table.that into the marketplace with AI automatically populating, processing, and prioritizing the roadmap itself. This is meta: the roadmap should be self-managing via AI, and that capability is itself a milestone toward PMF. Includes: automated roadmap triage and prioritization, AI-generated task breakdowns from user feedback, automated spec writing, CI/CD integration for autonomous implementation cycles, and self-updating roadmap based on what's been shipped.
