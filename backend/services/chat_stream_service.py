@@ -28,6 +28,7 @@ from schemas.chat import (
     ToolCompleteEvent,
     CompleteEvent,
     ErrorEvent,
+    ChatIdEvent,
 )
 from schemas.payloads import summarize_payload
 from services.chat_page_config import (
@@ -97,6 +98,18 @@ class ChatStreamService:
             yield ErrorEvent(message="Failed to initialize chat session.").model_dump_json()
             return
 
+        # Emit chat_id immediately so the frontend knows it even on cancel
+        yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
+
+        # State accumulated during streaming — declared outside try so
+        # the finally block can always persist whatever was collected.
+        collected_text = ""
+        tool_call_history: list = []
+        collected_payloads: list = []
+        trace: Optional[AgentTrace] = None
+        tool_call_index = 0
+        message_saved = False
+
         try:
             # Inject conversation_id into context for tools that need it
             context_with_chat = dict(request.context)
@@ -124,13 +137,6 @@ class ChatStreamService:
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
-
-            # Run the agent loop - it captures full trace internally
-            collected_text = ""
-            tool_call_history = []
-            collected_payloads = []
-            trace: Optional[AgentTrace] = None
-            tool_call_index = 0
 
             # Get configurable max iterations
             max_iterations = await self._get_max_tool_iterations()
@@ -191,6 +197,8 @@ class ChatStreamService:
                     trace = event.trace  # Capture trace even on error
                     yield ErrorEvent(message=event.error).model_dump_json()
                     return
+
+            # ── Normal completion path ──────────────────────────────────
 
             # Parse response and build final payload
             parsed = self._parse_llm_response(collected_text, request.context)
@@ -289,6 +297,7 @@ class ChatStreamService:
                 request.context,
                 extras=extras if extras else None,
             )
+            message_saved = True
 
             # Check for conversation length warning using peak context window usage
             context_warning = None
@@ -315,6 +324,31 @@ class ChatStreamService:
         except Exception as e:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
+
+        finally:
+            # Always persist an assistant message so the conversation is never
+            # left with an orphaned user message.  This runs on:
+            #   - client disconnect (GeneratorExit / aclose)
+            #   - cancellation via CancellationToken
+            #   - unhandled errors
+            # On the normal path message_saved is already True so we skip.
+            if not message_saved and chat_id:
+                try:
+                    content = collected_text.strip() if collected_text else ""
+                    if not content:
+                        content = "*[Response cancelled]*"
+                    logger.info(
+                        f"Persisting partial assistant message on teardown "
+                        f"(len={len(content)})"
+                    )
+                    await self._save_assistant_message(
+                        chat_id, content, request.context,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to persist assistant message on teardown",
+                        exc_info=True,
+                    )
 
     # =========================================================================
     # Payload Processing

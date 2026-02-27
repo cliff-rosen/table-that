@@ -231,6 +231,12 @@ export interface ErrorEvent {
 
 export interface CancelledEvent {
     type: 'cancelled';
+    conversation_id?: number;
+}
+
+export interface ChatIdEvent {
+    type: 'chat_id';
+    conversation_id: number;
 }
 
 export type StreamEvent =
@@ -241,7 +247,8 @@ export type StreamEvent =
     | ToolCompleteEvent
     | CompleteEvent
     | ErrorEvent
-    | CancelledEvent;
+    | CancelledEvent
+    | ChatIdEvent;
 
 
 // ============================================================================

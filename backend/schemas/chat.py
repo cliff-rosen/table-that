@@ -286,6 +286,13 @@ class ErrorEvent(BaseModel):
 class CancelledEvent(BaseModel):
     """Request was cancelled"""
     type: Literal["cancelled"] = "cancelled"
+    conversation_id: Optional[int] = None
+
+
+class ChatIdEvent(BaseModel):
+    """Emitted early so the frontend knows the conversation_id even on cancel"""
+    type: Literal["chat_id"] = "chat_id"
+    conversation_id: int
 
 
 # Discriminated union of all stream event types
@@ -297,7 +304,8 @@ StreamEvent = Union[
     ToolCompleteEvent,
     CompleteEvent,
     ErrorEvent,
-    CancelledEvent
+    CancelledEvent,
+    ChatIdEvent,
 ]
 
 

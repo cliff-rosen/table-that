@@ -169,6 +169,12 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         setActiveToolProgress(null);
                         break;
 
+                    case 'chat_id':
+                        if (event.conversation_id) {
+                            setChatId(event.conversation_id);
+                        }
+                        break;
+
                     case 'cancelled':
                         setStatusText('Cancelled');
                         break;
