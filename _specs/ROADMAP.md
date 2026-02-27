@@ -19,6 +19,7 @@
 | #8 | P1 | Research effort thresholds and prompting | open | 2026-02-26 | |
 | #14 | P1 | AI-driven development automation | open | 2026-02-26 | |
 | #15 | P1 | Vertical-specific tooling & prompting | open | 2026-02-27 | |
+| #16 | P1 | Domain tool packs & dynamic vertical detection | open | 2026-02-27 | |
 
 ## Tasks
 
@@ -70,6 +71,9 @@ Create `tests/test_smoke.py` — a fast pytest suite that validates core functio
 
 ### #13 — Full API endpoint test coverage (P1-P3 routers)
 After the foundation (#9) is in place, extend test coverage to all remaining routers: chat (5 endpoints), organization (5), admin (14), user (4), help (14), tracking (3). Priority order matches the testing roadmap. Goal: every endpoint has at least a happy-path test and an auth-failure test. 71 endpoints total.
+
+### #16 — Domain tool packs & dynamic vertical detection
+Two-part feature: (1) **Domain tool packs** — bundled sets of tools, API adapters, and system prompt instructions tailored to specific verticals (e.g., a "travel" pack includes flight/hotel search APIs and travel-specific prompting; an "academic" pack includes PubMed/ClinicalTrials APIs and citation-aware prompting). Each pack defines which tools are available, how research should be conducted, and what enrichment columns make sense. (2) **Dynamic vertical detection** — when a user describes what they need ("help me plan a trip to Japan" or "find clinical trials for lupus"), the system classifies the domain and automatically activates the relevant tool pack. The agent gets the right tools and prompt instructions without the user having to configure anything. Detection happens at table creation time and can be refined as the conversation evolves.
 
 ### #15 — Vertical-specific tooling & prompting
 Research and develop domain-specific tool configurations, data source integrations, and prompt strategies for target verticals (product comparison, lead research, academic research, etc.). Includes new tool abstractions (structured extraction, API adapters, verification) and per-vertical prompt templates. See `_specs/verticals-and-tooling.md` for the full analysis of candidate verticals, orchestration challenges, and tooling design requirements.
