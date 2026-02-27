@@ -1,0 +1,119 @@
+LLMs and the Structure of Knowledge Work
+
+By Cliff Rosen of Ironcliff Partners
+
+The Nature of Knowledge Work
+
+All knowledge work, however you slice it, gets completed through a series of atomic operations.
+
+When someone sits down to accomplish a knowledge task, they perform a sequence of discrete cognitive acts. They formulate queries. They search for information. They retrieve documents. They read and extract what's relevant. They evaluate sources. They synthesize findings. They condense, summarize, and compress. They expand and elaborate. They draft, revise, and refine. They structure and restructure. They compare and contrast. They decide and justify.
+
+The specific sequence varies by task. A researcher follows a different path than a claims adjuster, who follows a different path than a marketing analyst. But in every case, the work decomposes into these atomic operations. When all is said and done—if successful—a deliverable emerges: a report, a decision, a recommendation, a document, an analysis.
+
+This has always been true. What's changed is which of these operations can be delegated to machines.
+
+What Computers Could Do Before
+
+Software has long been able to assist with knowledge work, but only with certain types of operations.
+
+Computers excel at storage and retrieval. They can hold vast quantities of documents and fetch them on demand. They can search structured data with precision. They can route information between systems. They can apply rules to structured inputs. They can calculate, tabulate, and visualize.
+
+But computers could not perform operations that required understanding natural language. They couldn't read a document and extract the key points. They couldn't evaluate whether a paragraph was relevant to a question. They couldn't synthesize information from multiple sources into a coherent narrative. They couldn't draft a response that addressed the nuances of a situation.
+
+These operations—the ones involving comprehension and generation of natural language—remained stubbornly human. Software could present the document to a person, but the person had to read it. Software could store the draft, but the person had to write it. The human performed every operation that required actually understanding or producing language.
+
+What LLMs Change
+
+Large Language Models change this equation in two fundamental ways.
+
+First: Delegating Natural Language Operations
+
+For the first time, the atomic operations involving natural language can be delegated to computers.
+
+An LLM can read a document and extract key points. It can evaluate whether content is relevant to a query. It can synthesize information from multiple sources. It can summarize, condense, and compress. It can expand an outline into full prose. It can draft communications. It can translate between formats, styles, and languages. It can assess tone, sentiment, and intent.
+
+This means that workflows which previously required human involvement at every language-dependent step can now proceed automatically through those steps. The human can specify the goal, review the output, and intervene at key decision points—but the mechanical work of processing and generating language can be delegated.
+
+This alone is transformative. Processes that took hours can take minutes. Work that required dedicated staff can run unattended. Bottlenecks at human-dependent steps dissolve.
+
+Second: Participating in Orchestration
+
+But there's a second capability that's equally important and often overlooked.
+
+Beyond executing individual operations, LLMs can participate in—or even drive—the orchestration of those operations. They can decide which operations to perform and in what sequence.
+
+Consider what orchestration involves. Someone or something must determine: What information do we need? Where should we look for it? What queries should we use? Which results deserve deeper investigation? How should we structure the analysis? What's the right output format? When is the work complete?
+
+Traditionally, these decisions were either made by humans in real-time or encoded in advance by system designers who anticipated the workflow. The human analyst decided what to search for next. The software developer hardcoded the processing sequence.
+
+LLMs introduce a third option. The orchestration decisions themselves can be delegated to the model. Given a goal and a set of available capabilities, the LLM can determine the path. It can formulate a research plan, execute it, evaluate progress, adjust course, and continue until the goal is met.
+
+This is the distinction between using an LLM as a worker and using it as a planner.
+
+Two Modes of LLM Integration
+
+This gives us two fundamentally different ways to integrate LLMs into systems.
+
+Mode 1: LLM as Worker
+
+In this mode, the system designer defines the workflow. Step one extracts key information. Step two evaluates against criteria. Step three generates a summary. Step four formats the output. The sequence is predetermined.
+
+The LLM executes each step but makes no decisions about what step comes next. It's a powerful worker—capable of cognitive operations that previously required humans—but it operates within a structure defined externally.
+
+This mode maximizes predictability. You know exactly what will happen for any given input. The path through the system is fixed and auditable. You can optimize each step independently. When something goes wrong, you can identify exactly where.
+
+Mode 2: LLM as Planner
+
+In this mode, the system provides the LLM with capabilities and goals rather than a predetermined sequence. Here are the tools you can use: search, retrieve, analyze, summarize, compare. Here's what we need: an assessment of this situation with supporting evidence. Figure out how to get there.
+
+The LLM decides the path. It might search, evaluate results, search again with a refined query, retrieve promising documents, extract relevant sections, compare findings, and synthesize a conclusion. The specific sequence emerges from the model's judgment about what's needed.
+
+This mode maximizes flexibility. It handles novel situations that don't fit predetermined workflows. It adapts when initial approaches don't yield results. It can tackle open-ended problems where the right process isn't known in advance.
+
+The Hybrid Reality
+
+In practice, the most effective systems combine both modes in layered architectures.
+
+Deterministic Workflows with Agentic Steps
+
+Consider a document review process. The overall workflow is fixed: intake, classification, analysis, recommendation, output. This structure exists for good reasons—compliance, consistency, auditability.
+
+But within the analysis step, the task might be genuinely open-ended. Different documents require different approaches. Some need deep research; others are straightforward. The solution: that step invokes an agent. The outer workflow knows what it needs—a completed analysis with supporting rationale—but delegates the how to an LLM that can adapt its approach to the specific document.
+
+Agentic Systems with Deterministic Tools
+
+Consider a customer service system. The entry point is necessarily flexible—customers ask unpredictable things. An agentic approach handles this well: interpret the request, determine what's needed, take appropriate action.
+
+But when the agent determines that the customer needs, say, a policy summary, it doesn't improvise one from scratch. It invokes a "generate policy summary" tool that runs a proven, optimized, deterministic pipeline internally. The agent operates at the level of "what does this customer need" while reliable workflows handle "how do we produce that artifact."
+
+Recursive Depth
+
+These patterns nest. A deterministic workflow calls an agent that selects among deterministic tools, each of which might have agentic substeps. The architecture becomes a tree where each node chooses its mode—deterministic or agentic—based on what that layer requires.
+
+Design Implications
+
+Choose the Top Level Deliberately
+
+What sits at the top of your system sets its overall character. Deterministic tops provide predictability and auditability—important for regulated processes, compliance-sensitive workflows, and situations where consistency matters. Agentic tops provide flexibility and adaptability—important for customer-facing interfaces, research tasks, and situations with high variability.
+
+Encapsulate Complexity in Well-Designed Tools
+
+When agents have access to well-orchestrated tools, they operate at a higher level of abstraction. Instead of reasoning through ten micro-steps, they select among three proven capabilities. Each tool encapsulates a reliable workflow. The agent's job is selection and sequencing, not reinventing processes.
+
+This matters because every decision point for an agent is a potential failure point. Fewer decisions about better-designed options yields more reliable results.
+
+Match the Mode to the Task
+
+Some tasks are predictable—same inputs, same process, every time. These are candidates for deterministic orchestration. Optimize them, lock them down, make them reliable.
+
+Other tasks vary significantly based on context. The right approach depends on what you encounter along the way. These are candidates for agentic approaches that can adapt.
+
+The art is identifying which is which, and designing systems that use each mode where it fits.
+
+Conclusion
+
+Knowledge work has always consisted of atomic operations. LLMs change which operations can be delegated to machines—specifically, the ones involving natural language. But they also change something more fundamental: they enable machines to participate in orchestrating those operations, not just executing them.
+
+Effective AI systems leverage both capabilities. LLMs execute atomic operations that previously required human cognition. And LLMs help plan and coordinate those operations in ways that adapt to circumstances. The design challenge is determining where each mode applies, and building architectures that combine them effectively.
+
+The technology is powerful. The design choices determine whether that power translates to reliable, valuable systems.

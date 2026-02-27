@@ -1,0 +1,201 @@
+Core Orchestration Problems
+
+Core Orchestration Problems
+
+These are problems beyond the core limitations: limited training data, limited training data / context window, hallucinations
+
+Tool Pattern: Compress and Carry Forward
+
+Tool Pattern: Compress and Carry Forward
+
+Overview
+
+The Compress and Carry Forward pattern addresses context pollution in multi-step AI workflows by selectively preserving essential information while discarding conversational noise.
+
+Problem Addressed
+
+Primary: The Dirty Test Tube Problem - accumulated context containing tangents, false starts, and conversational debris that dilutes signal and degrades performance.
+
+Secondary Effects:
+
+Prevents error propagation by discarding failed attempts
+
+Makes hidden intentions explicit by forcing declaration of what matters
+
+Reduces token usage and latency by minimizing context size
+
+The Tool Signature
+
+new_context = compressAndCarryForward(
+
+    old_context,           # The accumulated conversation/context
+
+    compression_guidelines # Meta-context defining signal vs noise
+
+)
+
+Core Components
+
+old_context
+
+The full conversational history including:
+
+User messages and clarifications
+
+Assistant responses and iterations
+
+Intermediate outputs and revisions
+
+Exploratory tangents and dead ends
+
+compression_guidelines
+
+Meta-context that establishes what constitutes signal vs noise for the next step. This is the critical parameter that makes compression intelligent rather than arbitrary.
+
+Guidelines typically specify:
+
+What to preserve: Validated outputs, key decisions, essential facts, constraints
+
+What to discard: Exploratory questions, rejected approaches, conversational clarifications, earlier drafts
+
+Context for next step: What the subsequent operation needs to succeed
+
+new_context
+
+The distilled context containing only information relevant to the next workflow step. This becomes the "sterile test tube" for focused execution.
+
+When to Use
+
+Trigger conditions:
+
+Transitioning between distinct workflow phases (analysis → generation)
+
+After exploratory or iterative conversations that produced a final validated output
+
+When context length threatens to dilute focus or exceed practical limits
+
+Before steps requiring precision where noise would degrade performance
+
+Avoid when:
+
+The full conversational context is genuinely needed (e.g., debugging, review steps)
+
+Only 1-2 turns have occurred with minimal extraneous content
+
+The next step explicitly benefits from seeing the reasoning process
+
+Design Considerations
+
+Who Authors compression_guidelines?
+
+Human workflow designer (recommended for production):
+
+compression_guidelines = """
+
+For the restructuring step, preserve:
+
+- The final consolidated list of tone issues
+
+- The original email text
+
+Discard:
+
+- The back-and-forth about scope changes
+
+- Earlier drafts of the issue list
+
+- All conversational clarifications
+
+"""
+
+Dynamic generation (for flexible workflows):
+
+compression_guidelines = f"""
+
+The next step is: {next_step_description}
+
+Preserve only information directly relevant to: {next_step_requirements}
+
+Discard conversational elements and superseded outputs.
+
+"""
+
+Hybrid approach: Use templates with dynamic insertion of step-specific requirements.
+
+Output Format
+
+Structured output (recommended):
+
+# Original Input
+
+[preserved input text]
+
+# Validated Outputs from Previous Steps
+
+Step 1 - Key Points Extraction:
+
+- [point 1]
+
+- [point 2]
+
+Step 2 - Tone Analysis:
+
+- [consolidated findings]
+
+# Constraints
+
+- Preserve friendly tone
+
+- Maximum 200 words
+
+Benefits of structure:
+
+Clear separation of different information types
+
+Easy to validate completeness
+
+Reduces ambiguity for the next step
+
+Free-form text alternative: Acceptable for simpler workflows, but increases risk of important information being buried or formatted inconsistently.
+
+Validation
+
+Consider adding validation to ensure compression preserves essential information:
+
+validation_result = validateCompression(
+
+    old_context,
+
+    new_context,
+
+    compression_guidelines
+
+)
+
+if not validation_result.passed:
+
+    # Handle missing critical information
+
+    # Consider: regenerate, alert human, request clarification
+
+Validation approaches:
+
+LLM self-check: "Does new_context contain all information marked 'preserve' in guidelines?"
+
+Programmatic checks: Verify presence of expected sections or required fields
+
+Human review: For high-stakes workflows
+
+Concrete Example
+
+Scenario: Email Improvement Workflow
+
+Transitioning from "identify tone issues" to "restructure content"
+
+old_context:
+
+User: Here's my email draft:
+
+[300 word rambling email to client]
+
+

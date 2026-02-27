@@ -20,6 +20,9 @@
 | #14 | P1 | AI-driven development automation | open | 2026-02-26 | |
 | #15 | P1 | Vertical-specific tooling & prompting | open | 2026-02-27 | |
 | #16 | P1 | Domain tool packs & dynamic vertical detection | open | 2026-02-27 | |
+| #17 | P1 | Entity type system (table-level row typing) | open | 2026-02-27 | |
+| #18 | P2 | Harvest orchestration guidelines from Google Drive | open | 2026-02-27 | |
+| #19 | P1 | Recommendations tool via SerpAPI | open | 2026-02-27 | |
 
 ## Tasks
 
@@ -71,6 +74,15 @@ Create `tests/test_smoke.py` — a fast pytest suite that validates core functio
 
 ### #13 — Full API endpoint test coverage (P1-P3 routers)
 After the foundation (#9) is in place, extend test coverage to all remaining routers: chat (5 endpoints), organization (5), admin (14), user (4), help (14), tracking (3). Priority order matches the testing roadmap. Goal: every endpoint has at least a happy-path test and an auth-failure test. 71 endpoints total.
+
+### #19 — Recommendations tool via SerpAPI
+Build a `get_recommendations` tool that uses SerpAPI to find curated "best of" and recommendation lists for a given topic. When a user asks "find the best project management tools" or "recommend Italian restaurants in Chicago," this tool queries SerpAPI for roundup articles, listicles, and review aggregator pages — the kind of content where humans have already done the curation work. The tool extracts recommended entities (products, businesses, services) from these results and returns them as structured candidates for table population. This is fundamentally different from generic web search: instead of searching for individual entities one by one, it finds lists where someone has already assembled and vetted a set of recommendations. This becomes a primary data source for the Populate step, especially for Product Comparison (#2 vertical), Local Business (#6), and Vendor Evaluation (#5). Implementation: SerpAPI query with result-type filtering → fetch top listicle/roundup pages → structured extraction of entity names + key attributes → return as candidate list. Pairs with value coercion and entity verification for quality. We already have a SERPAPI_KEY in the backend env.
+
+### #18 — Harvest orchestration guidelines from Google Drive
+User has a directory of orchestration guidelines in Google Drive covering workflow design, agent coordination, and research strategies. Need to: (1) download/access the documents, (2) review them against the verticals-and-tooling analysis and the current system architecture, (3) extract actionable patterns — research strategies, prompting techniques, effort calibration rules, tool composition patterns — that should be incorporated into the codebase (system prompts, tool configs, or specs). This is a one-time knowledge harvest, not an ongoing sync.
+
+### #17 — Entity type system (table-level row typing)
+Add an `entity_type` field to TableDefinition that tells the system what kind of thing each row represents (SaaS Product, Local Business, Publisher, PubMed Article, etc.). Entity types carry: identity anchor (how to uniquely identify the entity), canonical data source, known attributes with extraction logic, verification method, and research strategy. The AI infers entity type during table creation. Falls back to generic "Website/URL" when unrecognized. Start with 2-3 types (Website, SaaS Product, Local Business), expand based on usage. Ties into #15 (vertical tooling) and #16 (dynamic detection) — entity type is the output of vertical detection and the dispatch key for tool packs. See `_specs/verticals-and-tooling.md` Part 1B for full design.
 
 ### #16 — Domain tool packs & dynamic vertical detection
 Two-part feature: (1) **Domain tool packs** — bundled sets of tools, API adapters, and system prompt instructions tailored to specific verticals (e.g., a "travel" pack includes flight/hotel search APIs and travel-specific prompting; an "academic" pack includes PubMed/ClinicalTrials APIs and citation-aware prompting). Each pack defines which tools are available, how research should be conducted, and what enrichment columns make sense. (2) **Dynamic vertical detection** — when a user describes what they need ("help me plan a trip to Japan" or "find clinical trials for lupus"), the system classifies the domain and automatically activates the relevant tool pack. The agent gets the right tools and prompt instructions without the user having to configure anything. Detection happens at table creation time and can be refined as the conversation evolves.

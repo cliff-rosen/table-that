@@ -1,0 +1,101 @@
+The Two Roles of LLMs in AI Systems
+
+Workers and Planners
+
+Introduction
+
+Large Language Models have fundamentally changed what computers can do. For decades, software could store, retrieve, and process structured data with precision. But it couldn't understand natural language, extract meaning from unstructured text, or generate coherent prose. LLMs changed that.
+
+When organizations adopt LLMs, they typically start by using them for discrete tasks: summarize this document, draft this email, answer this question. This works well and delivers immediate value. But as ambitions grow, a critical architectural question emerges: how do LLMs fit into larger systems that accomplish complex goals?
+
+The answer is that LLMs serve two fundamentally different roles in AI systems. Understanding this distinction is essential for designing effective solutions.
+
+Role 1: Executing Atomic Knowledge Operations
+
+The first role is the one most people encounter initially. LLMs can perform discrete knowledge work tasks that previously required human cognition.
+
+Consider what happens when a knowledge worker processes information. They read a document and extract key points. They synthesize information from multiple sources. They draft communications. They evaluate whether something meets certain criteria. They translate between formats or languages. Each of these is an atomic operation—a single cognitive task with a defined input and output.
+
+Before LLMs, computers could retrieve the document and present it to a user, but couldn't perform the reading and extraction. They could store the draft, but couldn't write it. They could route the information, but couldn't evaluate it. The human had to perform every operation that required understanding or generating natural language.
+
+LLMs change this equation. They can execute these atomic knowledge operations programmatically. This means that for the first time, we can build automated workflows that include steps like:
+
+Read this contract and extract the key terms. Evaluate whether this claim matches the policy criteria. Synthesize these three reports into a summary. Draft a response to this customer inquiry. Assess the sentiment and urgency of this message.
+
+Each of these is a discrete task. The LLM receives an input, performs a cognitive operation, and produces an output. The system designer determines what operations occur and in what sequence. The LLM is the worker executing each step.
+
+Role 2: Planning and Orchestrating Operations
+
+The second role is fundamentally different. Instead of executing a predefined operation, the LLM decides which operations to perform and in what order.
+
+Consider a research task: "Find information about recent regulatory changes affecting our industry and summarize the implications." A human researcher would approach this by making a series of decisions. What sources should I check? What search queries should I use? Which results are relevant enough to read in full? How should I organize the findings? What's the right level of detail for the summary?
+
+In the first role, a system designer would need to predefine this entire workflow: first search these three databases with these queries, then filter results by these criteria, then retrieve the top five, then summarize each, then compile. This works if the task is predictable. But research tasks vary. The right approach depends on what you find along the way.
+
+In the second role, the LLM itself makes these decisions. You give it a goal and a set of capabilities—search tools, retrieval tools, analysis tools—and it determines the sequence. It might search, evaluate results, decide to search again with a refined query, retrieve promising documents, extract relevant sections, and synthesize findings. The specific path emerges from the LLM's judgment about what's needed.
+
+This is agentic behavior. The LLM isn't just executing operations; it's planning and coordinating them. It operates at a higher level of abstraction, reasoning about goals and strategies rather than just processing inputs.
+
+The Architectural Choice
+
+Every AI system that goes beyond single-turn interactions must decide how to allocate control between these two roles. This creates a spectrum of possibilities.
+
+Fully Deterministic: The system designer specifies the complete workflow. Step one does this, step two does that, step three does the other thing. LLMs execute each step but make no decisions about sequencing. This approach maximizes predictability and auditability. You know exactly what will happen for any given input. It works well when the process is well-understood and consistent.
+
+Fully Agentic: The system provides the LLM with capabilities and goals but no prescribed workflow. The LLM interprets requests, plans approaches, selects tools, and determines sequencing. This approach maximizes flexibility and handles novel situations well. But the path through the system varies, making it harder to predict, audit, and optimize.
+
+Most production systems live somewhere between these extremes, and the interesting insight is that these approaches can be combined at different layers of the system.
+
+Hybrid Architectures: The Recursive Structure
+
+Here's where the architecture becomes interesting. A deterministic workflow can invoke an agentic step, and an agentic system can invoke deterministic tools. This creates a recursive structure with significant design implications.
+
+Deterministic Calling Agentic
+
+Consider a claims processing workflow. The overall structure is deterministic: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is fixed for compliance and consistency reasons. But within the "assess coverage" step, the task might be genuinely complex. The claim might require research, judgment about ambiguous situations, or synthesis of multiple policy provisions.
+
+The solution: that step invokes an agent. The agent has access to policy documents, historical decisions, and research tools. It determines how to evaluate this specific claim. The outer workflow knows what it needs from this step—a coverage determination with supporting rationale—but delegates the how to the agent.
+
+Agentic Calling Deterministic
+
+Now consider the reverse. A customer service agent receives an open-ended request: "I need help with my account." The agent must interpret this, ask clarifying questions, and determine what's actually needed. This outer layer is necessarily agentic—it can't predict what customers will ask.
+
+But when the agent determines that the customer needs, say, a policy summary, it doesn't figure out how to generate one from scratch. It invokes a "generate policy summary" tool that internally runs a tight, optimized, deterministic pipeline. Extract policy details, structure according to template, validate completeness, format output. The agent operates at the level of "what does this customer need" while proven workflows handle "how do we produce that artifact."
+
+Arbitrary Depth
+
+These patterns can nest to arbitrary depth. A deterministic workflow might call an agent that selects among deterministic tools, each of which might have agentic substeps. The architecture becomes a tree where each node is either deterministic or agentic, and the leaves are atomic operations.
+
+Design Principles
+
+This framework suggests several principles for designing effective AI systems.
+
+Choose the Top Level Based on the Domain
+
+What sits at the top of your system depends on the nature of the work. Regulated processes with compliance requirements often want deterministic tops—predictable, auditable, consistent. Customer-facing interfaces handling diverse requests often need agentic tops—flexible, adaptive, able to handle the long tail. The top level sets the overall character of the system.
+
+Encapsulate Complexity in Well-Orchestrated Tools
+
+The most effective agentic systems don't give agents raw primitives. They give them high-quality compound tools that encapsulate proven workflows. Instead of "here's a search function and a read function and a summarize function," the agent gets "here's a research-and-summarize tool that reliably produces quality output."
+
+This matters because every decision point for an agent is a potential failure point. Agents reasoning through ten micro-steps have more chances to go wrong than agents selecting among three well-designed macro-capabilities. The internal complexity of those capabilities is handled by deterministic orchestration that's been tested and optimized.
+
+Place Determinism Where You Need Auditability
+
+Deterministic segments produce clear logs: step one received this input and produced this output, step two received that and produced the next thing. The path through the system is explicit and reproducible. Agentic segments are harder to audit because the path varies based on the agent's reasoning.
+
+For regulated industries, this often means deterministic wrappers around agentic cores. Fixed entry points, fixed output validation, flexible internals. You can demonstrate that every claim went through the required evaluation steps even if the evaluation itself involved dynamic reasoning.
+
+Place Agentic Behavior Where You Need Adaptability
+
+Some tasks are predictable—same inputs, same process, every time. Lock those down as deterministic workflows and optimize them. Other tasks vary significantly based on context. Customer requests come in infinite varieties. Research questions require different approaches depending on what's available. Novel situations don't fit existing templates.
+
+These are candidates for agentic approaches. The art is identifying which tasks are which. Over-constraining adaptive tasks makes systems brittle. Under-constraining predictable tasks wastes agent reasoning on solved problems.
+
+Conclusion
+
+LLMs contribute to AI systems in two distinct ways: as workers executing atomic knowledge operations, and as planners deciding which operations to invoke. Effective system design requires understanding both roles and choosing deliberately where each applies.
+
+The most sophisticated systems use both, layered recursively. Deterministic pipelines provide predictability and efficiency for known processes. Agentic components provide flexibility for dynamic tasks. Well-orchestrated tools encapsulate complexity so that agents operate at appropriate abstraction levels.
+
+This isn't just an architectural nicety. It's the difference between AI systems that work reliably in production and those that remain impressive demos. The technology is powerful. The design choices determine whether that power translates to value.
