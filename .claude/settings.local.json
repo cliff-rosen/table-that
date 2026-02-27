@@ -85,7 +85,10 @@
       "mcp__playwright__browser_evaluate",
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_wait_for",
-      "Bash(\"/c/Program Files/ImageMagick-7.1.2-Q16-HDRI/magick.exe\":*)"
+      "Bash(\"/c/Program Files/ImageMagick-7.1.2-Q16-HDRI/magick.exe\":*)",
+      "mcp__playwright__browser_run_code",
+      "Bash(\"C:\\\\Program Files\\\\ImageMagick-7.1.2-Q16-HDRI\\\\magick.exe\":*)",
+      "mcp__playwright__browser_close"
     ],
     "deny": [],
     "ask": [],
