@@ -156,11 +156,12 @@ Tell the user:
 ### Voice guidelines
 
 - Keep narration conversational, not salesy
-- Say "table that" naturally — no "dot" in the product name
+- Say "table that" naturally, no "dot" in the product name
 - Refer to the production URL as "table that dot ironcliff dot A I" in speech
-- 2-3 sentences per scene max — let the visuals do the work
+- 2-3 sentences per scene max, let the visuals do the work
 - Tailor language to the audience (a developer hears "schema", a small business owner hears "columns")
 - Emphasize that the data is REAL and RESEARCHED, not generated. Say things like "AI researched real publishers" not "AI created sample entries"
+- **NEVER use em dashes, en dashes, or hyphens used as dashes in narration text.** Edge-tts mispronounces them badly. Replace with periods, commas, or restructure the sentence. For example: "AI is ready to go — just start" becomes "AI is ready to go. Just start"
 
 ### Output
 
