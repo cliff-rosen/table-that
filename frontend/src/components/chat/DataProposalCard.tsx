@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ExclamationTriangleIcon, ChevronRightIcon, MagnifyingGlassIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, ExclamationTriangleIcon, ChevronRightIcon, MagnifyingGlassIcon, GlobeAltIcon, DocumentTextIcon, CalculatorIcon, BoltIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 
@@ -26,11 +26,17 @@ interface DataDeleteOperation {
 export type DataOperation = DataAddOperation | DataUpdateOperation | DataDeleteOperation;
 
 interface ResearchStep {
-  action: 'search' | 'fetch' | 'thinking' | 'error' | 'answer';
+  action: 'search' | 'fetch' | 'thinking' | 'error' | 'answer'
+    | 'extract' | 'compute' | 'skip' | 'lookup' | 'coverage';
   query?: string;
   url?: string;
   text?: string;
   detail?: string;
+  formula?: string;
+  field?: string;
+  result?: string;
+  value?: string;
+  level?: string;
 }
 
 interface ResearchLogEntry {
@@ -39,6 +45,10 @@ interface ResearchLogEntry {
   status: 'found' | 'not_found';
   value: string | null;
   steps: ResearchStep[];
+  strategy?: string;
+  confidence?: string;
+  raw_value?: string;
+  thoroughness?: 'exploratory' | 'comprehensive';
 }
 
 export interface DataProposalData {
@@ -83,7 +93,7 @@ function getActionIcon(action: string, large?: boolean) {
   }
 }
 
-function truncate(val: unknown, maxLen = 40): string {
+function truncate(val: unknown, maxLen = 80): string {
   if (val === null || val === undefined) return '';
   const s = String(val);
   if (maxLen <= 0) return s; // no truncation
@@ -231,15 +241,16 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
   const iconCls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
   switch (step.action) {
     case 'search':
+    case 'lookup':
       return (
         <div className={`flex items-start gap-1.5 ${textCls}`}>
-          <MagnifyingGlassIcon className={`${iconCls} text-blue-500 flex-shrink-0 mt-0.5`} />
+          <MagnifyingGlassIcon className={`${iconCls} ${step.action === 'lookup' ? 'text-teal-500' : 'text-blue-500'} flex-shrink-0 mt-0.5`} />
           <div className="min-w-0">
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Search: </span>
-              <span className="text-gray-700 dark:text-gray-300">{step.query}</span>
+              <span className="text-gray-500 dark:text-gray-400">{step.action === 'lookup' ? 'Lookup: ' : 'Search: '}</span>
+              <span className="text-gray-700 dark:text-gray-300">{step.query || step.detail}</span>
             </div>
-            {step.detail && (
+            {step.detail && step.query && (
               <div className="text-gray-400 dark:text-gray-500 mt-0.5 pl-1 border-l-2 border-gray-200 dark:border-gray-700">
                 {step.detail}
               </div>
@@ -253,10 +264,32 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
           <GlobeAltIcon className={`${iconCls} text-purple-500 flex-shrink-0 mt-0.5`} />
           <div className="min-w-0">
             <span className="text-gray-500 dark:text-gray-400">Fetch: </span>
-            <span className="text-gray-700 dark:text-gray-300 break-all">{step.url}</span>
-            {step.detail && (
+            <span className="text-gray-700 dark:text-gray-300 break-all">{step.url || step.detail}</span>
+            {step.detail && step.url && (
               <span className="text-gray-400 dark:text-gray-500"> — {step.detail}</span>
             )}
+          </div>
+        </div>
+      );
+    case 'extract':
+      return (
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <DocumentTextIcon className={`${iconCls} text-purple-500 flex-shrink-0 mt-0.5`} />
+          <div className="min-w-0">
+            <span className="text-gray-500 dark:text-gray-400">Extract: </span>
+            <span className="text-gray-700 dark:text-gray-300">{step.detail || step.field || ''}</span>
+          </div>
+        </div>
+      );
+    case 'compute':
+      return (
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <CalculatorIcon className={`${iconCls} text-blue-500 flex-shrink-0 mt-0.5`} />
+          <div className="min-w-0">
+            <span className="text-gray-500 dark:text-gray-400">Compute: </span>
+            <code className="text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 rounded text-[0.85em]">
+              {step.formula || step.detail || ''}
+            </code>
           </div>
         </div>
       );
@@ -274,6 +307,13 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
           <span className="text-red-600 dark:text-red-400">{step.detail}</span>
         </div>
       );
+    case 'skip':
+      return (
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <BoltIcon className={`${iconCls} text-gray-400 flex-shrink-0 mt-0.5`} />
+          <span className="text-gray-500 dark:text-gray-400 italic">{step.detail}</span>
+        </div>
+      );
     case 'answer':
       return (
         <div className={`flex items-start gap-1.5 ${textCls}`}>
@@ -281,14 +321,89 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
           <div className="min-w-0">
             <span className="text-gray-500 dark:text-gray-400">Result: </span>
             <span className="text-gray-700 dark:text-gray-300 font-medium">
-              {step.text || 'No answer'}
+              {step.text || step.detail || step.value || 'No answer'}
             </span>
           </div>
         </div>
       );
+    case 'coverage':
+      return (
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <ShieldCheckIcon className={`${iconCls} text-indigo-500 flex-shrink-0 mt-0.5`} />
+          <div className="min-w-0">
+            <span className="text-gray-500 dark:text-gray-400">Coverage: </span>
+            <span className="text-indigo-700 dark:text-indigo-300">{step.detail}</span>
+          </div>
+        </div>
+      );
     default:
-      return null;
+      // Graceful fallback for unknown step types
+      return (
+        <div className={`flex items-start gap-1.5 ${textCls}`}>
+          <BoltIcon className={`${iconCls} text-gray-400 flex-shrink-0 mt-0.5`} />
+          <span className="text-gray-500 dark:text-gray-400">{step.detail || step.text || step.action}</span>
+        </div>
+      );
   }
+}
+
+// =============================================================================
+// Strategy Badge — small colored pill showing which strategy was used
+// =============================================================================
+
+const STRATEGY_COLORS: Record<string, string> = {
+  lookup: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  research: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  computation: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+};
+
+const STRATEGY_LABELS: Record<string, string> = {
+  lookup: 'Lookup',
+  research: 'Research',
+  computation: 'Compute',
+};
+
+function StrategyBadge({ strategy }: { strategy?: string }) {
+  if (!strategy) return null;
+  const colorCls = STRATEGY_COLORS[strategy] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+  const label = STRATEGY_LABELS[strategy] || strategy.replace(/_/g, ' ');
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${colorCls}`}>
+      {label}
+    </span>
+  );
+}
+
+// =============================================================================
+// Thoroughness Badge — shown only for comprehensive research
+// =============================================================================
+
+function ThoroughnessBadge({ thoroughness }: { thoroughness?: string }) {
+  if (!thoroughness || thoroughness !== 'comprehensive') return null;
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+      Comprehensive
+    </span>
+  );
+}
+
+// =============================================================================
+// Confidence Indicator
+// =============================================================================
+
+function ConfidenceIndicator({ confidence }: { confidence?: string }) {
+  if (!confidence || confidence === 'none') return null;
+  const colorCls = confidence === 'high'
+    ? 'text-green-600 dark:text-green-400'
+    : confidence === 'medium'
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-red-500 dark:text-red-400';
+  const pct = confidence === 'high' ? '90%' : confidence === 'medium' ? '60%' : '30%';
+  return (
+    <span className={`text-[10px] font-medium ${colorCls}`} title={`Confidence: ${confidence}`}>
+      {pct}
+    </span>
+  );
 }
 
 // =============================================================================
@@ -319,9 +434,12 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
         <span className={`${textCls} text-gray-700 dark:text-gray-300 font-medium ${large ? '' : 'truncate'}`}>
           {entry.label}
         </span>
+        {entry.strategy && <StrategyBadge strategy={entry.strategy} />}
+        {entry.thoroughness && <ThoroughnessBadge thoroughness={entry.thoroughness} />}
+        {entry.confidence && <ConfidenceIndicator confidence={entry.confidence} />}
         {isFound && entry.value && !large && (
           <span className={`${textCls} text-gray-500 dark:text-gray-400 truncate ml-auto`}>
-            → {entry.value.length > 50 ? entry.value.slice(0, 50) + '...' : entry.value}
+            → {entry.value.length > 80 ? entry.value.slice(0, 80) + '...' : entry.value}
           </span>
         )}
         <span className={`${textCls} text-gray-400 dark:text-gray-500 flex-shrink-0`}>
@@ -330,7 +448,7 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
       </button>
       {expanded && (
         <div className="pl-8 pr-3 pb-2 space-y-1.5">
-          {large && isFound && entry.value && (
+          {isFound && entry.value && (
             <div className={`${textCls} bg-green-50 dark:bg-green-900/20 rounded p-2 mb-2 text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words`}>
               <span className="font-medium text-green-700 dark:text-green-400">Answer: </span>
               {entry.value}
@@ -525,7 +643,24 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            {totalCount === 0 && hasResearchLog ? 'AI Research Results' : hasResearchLog ? 'AI Research Results' : 'Data Proposal'}
+            {(() => {
+              if (!hasResearchLog) return 'Data Proposal';
+              // Determine card title from strategies used
+              const strategies = new Set(
+                data.research_log!.map(e => e.strategy).filter(Boolean)
+              );
+              // Check if all entries are comprehensive research
+              const allComprehensive = data.research_log!.every(e => e.thoroughness === 'comprehensive');
+              if (allComprehensive && strategies.has('research')) {
+                return 'AI Comprehensive Research Results';
+              }
+              if (strategies.size === 1) {
+                const s = [...strategies][0]!;
+                return STRATEGY_LABELS[s] ? `AI ${STRATEGY_LABELS[s]} Results` : 'AI Enrichment Results';
+              }
+              if (strategies.size > 1) return 'AI Enrichment Results';
+              return 'AI Research Results';
+            })()}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {summaryText}

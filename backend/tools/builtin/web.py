@@ -255,22 +255,42 @@ _RESEARCH_INNER_TOOLS = [
     },
 ]
 
-def _build_research_system_prompt() -> str:
-    """Build research system prompt with current date/time."""
+def _build_research_system_prompt(thoroughness: str = "exploratory") -> str:
+    """Build research system prompt with current date/time and thoroughness mode."""
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if thoroughness == "comprehensive":
+        workflow = (
+            "## Research workflow — COMPREHENSIVE MODE\n"
+            "Your goal is COMPLETE COVERAGE — find ALL relevant items, not just the first answer.\n\n"
+            "1. ALWAYS start by calling search_web with a broad query to get an overview.\n"
+            "2. DO NOT stop at the first answer. Search from MULTIPLE ANGLES:\n"
+            "   - Different phrasings and synonyms\n"
+            "   - Authoritative sources (official databases, review articles)\n"
+            '   - "list of..." or "all known..." formulations\n'
+            "   - Cross-reference: if Source A mentions X, Y, Z, search specifically for others\n"
+            "3. Fetch at least 2-3 pages to cross-reference findings.\n"
+            "4. Try at least 3 different search queries before concluding.\n"
+            "5. When you have gathered information from multiple angles, synthesize a comprehensive answer.\n"
+        )
+    else:
+        workflow = (
+            "## Research workflow\n"
+            "1. ALWAYS start by calling search_web with a well-crafted query.\n"
+            "2. Review the search results. If the answer is clearly in the snippets, return it.\n"
+            "3. If the answer is NOT clear from snippets, call fetch_webpage on the most promising URL "
+            "to read the full page content.\n"
+            "4. If the first page didn't have the answer, try fetching another result or refine your "
+            "search query and search again.\n"
+            "5. When you have a confident answer, respond with just the answer text. "
+            "Keep it concise — match the scope of what was asked.\n"
+        )
+
     return (
         f"You are a web research assistant. Your job is to answer a question using web search.\n\n"
         f"Current date and time: {now}\n\n"
-        "## Research workflow\n"
-        "1. ALWAYS start by calling search_web with a well-crafted query.\n"
-        "2. Review the search results. If the answer is clearly in the snippets, return it.\n"
-        "3. If the answer is NOT clear from snippets, call fetch_webpage on the most promising URL "
-        "to read the full page content.\n"
-        "4. If the first page didn't have the answer, try fetching another result or refine your "
-        "search query and search again.\n"
-        "5. When you have a confident answer, respond with just the answer text. "
-        "Keep it concise — match the scope of what was asked.\n\n"
+        f"{workflow}\n"
         "## Rules\n"
         "- NEVER answer from memory or training data. ALWAYS search first.\n"
         "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
@@ -302,35 +322,219 @@ def _build_research_system_prompt() -> str:
     )
 
 
-import re as _re
+from tools.builtin.strategies.coerce import strip_preamble as _strip_preamble
 
-_PREAMBLE_PATTERNS = [
-    _re.compile(r'^(?:based on (?:my |the )?(?:research|search|findings|results)[\s,]*)', _re.IGNORECASE),
-    _re.compile(r'^(?:according to (?:the |my )?(?:search|results|findings|webpage|article|page)[\s,]*)', _re.IGNORECASE),
-    _re.compile(r'^(?:(?:I |i )?found (?:that )?)', _re.IGNORECASE),
-    _re.compile(r'^(?:after (?:searching|researching|looking)[\s,]*)', _re.IGNORECASE),
-    _re.compile(r'^(?:the (?:answer|result|latest|information) (?:is|was|to .+? is) )', _re.IGNORECASE),
-    _re.compile(r'^(?:(?:I )?need to (?:fetch|search|look).+?[:\.]\s*)', _re.IGNORECASE | _re.DOTALL),
-    _re.compile(r'^(?:let me .+?[:\.]\s*)', _re.IGNORECASE | _re.DOTALL),
+
+def _summarize_search_results(result_text: str) -> str:
+    """Summarize search result text for trace logs. Shared by lookup and research cores."""
+    if result_text.startswith("No results found"):
+        return result_text
+    if result_text.startswith("Error:"):
+        return result_text
+    result_lines = [
+        line for line in result_text.splitlines()
+        if line and line[0].isdigit() and '. ' in line
+    ]
+    n = len(result_lines)
+    top = "; ".join(
+        r.split('. ', 1)[1] if '. ' in r else r
+        for r in result_lines[:3]
+    )
+    return f"{n} results — {top}" if top else f"{n} results found"
+
+
+# =============================================================================
+# lookup_web — Snippet-only lookup with 1-2 search turns
+# =============================================================================
+
+_LOOKUP_INNER_TOOLS = [
+    {
+        "name": "search_web",
+        "description": "Search the web. Returns titles, URLs, and snippets.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"},
+                "num_results": {"type": "integer", "description": "1-10, default 5"},
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 
-def _strip_preamble(text: str) -> str:
-    """Strip common LLM preamble phrases from the answer."""
-    result = text.strip()
-    for pattern in _PREAMBLE_PATTERNS:
-        new_result = pattern.sub('', result).strip()
-        if new_result != result:
-            logger.warning(
-                f"strip_preamble: detected preamble in answer. "
-                f"Pattern: {pattern.pattern!r}, "
-                f"before={result[:100]!r}, after={new_result[:100]!r}"
+def _build_lookup_system_prompt() -> str:
+    """Build lookup system prompt with current date."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return (
+        f"You are a lookup assistant. Answer the question using ONE web search.\n\n"
+        f"Current date: {now}\n\n"
+        "## Rules\n"
+        "1. Call search_web with a well-crafted query.\n"
+        "2. Extract the answer from snippets. Do NOT fetch pages unless the snippets are truly ambiguous.\n"
+        "3. VERIFICATION: Before answering, ask yourself — 'Do I have the definitive answer?' "
+        "If multiple sources agree, or the answer comes from an authoritative source, proceed. "
+        "If the snippets are contradictory or vague, respond with: Could not determine an answer.\n"
+        "4. Return ONLY the raw answer value — no preamble, no explanation.\n"
+        "5. Your output goes directly into a spreadsheet cell.\n"
+        "6. If the answer is not in the snippets, respond with: Could not determine an answer.\n\n"
+        "WRONG: 'The company was founded in 2010'\n"
+        "RIGHT: '2010'"
+    )
+
+
+async def _lookup_web_core(
+    question: str,
+    max_steps: int = 2,
+    db: AsyncSession = None,
+    user_id: int = None,
+    cancellation_token=None,
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Core lookup loop as an async generator. 1-2 turn snippet search.
+
+    Yields step dicts:
+      {"action": "search", "query": "...", "detail": "..."}
+      {"action": "thinking", "text": "..."}
+      {"action": "error", "detail": "..."}
+      {"action": "answer", "text": str | None}  — always last
+    """
+    logger.info(f"lookup_web_core: starting, question={question[:100]!r}")
+
+    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    messages: List[Dict[str, Any]] = [{"role": "user", "content": question}]
+
+    for turn in range(max_steps):
+        if cancellation_token and cancellation_token.is_cancelled:
+            yield {"action": "error", "detail": "Cancelled by user"}
+            yield {"action": "answer", "text": None}
+            return
+
+        try:
+            api_kwargs: Dict[str, Any] = dict(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                messages=messages,
+                tools=_LOOKUP_INNER_TOOLS,
+                system=_build_lookup_system_prompt(),
             )
-            result = new_result
-    # Strip wrapping quotes if the entire answer is quoted
-    if len(result) > 2 and result[0] == result[-1] and result[0] in ('"', "'"):
-        result = result[1:-1].strip()
-    return result
+            if turn == 0:
+                api_kwargs["tool_choice"] = {"type": "tool", "name": "search_web"}
+
+            response = await client.messages.create(**api_kwargs)
+        except Exception as e:
+            logger.warning(f"lookup_web_core: LLM call failed (turn {turn}): {e}")
+            yield {"action": "error", "detail": f"LLM call failed: {e}"}
+            yield {"action": "answer", "text": None}
+            return
+
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        text_blocks = [b for b in response.content if b.type == "text"]
+
+        if not tool_uses:
+            if text_blocks:
+                text = _strip_preamble(text_blocks[0].text)
+                if text:
+                    yield {"action": "answer", "text": text}
+                    return
+            yield {"action": "error", "detail": "Empty response"}
+            yield {"action": "answer", "text": None}
+            return
+
+        # Emit thinking text
+        for block in text_blocks:
+            if block.text.strip():
+                yield {"action": "thinking", "text": block.text.strip()}
+
+        messages.append({"role": "assistant", "content": response.content})
+        tool_results: List[Dict[str, Any]] = []
+
+        for tool_use in tool_uses:
+            if tool_use.name == "search_web":
+                search_query = tool_use.input.get("query", question)
+                result_text = await execute_search_web(tool_use.input, db, user_id, {})
+                detail = _summarize_search_results(result_text)
+                yield {"action": "search", "query": search_query, "detail": detail}
+            else:
+                result_text = f"Unknown tool: {tool_use.name}"
+
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": result_text,
+            })
+
+        messages.append({"role": "user", "content": tool_results})
+
+    # Exhausted turns — force answer
+    messages.append({
+        "role": "user",
+        "content": "STOP. Return ONLY the answer value from the search results above. No explanation.",
+    })
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=256,
+            messages=messages,
+            system=_build_lookup_system_prompt(),
+        )
+        text_blocks = [b for b in response.content if b.type == "text"]
+        if text_blocks:
+            text = _strip_preamble(text_blocks[0].text)
+            if text:
+                yield {"action": "answer", "text": text}
+                return
+    except Exception as e:
+        logger.warning(f"lookup_web_core: final answer failed: {e}")
+
+    yield {"action": "error", "detail": "No answer after search"}
+    yield {"action": "answer", "text": None}
+
+
+async def execute_lookup_web(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any],
+) -> str:
+    """Standalone tool executor: quick snippet-based lookup."""
+    question = params.get("question", "").strip()
+    if not question:
+        return "Error: question is required."
+
+    cancel_token = context.get("_cancellation_token")
+    answer = "Could not determine an answer."
+    async for step in _lookup_web_core(question, 2, db, user_id, cancellation_token=cancel_token):
+        if step["action"] == "answer":
+            answer = step.get("text") or "Could not determine an answer."
+
+    return answer
+
+
+register_tool(ToolConfig(
+    name="lookup_web",
+    description=(
+        "Quick web lookup: answers a simple factual question by searching the web "
+        "and extracting the answer from snippets. Fast (1-2 search rounds, no page fetching). "
+        "Use for questions with a definitive answer like 'What year was Acme founded?' or "
+        "'Who is the CEO of Company X?'. Returns the answer or 'Could not determine an answer.'"
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "question": {
+                "type": "string",
+                "description": "Simple factual question, e.g. 'What year was Acme Corp founded?'",
+            },
+        },
+        "required": ["question"],
+    },
+    executor=execute_lookup_web,
+    category="web",
+    is_global=True,
+    streaming=False,
+))
 
 
 async def _research_web_core(
@@ -339,6 +543,7 @@ async def _research_web_core(
     db: AsyncSession,
     user_id: int,
     cancellation_token=None,
+    thoroughness: str = "exploratory",
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Core research loop as an async generator.
@@ -353,7 +558,9 @@ async def _research_web_core(
     The "action"/"detail" keys are designed to be collected into a trace log.
     """
     query_short = query[:100] + "..." if len(query) > 100 else query
-    logger.info(f"research_web_core: starting, max_steps={max_steps}, query={query_short!r}")
+    logger.info(f"research_web_core: starting, max_steps={max_steps}, thoroughness={thoroughness}, query={query_short!r}")
+
+    max_tokens_per_call = 2048 if thoroughness == "comprehensive" else 1024
 
     client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     messages: List[Dict[str, Any]] = [{"role": "user", "content": query}]
@@ -367,10 +574,10 @@ async def _research_web_core(
         try:
             api_kwargs: Dict[str, Any] = dict(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=1024,
+                max_tokens=max_tokens_per_call,
                 messages=messages,
                 tools=_RESEARCH_INNER_TOOLS,
-                system=_build_research_system_prompt(),
+                system=_build_research_system_prompt(thoroughness),
             )
             # Force search_web on the first turn
             if turn == 0:
@@ -424,23 +631,7 @@ async def _research_web_core(
             if tool_use.name == "search_web":
                 search_query = tool_use.input.get("query", query)
                 result_text = await execute_search_web(tool_use.input, db, user_id, ctx)
-
-                # Summarize search results for the trace
-                if result_text.startswith("No results found"):
-                    detail = result_text
-                elif result_text.startswith("Error:"):
-                    detail = result_text
-                else:
-                    # Extract top result titles for the trace
-                    result_lines = []
-                    for line in result_text.splitlines():
-                        if line and line[0].isdigit() and '. ' in line:
-                            # Lines like "1. Title of Result"
-                            result_lines.append(line)
-                    n = len(result_lines)
-                    # Show top 3 results so the user can see what was returned
-                    top = "; ".join(r.split('. ', 1)[1] if '. ' in r else r for r in result_lines[:3])
-                    detail = f"{n} results — {top}" if top else f"{n} results found"
+                detail = _summarize_search_results(result_text)
 
                 yield {"action": "search", "query": search_query, "detail": detail}
 
@@ -478,9 +669,21 @@ async def _research_web_core(
 
     # Exhausted all turns — force a final answer (no tools)
     logger.warning(f"research_web_core: exhausted {max_steps} turns, forcing final answer")
-    messages.append({
-        "role": "user",
-        "content": (
+
+    if thoroughness == "comprehensive":
+        forced_msg = (
+            "STOP RESEARCHING. You have no more search/fetch steps available. "
+            "You MUST answer NOW using ONLY information you already found above.\n\n"
+            "CRITICAL OUTPUT RULES:\n"
+            "- Return ONLY the raw answer value. Your output goes directly into a spreadsheet cell.\n"
+            "- NEVER include preambles like 'Based on...', 'I found...', 'The answer is...'\n"
+            "- If your coverage may be incomplete, note it briefly at the end "
+            "(e.g., 'Note: additional items may exist').\n"
+            "- Synthesize ALL findings into a comprehensive answer.\n"
+            "- If you truly found NOTHING useful, respond with exactly: Could not determine an answer."
+        )
+    else:
+        forced_msg = (
             "STOP RESEARCHING. You have no more search/fetch steps available. "
             "You MUST answer NOW using ONLY information you already found above.\n\n"
             "CRITICAL OUTPUT RULES:\n"
@@ -491,13 +694,14 @@ async def _research_web_core(
             "- If you found partial information, return what you have.\n"
             "- If you truly found NOTHING useful, respond with exactly: Could not determine an answer."
         )
-    })
+
+    messages.append({"role": "user", "content": forced_msg})
     try:
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
+            max_tokens=max_tokens_per_call,
             messages=messages,
-            system=_build_research_system_prompt(),
+            system=_build_research_system_prompt(thoroughness),
             # No tools — forces text response
         )
         text_blocks = [b for b in response.content if b.type == "text"]
@@ -523,17 +727,27 @@ async def execute_research_web(
     """
     Standalone tool executor: runs the research loop and returns the final answer.
     Progress steps are consumed silently (not streamed to frontend).
-    When called from for_each_row, use _research_web_core directly to get progress.
+    When called from strategies, use _research_web_core directly to get progress.
     """
     query = params.get("query", "").strip()
     if not query:
         return "Error: query is required."
 
+    thoroughness = params.get("thoroughness", "exploratory")
+    if thoroughness not in ("exploratory", "comprehensive"):
+        return "Error: thoroughness must be 'exploratory' or 'comprehensive'."
+
     max_steps = min(max(params.get("max_steps", 5), 1), 8)
+    # Comprehensive gets more steps
+    if thoroughness == "comprehensive":
+        max_steps = min(max(max_steps, 8), 15)
 
     cancel_token = context.get("_cancellation_token")
     answer = "Could not determine an answer."
-    async for step in _research_web_core(query, max_steps, db, user_id, cancellation_token=cancel_token):
+    async for step in _research_web_core(
+        query, max_steps, db, user_id,
+        cancellation_token=cancel_token, thoroughness=thoroughness,
+    ):
         if step["action"] == "answer":
             answer = step.get("text") or "Could not determine an answer."
 
@@ -545,8 +759,9 @@ register_tool(ToolConfig(
     description=(
         "Research agent: answers a natural language question by searching the web "
         "and reading pages. Performs multiple rounds of search and fetch to find a "
-        "definitive answer. Use this for factual lookups like "
-        "'What is Acme Corp's LinkedIn URL?' or 'When was Company X founded?'. "
+        "thorough answer. Supports two thoroughness levels: 'exploratory' (default, "
+        "fast reasonable sampling) and 'comprehensive' (exhaustive multi-angle search). "
+        "Use this for complex questions that need synthesis from multiple sources. "
         "Returns a concise answer or 'Could not determine an answer.'"
     ),
     input_schema={
@@ -554,14 +769,19 @@ register_tool(ToolConfig(
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Natural language question to research, e.g. 'What is Acme Corp\\'s LinkedIn URL?'"
+                "description": "Natural language question to research, e.g. 'What are all FDA-approved treatments for condition X?'",
+            },
+            "thoroughness": {
+                "type": "string",
+                "enum": ["exploratory", "comprehensive"],
+                "description": "Research depth. 'exploratory' (default): reasonable sampling. 'comprehensive': exhaustive multi-angle search with cross-referencing.",
             },
             "max_steps": {
                 "type": "integer",
-                "description": "Max search/fetch rounds (1-8, default 5)"
+                "description": "Max search/fetch rounds (1-8 for exploratory, auto-increased for comprehensive)",
             },
         },
-        "required": ["query"]
+        "required": ["query"],
     },
     executor=execute_research_web,
     category="web",

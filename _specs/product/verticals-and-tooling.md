@@ -313,7 +313,9 @@ This is a single LLM call that reviews the full table, not per-row research. The
 
 These challenges appear across most verticals. They're not specific to any one domain — they're structural problems in how AI researches and populates data.
 
-### Challenge 1: Research Depth Calibration
+### Challenge 1: Research Depth Calibration — SOLVED
+
+> **Implementation:** Three strategies (lookup/research/computation) with different step budgets. Research strategy supports `thoroughness` parameter: "exploratory" (5 steps, 1-2 search angles) vs "comprehensive" (8-15 steps, 3+ query angles, coverage assessment).
 
 **The problem:** The current research agent doesn't know when it has "enough" data. For some cells, a search snippet is sufficient ("What city is this company in?" — one snippet answers it). For others, the agent needs to read multiple pages and synthesize ("Is this publisher friendly to debut authors?" — requires reading submission guidelines, author testimonials, and editor interviews).
 
@@ -321,7 +323,9 @@ These challenges appear across most verticals. They're not specific to any one d
 
 **Design direction:** Research effort should be parameterized per-column or per-question. A "lookup" column (city, URL, founding year) gets 1-2 search steps. An "analysis" column (friendliness rating, quality score) gets 5-8 steps with explicit multi-source requirements. The system prompt should define effort tiers, and the enrichment request should tag which tier applies.
 
-### Challenge 2: Structured Value Extraction
+### Challenge 2: Structured Value Extraction — SOLVED
+
+> **Implementation:** `strategies/coerce.py` runs after every strategy. Three phases: preamble stripping (26 regex patterns), not-found detection (16 sentinels), type-aware coercion (number/boolean/select/text). Returns `(value, confidence)`. No LLM call needed for most cases — pure regex and string matching.
 
 **The problem:** `for_each_row` currently returns free text. When the target column is a `select` type with options like "High / Medium / Low", the agent sometimes dumps a paragraph of reasoning into the cell instead of picking one of the allowed values. (We saw this in the demo — Annick Press got a wall of text instead of "High".)
 
@@ -337,7 +341,9 @@ These challenges appear across most verticals. They're not specific to any one d
 
 **Design direction:** After populating, run a lightweight verification pass. For each entity: (1) Does the website URL return a 200? (2) Does the entity name appear on the page at that URL? (3) Do key claimed facts match what's on the page? This could be a "verify" tool or an automatic post-population step. Flag unverified rows in the UI.
 
-### Challenge 4: Source Attribution
+### Challenge 4: Source Attribution — PARTIALLY SOLVED
+
+> **Implementation:** The research log captures every search query and every fetched URL with full trace detail. This is surfaced in the DataProposalCard so users can see what the AI found before applying results. Not yet available as per-cell hover metadata after data is applied.
 
 **The problem:** Users need to know *where* the AI found its data. "This publisher accepts unsolicited manuscripts" — says who? A 2019 blog post? The publisher's own website from last month? Without sources, the data isn't actionable.
 
@@ -373,15 +379,29 @@ These challenges appear across most verticals. They're not specific to any one d
 
 ## Part 3: Tooling Architecture for Vertical Success
 
-### Current Tool Stack
+### Current Tool Stack (Updated)
+
+The enrichment system has been redesigned as a strategy-based dispatcher. See `_specs/technical/architecture/enrichment-strategies.md` for the full architecture.
+
 ```
+enrich_column       Strategy-based enrichment orchestrator (max 20 rows, concurrent)
+  ├── lookup        Snippet-only web search (1-2 turns, cheapest)
+  ├── research      Multi-turn agentic research (exploratory or comprehensive)
+  └── computation   Formula eval from existing columns (safe eval + Haiku fallback)
+
 search_web          Google Custom Search (10 results max)
 fetch_webpage       URL -> extracted text (8000 char limit)
-research_web        Autonomous search+fetch loop (5-8 steps, Haiku)
-for_each_row        Parallel per-row research (max 20 rows, 3 concurrent)
+coerce_value        Post-strategy type-aware value fitting (preamble strip + type coercion)
 ```
 
-### What's Missing: Five Tool Abstractions
+Key improvements over the original `for_each_row` + `research_web` pipeline:
+- **Strategy selection** — not every column needs deep research; lookups are 10x cheaper
+- **Value coercion** — solves Challenge 2 (paragraphs in select columns)
+- **Thoroughness levels** — exploratory vs comprehensive addresses Challenge 1 (depth calibration)
+- **Research log** — every step traced with URLs, providing source attribution (Challenge 4)
+- **Cancellation support** — partial results preserved on cancel
+
+### Proposed Tool Abstractions (Five)
 
 #### 1. Structured Extraction Tool
 **What it does:** Given a URL and a target schema, extract specific fields rather than dumping raw text.
@@ -434,7 +454,9 @@ query_api(
 
 **Don't build adapters for:** APIs that are expensive, restrictive, or don't add much over web search.
 
-#### 3. Value Coercion / Post-Processing Tool
+#### 3. Value Coercion / Post-Processing Tool — IMPLEMENTED
+
+> **Status:** Built and deployed in `backend/tools/builtin/strategies/coerce.py`. Runs automatically after every strategy execution.
 
 **What it does:** Takes raw research output and coerces it into a valid cell value for the target column type.
 
@@ -447,9 +469,9 @@ coerce_value(
 → "High"
 ```
 
-**Why it matters:** This is the fix for Challenge 2 (structured value extraction). Without it, select columns get paragraphs and number columns get "approximately $29.99 per month depending on the plan." A fast Haiku call with strict output formatting solves this for pennies.
+**Why it matters:** This is the fix for Challenge 2 (structured value extraction). Without it, select columns get paragraphs and number columns get "approximately $29.99 per month depending on the plan."
 
-**Implementation:** Sits between `research_web` output and `data_proposal` generation in the `for_each_row` pipeline. Always runs. No configuration needed — it reads the column schema from the table.
+**Implementation details:** Three-phase pipeline: (1) preamble stripping via 26 compiled regex patterns, (2) not-found sentinel detection (16 patterns), (3) type-aware coercion (number: strip currency + extract first number, boolean: map yes/no variants, select: exact then fuzzy match, text: length cap). Returns `(value, confidence)` tuple. No LLM call needed for most cases. See `_specs/technical/architecture/enrichment-strategies.md` for full details.
 
 #### 4. Verification Tool
 
@@ -488,22 +510,31 @@ refresh_rows(
 
 ### How Tools Compose: The Enrichment Pipeline
 
-Today:
+**Before (original design):**
 ```
 for_each_row → research_web → raw text → data_proposal
 ```
 
-With the new abstractions:
+**Current implementation:**
 ```
-for_each_row
-  → [API adapter OR research_web]     # data acquisition
-  → structured extraction              # if web source, extract fields
-  → value coercion                     # fit to column type
-  → verification (optional)            # fact-check
-  → data_proposal                      # user review
+enrich_column
+  → strategy dispatch (lookup / research / computation)
+  → per-row execution with trace logging
+  → value coercion (preamble strip + type fitting)
+  → data_proposal with research_log
 ```
 
-Each step is independent and composable. A "lookup" column (URL, city) might skip research entirely and just use an API adapter. An "analysis" column (friendliness rating) needs full research + extraction + coercion. The effort tier (from Challenge 1) determines which steps run.
+**Future with all abstractions:**
+```
+enrich_column
+  → strategy dispatch (lookup / research / computation / extraction / api_adapter)
+  → per-row execution with trace logging
+  → value coercion
+  → verification (optional)
+  → data_proposal with research_log + sources
+```
+
+Each step is independent and composable. A "lookup" column (URL, city) uses snippet-only search. An "analysis" column (friendliness rating) uses comprehensive research. A "price" column on a SaaS table could use a future extraction strategy to fetch the pricing page directly. The strategy selection determines which steps run.
 
 ---
 
@@ -511,22 +542,79 @@ Each step is independent and composable. A "lookup" column (URL, city) might ski
 
 Given the current tool stack and the abstractions above, here's a prioritized roadmap:
 
-### Phase 1: Fix the foundation (no new tools needed)
-- **Value coercion** — Fix the #1 quality issue (select columns getting paragraphs). Cheap Haiku call in the for_each_row pipeline.
-- **Source attribution** — Surface the URLs already tracked in the research trace. Frontend change only.
-- **Research effort tiers** — System prompt changes to calibrate depth per question type.
+### Phase 1: Fix the foundation (no new tools needed) — MOSTLY COMPLETE
 
-### Phase 2: First API adapter + structured extraction
+| Item | Status | Notes |
+|------|--------|-------|
+| Value coercion | Done | `strategies/coerce.py` — preamble strip + type-aware fitting. No LLM call for most cases. |
+| Research effort tiers | Done | Lookup (1-2 steps) vs Research exploratory (~5 steps) vs Research comprehensive (8-15 steps). Thoroughness param on research strategy. |
+| Source attribution | Partial | Research log captures every search query and fetched URL with full trace. Frontend surfaces this in DataProposalCard. Not yet available as per-cell metadata on hover. |
+
+### Phase 2: First API adapter + structured extraction — NOT STARTED
+
 - **Google Places adapter** — Unlocks local business research (Tier 1 vertical). Well-documented API, generous free tier.
 - **Structured extraction tool** — Useful across all verticals. Replaces "dump 8000 chars and hope the agent finds the number."
 - **Target vertical:** Local Business Research + Product Comparisons.
+- **Note:** The extraction strategy was designed in `base.py` as a future strategy type but not yet implemented. Could be built as a new strategy that calls `fetch_webpage` on a known URL pattern (e.g., `{Homepage}/pricing`) and then runs a structured Haiku extraction.
 
-### Phase 3: Domain-specific adapters
+### Phase 3: Domain-specific adapters — NOT STARTED
+
 - **PubMed + ClinicalTrials.gov** — Free, no auth, structured data. Unlocks academic/medical research vertical.
 - **GitHub adapter** — Unlocks developer tool comparison, open source project research.
 - **Target verticals:** Academic Research, Developer Tools.
+- **Note:** Each adapter would register as a new strategy in the strategies folder. The orchestrator, coercion layer, and data proposal flow are already generic enough to support this.
 
-### Phase 4: Verification + refresh
+### Phase 4: Verification + refresh — NOT STARTED
+
 - **Verification tool** — Post-population fact-checking. High trust impact.
 - **Change detection** — Staleness tracking and selective refresh. Requires cell metadata.
 - **Target verticals:** All verticals benefit, but especially Competitive Intelligence and Job Market.
+- **Note:** Requires persistent job architecture (roadmap #20) for background re-research and cell-level `researched_at` metadata.
+
+---
+
+## Part 5: Implementation Status Summary
+
+*Added 2026-02-27. Tracks what's been built vs what's still proposed.*
+
+### What's Built
+
+| Component | Location | What It Does |
+|-----------|----------|-------------|
+| **Strategy base class** | `strategies/base.py` | `RowStrategy` ABC with `execute_one()` async generator, `RowStep` trace, `EnrichmentResult`, template interpolation |
+| **Strategy registry** | `strategies/__init__.py` | `register_strategy()` / `get_strategy()` — pluggable strategy dispatch |
+| **Lookup strategy** | `strategies/lookup.py` | Snippet-only web search, 1-2 turns, cheapest option |
+| **Research strategy** | `strategies/research.py` | Multi-turn agentic research with exploratory and comprehensive modes |
+| **Computation strategy** | `strategies/computation.py` | Safe eval + Haiku fallback for formulas over existing columns |
+| **Value coercion** | `strategies/coerce.py` | Preamble strip (26 patterns), not-found detection (16 sentinels), type-aware coercion (number/boolean/select/text) with confidence |
+| **Orchestrator** | `table_data.py` | `enrich_column` tool: concurrent workers, progress streaming, cancellation, research log, data proposal output |
+| **Web research core** | `web.py` | `_lookup_web_core()` and `_research_web_core()` — the inner Claude loops that do actual searching and fetching |
+| **Compute core** | `compute.py` | `_compute_core()` — safe Python eval with Haiku fallback |
+
+### What's Proposed but Not Built
+
+| Component | Roadmap | What It Would Do |
+|-----------|---------|-----------------|
+| **Structured extraction** | Part 3, Abstraction 1 | Fetch a known URL + extract specific fields via schema. Reduces token waste. |
+| **API adapters** | Part 3, Abstraction 2; Roadmap #15, #16 | Direct structured data from PubMed, Google Places, ClinicalTrials.gov, etc. |
+| **Verification tool** | Part 3, Abstraction 4 | Post-enrichment fact-check: URL alive, name on page, facts match. |
+| **Refresh/staleness** | Part 3, Abstraction 5 | Cell-level `researched_at`, selective re-research, change detection. Requires roadmap #20. |
+| **Entity types** | Part 1B; Roadmap #17 | Table-level `entity_type` field for strategy dispatch, column suggestions, verification templates. |
+| **Domain tool packs** | Roadmap #16 | Bundled tools + prompts per vertical, auto-activated on domain detection. |
+| **Recommendations tool** | Roadmap #19 | SerpAPI-based curated list discovery for the Populate step. |
+
+### How Challenges Map to Current State
+
+| Challenge | Status | How It's Addressed |
+|-----------|--------|-------------------|
+| 1. Research depth calibration | **Solved** | Three strategies (lookup/research/computation) + thoroughness levels (exploratory/comprehensive) |
+| 2. Structured value extraction | **Solved** | Coercion layer: preamble strip + type-aware fitting after every strategy |
+| 3. Entity verification | Not started | Proposed as optional post-enrichment pass |
+| 4. Source attribution | **Partially solved** | Research log captures all search queries and fetched URLs. Not yet surfaced as per-cell hover metadata. |
+| 5. Staleness & refresh | Not started | Requires cell metadata + background jobs (roadmap #20) |
+| 6. Rate limiting & scale | Not addressed | No query budgeting yet. Concurrency limits help but don't solve the fundamental issue. |
+| 7. Cross-row intelligence | Not started | Each row still researched independently. Pre/post-scan phases not implemented. |
+
+### Architecture Reference
+
+Full technical documentation of the strategies system: `_specs/technical/architecture/enrichment-strategies.md`

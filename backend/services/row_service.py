@@ -158,6 +158,15 @@ class RowService:
         await self.db.commit()
         return True
 
+    async def get_by_ids(self, table_id: int, row_ids: List[int]) -> List[TableRow]:
+        """Get multiple rows by IDs, verifying they belong to the table."""
+        result = await self.db.execute(
+            select(TableRow)
+            .where(TableRow.table_id == table_id, TableRow.id.in_(row_ids))
+            .order_by(TableRow.id)
+        )
+        return list(result.scalars().all())
+
     async def bulk_delete(self, table_id: int, row_ids: List[int]) -> int:
         """Delete multiple rows. Returns count of deleted rows."""
         result = await self.db.execute(

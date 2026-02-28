@@ -26,6 +26,7 @@
 | #19 | P1 | Recommendations tool via SerpAPI | open | 2026-02-27 | |
 | #20 | P1 | Persistent Job Architecture for Long-Running Agents | open | 2026-02-27 | |
 | #22 | P1 | Direct update policy, audit log, and frontend staleness | open | 2026-02-27 | |
+| #23 | P1 | User journey stage tracking (build → populate → organize → enrich) | open | 2026-02-27 | |
 
 ## Tasks
 
@@ -110,6 +111,9 @@ Decouple agentic loop execution from client connections so jobs survive disconne
 
 ### #22 — Direct update policy, audit log, and frontend staleness
 Three related issues around tool-driven table mutations: (1) **Policy clarity** — establish clear, consistent rules for when the AI uses direct update tools (update_row, delete_row) vs presenting a data_proposal for user approval. Communicate this policy to both the AI (system prompt) and the user (help text). (2) **Audit log with undo** — when the AI makes direct updates, log them in a reviewable history so the user can see what changed and undo individual mutations. Even though the user didn't explicitly approve, the changes should be transparent and reversible. (3) **Frontend staleness** — when a tool mutates table data server-side, the frontend table view doesn't refresh. The user sees a chat message saying "I updated the row" but the table still shows stale data. Need a mechanism to signal the frontend to re-fetch after tool-driven mutations.
+
+### #23 — User journey stage tracking (build → populate → organize → enrich)
+Track each table's progression through the four core stages: (1) **Build** — schema defined, (2) **Populate** — initial data seeded (via AI research, manual entry, or CSV import), (3) **Organize** — user sorts, filters, or rearranges, (4) **Enrich** — for-each-row AI enrichment run. Store the current stage per table and timestamp transitions. This gives us the key PMF signal: where do users drop off? If most tables never get past Build, the population flow is broken. If they populate but never enrich, the enrichment UX needs work. Feed this data into the PMF Director as a primary signal source. Also enables in-product nudges ("Your table has data but no enrichment yet — try adding a column and letting AI research each row").
 
 ### #14 — AI-driven development automation
 Use AI automation to drive as much of the product development lifecycle as possible — from roadmap management to implementation to release. The goal is to get a product-market-fit version of table.that into the marketplace with AI automatically populating, processing, and prioritizing the roadmap itself. This is meta: the roadmap should be self-managing via AI, and that capability is itself a milestone toward PMF. Includes: automated roadmap triage and prioritization, AI-generated task breakdowns from user feedback, automated spec writing, CI/CD integration for autonomous implementation cycles, and self-updating roadmap based on what's been shipped.

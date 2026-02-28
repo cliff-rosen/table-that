@@ -89,7 +89,8 @@
       "mcp__playwright__browser_run_code",
       "Bash(\"C:\\\\Program Files\\\\ImageMagick-7.1.2-Q16-HDRI\\\\magick.exe\":*)",
       "mcp__playwright__browser_close",
-      "Bash(backend/venv/Scripts/python.exe:*)"
+      "Bash(backend/venv/Scripts/python.exe:*)",
+      "Bash(PYTHONPATH=. venv/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": [],

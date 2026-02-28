@@ -29,8 +29,10 @@ logger = logging.getLogger(__name__)
 # Parser Factory
 # =============================================================================
 
+
 def make_json_parser(payload_type: str) -> Callable[[str], Optional[Dict[str, Any]]]:
     """Create a standard JSON parser for a payload type."""
+
     def parser(text: str) -> Optional[Dict[str, Any]]:
         try:
             data = json.loads(text.strip())
@@ -38,6 +40,7 @@ def make_json_parser(payload_type: str) -> Callable[[str], Optional[Dict[str, An
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse {payload_type} JSON: {e}")
             return None
+
     return parser
 
 
@@ -45,17 +48,19 @@ def make_json_parser(payload_type: str) -> Callable[[str], Optional[Dict[str, An
 # PayloadType Definition
 # =============================================================================
 
+
 @dataclass
 class PayloadType:
     """Complete definition of a payload type."""
-    name: str                               # e.g., "search_results"
-    description: str                        # Human-readable description
-    schema: Dict[str, Any]                  # JSON schema for the data field
-    source: str = "tool"                    # "tool" or "llm"
-    is_global: bool = False                 # If True, available on all pages
+
+    name: str  # e.g., "search_results"
+    description: str  # Human-readable description
+    schema: Dict[str, Any]  # JSON schema for the data field
+    source: str = "tool"  # "tool" or "llm"
+    is_global: bool = False  # If True, available on all pages
 
     # For LLM payloads (source="llm"):
-    parse_marker: Optional[str] = None      # e.g., "SCHEMA_PROPOSAL:"
+    parse_marker: Optional[str] = None  # e.g., "SCHEMA_PROPOSAL:"
     parser: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None
     llm_instructions: Optional[str] = None  # Instructions for LLM
 
@@ -147,7 +152,9 @@ def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
         counts[action] = counts.get(action, 0) + 1
     parts = []
     for action, count in counts.items():
-        label = {"add": "addition", "modify": "modification", "remove": "removal"}.get(action, action)
+        label = {"add": "addition", "modify": "modification", "remove": "removal"}.get(
+            action, action
+        )
         if count > 1:
             label += "s"
         parts.append(f"{count} {label}")
@@ -168,7 +175,9 @@ def _summarize_data_proposal(data: Dict[str, Any]) -> str:
         counts[action] = counts.get(action, 0) + 1
     parts = []
     for action, count in counts.items():
-        label = {"add": "addition", "update": "update", "delete": "deletion"}.get(action, action)
+        label = {"add": "addition", "update": "update", "delete": "deletion"}.get(
+            action, action
+        )
         if count > 1:
             label += "s"
         parts.append(f"{count} {label}")
@@ -234,7 +243,10 @@ _COLUMN_DEF_SCHEMA = {
     "type": "object",
     "properties": {
         "name": {"type": "string", "description": "Column display name"},
-        "type": {"type": "string", "enum": ["text", "number", "date", "boolean", "select"]},
+        "type": {
+            "type": "string",
+            "enum": ["text", "number", "date", "boolean", "select"],
+        },
         "required": {"type": "boolean"},
         "options": {
             "type": "array",
@@ -259,7 +271,10 @@ _SCHEMA_OPERATION = {
             "properties": {
                 "action": {"const": "add"},
                 "column": _COLUMN_DEF_SCHEMA,
-                "after_column_id": {"type": "string", "description": "Insert after this column ID (optional)"},
+                "after_column_id": {
+                    "type": "string",
+                    "description": "Insert after this column ID (optional)",
+                },
             },
             "required": ["action", "column"],
         },
@@ -268,15 +283,24 @@ _SCHEMA_OPERATION = {
             "description": "Modify an existing column",
             "properties": {
                 "action": {"const": "modify"},
-                "column_id": {"type": "string", "description": "ID of the column to modify (e.g. col_abc123)"},
+                "column_id": {
+                    "type": "string",
+                    "description": "ID of the column to modify (e.g. col_abc123)",
+                },
                 "changes": {
                     "type": "object",
                     "properties": {
                         "name": {"type": "string"},
-                        "type": {"type": "string", "enum": ["text", "number", "date", "boolean", "select"]},
+                        "type": {
+                            "type": "string",
+                            "enum": ["text", "number", "date", "boolean", "select"],
+                        },
                         "required": {"type": "boolean"},
                         "options": {"type": "array", "items": {"type": "string"}},
-                        "filterDisplay": {"type": "string", "enum": ["tab", "dropdown"]},
+                        "filterDisplay": {
+                            "type": "string",
+                            "enum": ["tab", "dropdown"],
+                        },
                     },
                 },
             },
@@ -287,7 +311,10 @@ _SCHEMA_OPERATION = {
             "description": "Remove a column",
             "properties": {
                 "action": {"const": "remove"},
-                "column_id": {"type": "string", "description": "ID of the column to remove"},
+                "column_id": {
+                    "type": "string",
+                    "description": "ID of the column to remove",
+                },
             },
             "required": ["action", "column_id"],
         },
@@ -296,8 +323,14 @@ _SCHEMA_OPERATION = {
             "description": "Reorder a column",
             "properties": {
                 "action": {"const": "reorder"},
-                "column_id": {"type": "string", "description": "ID of the column to move"},
-                "after_column_id": {"type": "string", "description": "Place after this column ID (omit for first position)"},
+                "column_id": {
+                    "type": "string",
+                    "description": "ID of the column to move",
+                },
+                "after_column_id": {
+                    "type": "string",
+                    "description": "Place after this column ID (omit for first position)",
+                },
             },
             "required": ["action", "column_id"],
         },
@@ -346,54 +379,75 @@ _DATA_OPERATION = {
     ]
 }
 
-
-register_payload_type(PayloadType(
-    name="schema_proposal",
-    description="Proposed schema changes for the table",
-    schema={
-        "type": "object",
-        "properties": {
-            "mode": {"type": "string", "enum": ["create", "update"], "description": "'create' for new table, 'update' for modifying existing table"},
-            "reasoning": {"type": "string", "description": "Why these changes are proposed"},
-            "table_name": {"type": "string", "description": "New table name (required for create, optional for update/rename)"},
-            "table_description": {"type": "string", "description": "New table description (required for create, optional for update)"},
-            "operations": {
-                "type": "array",
-                "items": _SCHEMA_OPERATION,
-                "description": "List of schema operations to apply",
-                "minItems": 1,
+# schema_proposal: for proposing new tables or schema changes
+register_payload_type(
+    PayloadType(
+        name="schema_proposal",
+        description="Proposed schema changes for the table",
+        schema={
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": ["create", "update"],
+                    "description": "'create' for new table, 'update' for modifying existing table",
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": "Why these changes are proposed",
+                },
+                "table_name": {
+                    "type": "string",
+                    "description": "New table name (required for create, optional for update/rename)",
+                },
+                "table_description": {
+                    "type": "string",
+                    "description": "New table description (required for create, optional for update)",
+                },
+                "operations": {
+                    "type": "array",
+                    "items": _SCHEMA_OPERATION,
+                    "description": "List of schema operations to apply",
+                    "minItems": 1,
+                },
             },
+            "required": ["mode", "operations"],
         },
-        "required": ["mode", "operations"],
-    },
-    source="llm",
-    is_global=False,
-    parse_marker="SCHEMA_PROPOSAL:",
-    parser=make_json_parser("schema_proposal"),
-    llm_instructions=SCHEMA_PROPOSAL_INSTRUCTIONS,
-    summarize=_summarize_schema_proposal,
-))
+        source="llm",
+        is_global=False,
+        parse_marker="SCHEMA_PROPOSAL:",
+        parser=make_json_parser("schema_proposal"),
+        llm_instructions=SCHEMA_PROPOSAL_INSTRUCTIONS,
+        summarize=_summarize_schema_proposal,
+    )
+)
 
-register_payload_type(PayloadType(
-    name="data_proposal",
-    description="Proposed bulk data changes (additions, updates, deletions)",
-    schema={
-        "type": "object",
-        "properties": {
-            "reasoning": {"type": "string", "description": "Why these changes are proposed"},
-            "operations": {
-                "type": "array",
-                "items": _DATA_OPERATION,
-                "description": "List of data operations to apply (adds, updates, deletes)",
-                "minItems": 1,
+# data_proposal: for proposing bulk data changes (add/update/delete rows)
+register_payload_type(
+    PayloadType(
+        name="data_proposal",
+        description="Proposed bulk data changes (additions, updates, deletions)",
+        schema={
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "description": "Why these changes are proposed",
+                },
+                "operations": {
+                    "type": "array",
+                    "items": _DATA_OPERATION,
+                    "description": "List of data operations to apply (adds, updates, deletes)",
+                    "minItems": 1,
+                },
             },
+            "required": ["operations"],
         },
-        "required": ["operations"],
-    },
-    source="llm",
-    is_global=False,
-    parse_marker="DATA_PROPOSAL:",
-    parser=make_json_parser("data_proposal"),
-    llm_instructions=DATA_PROPOSAL_INSTRUCTIONS,
-    summarize=_summarize_data_proposal,
-))
+        source="llm",
+        is_global=False,
+        parse_marker="DATA_PROPOSAL:",
+        parser=make_json_parser("data_proposal"),
+        llm_instructions=DATA_PROPOSAL_INSTRUCTIONS,
+        summarize=_summarize_data_proposal,
+    )
+)

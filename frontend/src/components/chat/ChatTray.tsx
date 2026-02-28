@@ -696,13 +696,25 @@ export default function ChatTray({
                         {/* Tool progress indicator - shown during tool execution even with streaming text */}
                         {isLoading && activeToolProgress && (
                             <div className="flex justify-start animate-fade-in">
-                                {activeToolProgress.toolName === 'for_each_row' ? (
-                                    /* AI Research — rich progress card */
+                                {(activeToolProgress.toolName === 'for_each_row' || activeToolProgress.toolName === 'enrich_column') ? (
+                                    /* AI Enrichment — rich progress card */
                                     <div className="bg-gradient-to-br from-violet-50 to-blue-50 dark:from-violet-900/20 dark:to-blue-900/20 border border-violet-200 dark:border-violet-800 rounded-lg px-4 py-3 min-w-[220px]">
                                         <div className="flex items-center gap-2">
                                             <div className="animate-spin h-4 w-4 border-2 border-violet-500 border-t-transparent rounded-full"></div>
                                             <span className="text-sm font-semibold text-violet-800 dark:text-violet-200">
-                                                AI Research
+                                                {(() => {
+                                                    const lastUpdate = activeToolProgress.updates[activeToolProgress.updates.length - 1];
+                                                    const stage = lastUpdate?.stage;
+                                                    // Detect comprehensive mode from progress messages
+                                                    const isComprehensive = activeToolProgress.updates.some(
+                                                        u => u.message?.includes('(comprehensive)')
+                                                    );
+                                                    const label = isComprehensive ? 'AI Deep Research' : 'AI Enrichment';
+                                                    if (stage === 'searching') return `${label} — Searching...`;
+                                                    if (stage === 'fetching') return `${label} — Fetching...`;
+                                                    if (stage === 'computing') return `${label} — Computing...`;
+                                                    return label;
+                                                })()}
                                             </span>
                                             <button
                                                 type="button"
@@ -714,9 +726,20 @@ export default function ChatTray({
                                             </button>
                                         </div>
                                         {activeToolProgress.updates.length > 0 && (
-                                            <div className="mt-2 text-xs text-violet-700 dark:text-violet-300">
-                                                {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
-                                            </div>
+                                            <>
+                                                <div className="mt-2 text-xs text-violet-700 dark:text-violet-300">
+                                                    {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
+                                                </div>
+                                                {/* Thin progress bar */}
+                                                {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.progress != null && (
+                                                    <div className="mt-1.5 w-full bg-violet-200 dark:bg-violet-800 rounded-full h-1">
+                                                        <div
+                                                            className="bg-violet-500 dark:bg-violet-400 h-1 rounded-full transition-all duration-300"
+                                                            style={{ width: `${Math.round((activeToolProgress.updates[activeToolProgress.updates.length - 1]?.progress ?? 0) * 100)}%` }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 ) : (
