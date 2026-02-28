@@ -10,14 +10,14 @@ $ARGUMENTS — optional: an action like "add defect ...", "add feature ...", "ad
 
 ## Instructions
 
-The roadmap file lives at `_specs/ROADMAP.md`. This is the single source of truth for all project artifacts.
+The roadmap file lives at `_specs/product/ROADMAP.md`. This is the single source of truth for all project artifacts.
 
 ### If no arguments provided (or "list" / "show"):
-- Read `_specs/ROADMAP.md` and display a summary of open artifacts grouped by type (defects, features, tasks)
+- Read `_specs/product/ROADMAP.md` and display a summary of open artifacts grouped by type (defects, features, tasks)
 - Include resolved items count but don't list them unless asked
 
 ### If the user wants to add an artifact:
-1. Read the current `_specs/ROADMAP.md`
+1. Read the current `_specs/product/ROADMAP.md`
 2. Determine the next ID number (increment from the highest existing ID)
 3. Add the new artifact to the appropriate section with status `open`
 4. Include today's date as the created date
@@ -25,14 +25,14 @@ The roadmap file lives at `_specs/ROADMAP.md`. This is the single source of trut
 6. Confirm what was added
 
 ### If the user wants to resolve/close an artifact:
-1. Read the current `_specs/ROADMAP.md`
+1. Read the current `_specs/product/ROADMAP.md`
 2. Find the artifact by ID number
 3. Change its status to `resolved` and add today's date as the resolved date
 4. Write the updated file
 5. Confirm what was resolved
 
 ### If the user wants to discuss priorities or what to work on:
-1. Read `_specs/ROADMAP.md`
+1. Read `_specs/product/ROADMAP.md`
 2. Provide a thoughtful summary of open items and suggest priorities based on severity/impact
 
 ### Format rules for the roadmap file:

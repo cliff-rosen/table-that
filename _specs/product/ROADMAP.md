@@ -4,6 +4,7 @@
 
 | ID | P | Title | Status | Created | Resolved |
 |----|---|-------|--------|---------|----------|
+| #21 | P1 | fetch_webpage 403s on bot-protected sites (Zillow, StreetEasy, etc.) | open | 2026-02-27 | |
 
 ## Features
 
@@ -23,6 +24,8 @@
 | #17 | P1 | Entity type system (table-level row typing) | open | 2026-02-27 | |
 | #18 | P2 | Harvest orchestration guidelines from Google Drive | open | 2026-02-27 | |
 | #19 | P1 | Recommendations tool via SerpAPI | open | 2026-02-27 | |
+| #20 | P1 | Persistent Job Architecture for Long-Running Agents | open | 2026-02-27 | |
+| #22 | P1 | Direct update policy, audit log, and frontend staleness | open | 2026-02-27 | |
 
 ## Tasks
 
@@ -70,7 +73,7 @@ Connect to email and text messages as data sources. Users have a wealth of perso
 The for_each_row web research pipeline needs better prompting and tooling around effort thresholds at each stage. Key issues: (1) When has enough searching been done to answer the question? Currently Claude often takes the first snippet answer without verifying. (2) When should it fetch a page vs trust snippets? (3) When should it refine the search query vs give up? (4) The search result snippets themselves aren't logged in the research trace, so users can't evaluate whether Claude made good decisions. Need to tune the system prompt, add structured decision points, and ensure the research log captures enough detail (especially the actual search result snippets) for users to audit research quality.
 
 ### #9 — Backend API test foundation + table/auth tests
-Set up proper test infrastructure: FastAPI TestClient, JWT token factory fixture, test DB configuration in conftest.py. Fix the missing frontend setupTests.ts. Then write the first high-value tests: full CRUD coverage for tables.py (12 endpoints) and auth.py (8 endpoints) — happy paths, auth failures, not-found, validation errors, and cross-user access control. See `_specs/testing-roadmap.md` for full details.
+Set up proper test infrastructure: FastAPI TestClient, JWT token factory fixture, test DB configuration in conftest.py. Fix the missing frontend setupTests.ts. Then write the first high-value tests: full CRUD coverage for tables.py (12 endpoints) and auth.py (8 endpoints) — happy paths, auth failures, not-found, validation errors, and cross-user access control. See `_specs/technical/testing/testing-roadmap.md` for full details.
 
 ### #10 — Playwright MCP browser automation setup
 Install and configure the Playwright MCP server so Claude can drive a real browser. Config goes in `.claude/settings.json` under `mcpServers`. This gives Claude tools like browser_navigate, browser_click, browser_fill, browser_screenshot. Enables visual testing, real user flow validation, and debugging UI issues by literally looking at the page.
@@ -91,13 +94,22 @@ Build a `get_recommendations` tool that uses SerpAPI to find curated "best of" a
 User has a directory of orchestration guidelines in Google Drive covering workflow design, agent coordination, and research strategies. Need to: (1) download/access the documents, (2) review them against the verticals-and-tooling analysis and the current system architecture, (3) extract actionable patterns — research strategies, prompting techniques, effort calibration rules, tool composition patterns — that should be incorporated into the codebase (system prompts, tool configs, or specs). This is a one-time knowledge harvest, not an ongoing sync.
 
 ### #17 — Entity type system (table-level row typing)
-Add an `entity_type` field to TableDefinition that tells the system what kind of thing each row represents (SaaS Product, Local Business, Publisher, PubMed Article, etc.). Entity types carry: identity anchor (how to uniquely identify the entity), canonical data source, known attributes with extraction logic, verification method, and research strategy. The AI infers entity type during table creation. Falls back to generic "Website/URL" when unrecognized. Start with 2-3 types (Website, SaaS Product, Local Business), expand based on usage. Ties into #15 (vertical tooling) and #16 (dynamic detection) — entity type is the output of vertical detection and the dispatch key for tool packs. See `_specs/verticals-and-tooling.md` Part 1B for full design.
+Add an `entity_type` field to TableDefinition that tells the system what kind of thing each row represents (SaaS Product, Local Business, Publisher, PubMed Article, etc.). Entity types carry: identity anchor (how to uniquely identify the entity), canonical data source, known attributes with extraction logic, verification method, and research strategy. The AI infers entity type during table creation. Falls back to generic "Website/URL" when unrecognized. Start with 2-3 types (Website, SaaS Product, Local Business), expand based on usage. Ties into #15 (vertical tooling) and #16 (dynamic detection) — entity type is the output of vertical detection and the dispatch key for tool packs. See `_specs/product/verticals-and-tooling.md` Part 1B for full design.
 
 ### #16 — Domain tool packs & dynamic vertical detection
 Two-part feature: (1) **Domain tool packs** — bundled sets of tools, API adapters, and system prompt instructions tailored to specific verticals (e.g., a "travel" pack includes flight/hotel search APIs and travel-specific prompting; an "academic" pack includes PubMed/ClinicalTrials APIs and citation-aware prompting). Each pack defines which tools are available, how research should be conducted, and what enrichment columns make sense. (2) **Dynamic vertical detection** — when a user describes what they need ("help me plan a trip to Japan" or "find clinical trials for lupus"), the system classifies the domain and automatically activates the relevant tool pack. The agent gets the right tools and prompt instructions without the user having to configure anything. Detection happens at table creation time and can be refined as the conversation evolves.
 
 ### #15 — Vertical-specific tooling & prompting
-Research and develop domain-specific tool configurations, data source integrations, and prompt strategies for target verticals (product comparison, lead research, academic research, etc.). Includes new tool abstractions (structured extraction, API adapters, verification) and per-vertical prompt templates. See `_specs/verticals-and-tooling.md` for the full analysis of candidate verticals, orchestration challenges, and tooling design requirements.
+Research and develop domain-specific tool configurations, data source integrations, and prompt strategies for target verticals (product comparison, lead research, academic research, etc.). Includes new tool abstractions (structured extraction, API adapters, verification) and per-vertical prompt templates. See `_specs/product/verticals-and-tooling.md` for the full analysis of candidate verticals, orchestration challenges, and tooling design requirements.
+
+### #21 — fetch_webpage 403s on bot-protected sites
+Sites like Zillow, StreetEasy, LinkedIn return 403 Forbidden to the current fetch_webpage tool because it uses a plain HTTP client with no browser fingerprint. Need a headless browser fallback: when a direct fetch gets a 403 or other bot-block signal, retry with a real browser (Playwright/Puppeteer) that renders JavaScript and presents a normal browser fingerprint.
+
+### #20 — Persistent Job Architecture for Long-Running Agents
+Decouple agentic loop execution from client connections so jobs survive disconnects and are resumable across sessions and devices. Durable job records with stable IDs, background workers keyed by job ID, append-only event logs for progress/tool results, client as event log subscriber (replay + tail on reconnect), and worker-side resumability via checkpointed tool results.
+
+### #22 — Direct update policy, audit log, and frontend staleness
+Three related issues around tool-driven table mutations: (1) **Policy clarity** — establish clear, consistent rules for when the AI uses direct update tools (update_row, delete_row) vs presenting a data_proposal for user approval. Communicate this policy to both the AI (system prompt) and the user (help text). (2) **Audit log with undo** — when the AI makes direct updates, log them in a reviewable history so the user can see what changed and undo individual mutations. Even though the user didn't explicitly approve, the changes should be transparent and reversible. (3) **Frontend staleness** — when a tool mutates table data server-side, the frontend table view doesn't refresh. The user sees a chat message saying "I updated the row" but the table still shows stale data. Need a mechanism to signal the frontend to re-fetch after tool-driven mutations.
 
 ### #14 — AI-driven development automation
 Use AI automation to drive as much of the product development lifecycle as possible — from roadmap management to implementation to release. The goal is to get a product-market-fit version of table.that into the marketplace with AI automatically populating, processing, and prioritizing the roadmap itself. This is meta: the roadmap should be self-managing via AI, and that capability is itself a milestone toward PMF. Includes: automated roadmap triage and prioritization, AI-generated task breakdowns from user feedback, automated spec writing, CI/CD integration for autonomous implementation cycles, and self-updating roadmap based on what's been shipped.
