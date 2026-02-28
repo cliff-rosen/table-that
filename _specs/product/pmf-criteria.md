@@ -102,6 +102,58 @@ The killer insight: the AI doesn't just structure data — it does the research 
 "How would you feel if you could no longer use table.that?"
 - Target: 40%+ say "very disappointed" among users who have completed the full build-populate-enrich loop at least once.
 
+## Quality Evaluation Rubric
+
+Every user interaction with the AI should be evaluated on three layers. Each layer has a different failure mode and a different fix:
+
+1. **Decision quality** — Did the AI make the right call about what to say or which tools to use? A wrong decision is a prompting/reasoning problem. Example failures: AI tries to research when the user just wants to rename a column; AI calls `lookup` when `deep_research` was needed; AI proposes 50 generic rows instead of 10 researched ones.
+
+2. **Tool reliability** — Given the AI made the right decision, did the tool execute correctly? A tool failure is an engineering problem. Example failures: `fetch_webpage` returns 403 on a bot-protected site; research times out; enrichment crashes mid-run and loses partial results; SerpAPI returns empty results for a reasonable query.
+
+3. **Presentation clarity** — Given everything worked, could the user follow what happened? A presentation failure is a UX problem. Example failures: enrichment results are buried in chat instead of shown inline; data proposal card doesn't make it clear which rows are new vs updated; error messages are technical instead of actionable; research log exists but the user doesn't know where to find it.
+
+The same bad user experience can fail at any one of these layers, and diagnosing which layer failed determines the fix. The QA Walkthrough agent should evaluate every interaction against all three layers.
+
+## Vertical Selection Methodology
+
+PMF requires two things simultaneously: the right market and a working product. Neither alone is sufficient.
+
+### Prong 1: Market Addressability
+
+The vertical must satisfy two conditions:
+
+1. **Real pain point** — People in this vertical are currently spending hours doing manual web research, copy-pasting into spreadsheets, or managing scattered bookmarks. The pain is active and recurring, not hypothetical.
+
+2. **Reachable audience** — We can find and reach these people without a seven- or eight-figure marketing campaign. They congregate in identifiable communities (Reddit, forums, Slack groups, professional associations, Facebook groups). Or the use case lends itself to organic distribution (shared tables that spread to people who have the same need).
+
+If the pain point is real but the audience is unreachable (enterprise procurement teams behind firewalls), it doesn't work. If the audience is easy to reach but the pain point is mild (hobbyist collectors who enjoy the manual work), it doesn't work either.
+
+### Prong 2: Product Quality (Three Layers)
+
+For the chosen vertical, all three quality layers must work well:
+
+1. **Decision quality (D)** — The AI makes the right choices for this vertical's use cases. It picks the right tools, asks the right clarifying questions, structures the table appropriately, and researches with domain-appropriate strategies. A real estate vertical needs the AI to understand property types, brokerages, and market data. A publishing vertical needs it to understand submission guidelines and genre categories.
+
+2. **Tool reliability (T)** — The tools execute correctly for this vertical's data sources. If the vertical requires scraping real estate listing sites that block bots, tool reliability is low until #21 is fixed. If it requires API access to domain-specific databases, tool reliability depends on those integrations existing.
+
+3. **Presentation clarity (P)** — The results are laid out in a way that makes sense for this vertical's users. A vendor comparison needs sortable columns with clear categories. A submission tracker needs status tracking with dates. The table display, data proposal cards, and enrichment results must all be intuitive for the specific use case.
+
+### How to evaluate a vertical
+
+For each candidate vertical, score both prongs:
+
+| Criterion | Question | Signal |
+|-----------|----------|--------|
+| Pain intensity | How many hours/week do they spend on this manually? | >2 hrs = strong |
+| Frequency | How often do they need to do this? | Weekly+ = strong |
+| Reachability | Can we find 1,000 of these people for <$500? | Yes = strong |
+| Shareability | Would they share a table they built? | Natural sharing = strong |
+| Decision quality | Does generic prompting work, or do we need vertical-specific tuning? | Generic works = ready now |
+| Tool reliability | Do the data sources we can access cover this vertical? | Public web = ready now |
+| Presentation fit | Does a flat table with filters serve this use case well? | Yes = ready now |
+
+A vertical is ready to pursue when both prongs score well. A vertical where the market is strong but the product needs work tells us what to build next. A vertical where the product works great but the market is thin tells us to keep looking.
+
 ## What We Optimize For
 
 1. **Time to first value** — The user should have a useful, populated table within their first session. Every friction point between "I need a list of X" and "here's a researched list of X" is a PMF killer.

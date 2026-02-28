@@ -11,44 +11,55 @@
 | AI | AI & Research | Enrichment quality, strategies, tooling, prompting |
 | META | Meta / Process | Dev automation, orchestration, internal tooling |
 
+## Quality Layers
+
+Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md` for the full rubric.
+
+| Code | Layer | Question |
+|------|-------|----------|
+| D | Decision | Does the AI make the right choices about what to say and which tools to call? |
+| T | Tool | Do the tools execute correctly and reliably? |
+| P | Presentation | Is the result laid out in a way the user can follow? |
+
 ## Defects
 
-| ID | P | Cat | Title | Status | Created | Resolved |
-|----|---|-----|-------|--------|---------|----------|
-| #21 | P1 | QUALITY | fetch_webpage 403s on bot-protected sites (Zillow, StreetEasy, etc.) | open | 2026-02-27 | |
+| ID | P | Cat | Lyr | Title | Status | Created | Resolved |
+|----|---|-----|-----|-------|--------|---------|----------|
+| #21 | P1 | QUALITY | T | fetch_webpage 403s on bot-protected sites (Zillow, StreetEasy, etc.) | open | 2026-02-27 | |
 
 ## Features
 
-| ID | P | Cat | Title | Status | Created | Resolved |
-|----|---|-----|-------|--------|---------|----------|
-| #1 | P2 | INFRA | Background/scheduled for_each_row | open | 2026-02-26 | |
-| #2 | — | — | Extensible for_each_row framework | done | 2026-02-26 | 2026-02-27 |
-| #3 | P1 | CORE | Improved for_each_row results UX | open | 2026-02-26 | |
-| #4 | P1 | CORE | Rich table display | open | 2026-02-26 | |
-| #5 | P2 | GROWTH | Google social login | open | 2026-02-26 | |
-| #6 | P2 | CORE | Mobile experience | open | 2026-02-26 | |
-| #7 | P2 | CORE | Email and SMS integration | open | 2026-02-26 | |
-| #8 | — | — | Research effort thresholds and prompting | done | 2026-02-26 | 2026-02-27 |
-| #14 | P1 | META | AI-driven development automation | open | 2026-02-26 | |
-| #15 | P1 | AI | Vertical-specific tooling & prompting | open | 2026-02-27 | |
-| #16 | P1 | AI | Domain tool packs & dynamic vertical detection | open | 2026-02-27 | |
-| #17 | P1 | AI | Entity type system (table-level row typing) | open | 2026-02-27 | |
-| #18 | P2 | META | Harvest orchestration guidelines from Google Drive | open | 2026-02-27 | |
-| #19 | P1 | AI | Recommendations tool via SerpAPI | open | 2026-02-27 | |
-| #20 | P1 | INFRA | Persistent Job Architecture for Long-Running Agents | open | 2026-02-27 | |
-| #22 | P1 | CORE | Direct update policy, audit log, and frontend staleness | open | 2026-02-27 | |
-| #23 | P1 | GROWTH | User journey stage tracking (build → populate → organize → enrich) | open | 2026-02-27 | |
-| #24 | P1 | GROWTH | Shareable tables (public links, no-login viewing, viral distribution) | open | 2026-02-27 | |
+| ID | P | Cat | Lyr | Title | Status | Created | Resolved |
+|----|---|-----|-----|-------|--------|---------|----------|
+| #1 | P2 | INFRA | T | Background/scheduled for_each_row | open | 2026-02-26 | |
+| #2 | — | — | — | Extensible for_each_row framework | done | 2026-02-26 | 2026-02-27 |
+| #3 | P1 | CORE | P | Improved for_each_row results UX | open | 2026-02-26 | |
+| #4 | P1 | CORE | P | Rich table display | open | 2026-02-26 | |
+| #5 | P2 | GROWTH | — | Google social login | open | 2026-02-26 | |
+| #6 | P2 | CORE | P | Mobile experience | open | 2026-02-26 | |
+| #7 | P2 | CORE | T | Email and SMS integration | open | 2026-02-26 | |
+| #8 | — | — | — | Research effort thresholds and prompting | done | 2026-02-26 | 2026-02-27 |
+| #14 | P1 | META | — | AI-driven development automation | open | 2026-02-26 | |
+| #15 | P1 | AI | D,T | Vertical-specific tooling & prompting | open | 2026-02-27 | |
+| #16 | P1 | AI | D,T | Domain tool packs & dynamic vertical detection | open | 2026-02-27 | |
+| #17 | P1 | AI | D | Entity type system (table-level row typing) | open | 2026-02-27 | |
+| #18 | P2 | META | D | Harvest orchestration guidelines from Google Drive | open | 2026-02-27 | |
+| #19 | P1 | AI | T | Recommendations tool via SerpAPI | open | 2026-02-27 | |
+| #20 | P1 | INFRA | T | Persistent Job Architecture for Long-Running Agents | open | 2026-02-27 | |
+| #22 | P1 | CORE | D,P | Direct update policy, audit log, and frontend staleness | open | 2026-02-27 | |
+| #23 | P1 | GROWTH | — | User journey stage tracking (build → populate → organize → enrich) | open | 2026-02-27 | |
+| #24 | P1 | GROWTH | — | Shareable tables (public links, no-login viewing, viral distribution) | open | 2026-02-27 | |
 
 ## Tasks
 
-| ID | P | Cat | Title | Status | Created | Resolved |
-|----|---|-----|-------|--------|---------|----------|
-| #9 | P1 | QUALITY | Backend API test foundation + table/auth tests | open | 2026-02-26 | |
-| #10 | P1 | QUALITY | Playwright MCP browser automation setup | open | 2026-02-26 | |
-| #11 | P1 | QUALITY | User test agent (browser-driven E2E) | open | 2026-02-26 | |
-| #12 | P1 | QUALITY | Pre-deploy smoke test suite + /smoke skill | open | 2026-02-26 | |
-| #13 | P2 | QUALITY | Full API endpoint test coverage (P1-P3 routers) | open | 2026-02-26 | |
+| ID | P | Cat | Lyr | Title | Status | Created | Resolved |
+|----|---|-----|-----|-------|--------|---------|----------|
+| #9 | P1 | QUALITY | T | Backend API test foundation + table/auth tests | open | 2026-02-26 | |
+| #10 | P1 | QUALITY | — | Playwright MCP browser automation setup | open | 2026-02-26 | |
+| #11 | P1 | QUALITY | D,T,P | User test agent (browser-driven E2E) | open | 2026-02-26 | |
+| #12 | P1 | QUALITY | T | Pre-deploy smoke test suite + /smoke skill | open | 2026-02-26 | |
+| #13 | P2 | QUALITY | T | Full API endpoint test coverage (P1-P3 routers) | open | 2026-02-26 | |
+| #25 | P2 | AI | D,T | Tool accuracy evals with ground truth | open | 2026-02-28 | |
 
 ## Details
 
@@ -120,6 +131,9 @@ Three related issues around tool-driven table mutations: (1) **Policy clarity** 
 
 ### #23 — User journey stage tracking (build → populate → organize → enrich)
 Track each table's progression through the four core stages: (1) **Build** — schema defined, (2) **Populate** — initial data seeded (via AI research, manual entry, or CSV import), (3) **Organize** — user sorts, filters, or rearranges, (4) **Enrich** — for-each-row AI enrichment run. Store the current stage per table and timestamp transitions. This gives us the key PMF signal: where do users drop off? If most tables never get past Build, the population flow is broken. If they populate but never enrich, the enrichment UX needs work. Feed this data into the PMF Director as a primary signal source. Also enables in-product nudges ("Your table has data but no enrichment yet — try adding a column and letting AI research each row").
+
+### #25 — Tool accuracy evals with ground truth
+Build an eval suite that compares tool outputs against known-correct answers — e.g. "What are all Claude model families?" checked against an authoritative list, or "What year was Google founded?" checked against "1998". Separate from the mechanical test harness (tests/test_tools.py), which only verifies tools run without errors. These evals measure answer quality: exact match, fuzzy match, recall against a curated answer set. Should cover lookup_web, research_web, compute_value, and all enrichment strategies. Results go to a scored dashboard showing per-tool accuracy over time, so we can catch regressions when we change prompts or tool logic.
 
 ### #24 — Shareable tables (public links, no-login viewing, viral distribution)
 Make tables shareable via public link. When a user creates a useful table (restaurant picks, vendor comparisons, publisher lists), they should be able to share it with a URL that anyone can open without registering. This is a critical growth lever: a shared table is a product demo that sells itself. Requirements: (1) **One-click share** — generate a public URL for any table, with optional read-only or comment-enabled modes. (2) **Zero-friction viewing** — recipients see the full table immediately, no login wall, no signup prompt blocking the content. (3) **Gentle conversion** — after viewing, show a soft CTA: "Want to make your own? Sign up free." or "Fork this table to customize it." Never gate the content. (4) **Fork/duplicate** — signed-in users can copy a shared table to their own account and modify it. (5) **Owner control** — creator can revoke the link, set it to expire, or make it unlisted. This is potentially the highest-leverage PMF feature: every shared table is organic distribution. A restaurant list texted to friends, a vendor comparison emailed to a team, a school list posted in a parent group. Each one shows the product in action to new users who have a reason to care.

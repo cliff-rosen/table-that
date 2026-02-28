@@ -18,6 +18,20 @@ Generate a unique test email for this run:
 - Format: `qa_test_YYYYMMDD_HHmm@test.example.com` (use current timestamp)
 - Password: `QaTest123!`
 
+## Evaluation Rubric
+
+At every phase, evaluate the experience on three layers:
+
+1. **Decision quality** — Did the AI make the right call about what to say or which tools to use? Did it understand the user's intent? Did it pick the right tool/strategy?
+2. **Tool reliability** — Did the tools execute correctly? Any crashes, timeouts, 403s, empty results, lost data?
+3. **Presentation clarity** — Could the user follow what happened? Are results shown clearly? Are errors actionable? Is the flow intuitive?
+
+Tag each issue you find with its layer: `[decision]`, `[tool]`, or `[presentation]`. The same symptom (e.g., "enrichment returned garbage") could be any layer — diagnose which one.
+
+## Signal Output
+
+After completing the walkthrough, write a persistent report to `_specs/signal/qa-latest.md` with the full QA report (same format as the conversation report below). This file is consumed by the PMF Director agent.
+
 ## Test Phases
 
 Execute each phase in order. Take a screenshot at every checkpoint marked with [SCREENSHOT]. Check console errors at every phase transition.
@@ -210,9 +224,9 @@ Produce the final report in this exact format:
 
 ### Issues Found
 
-| # | Severity | Phase | Description | Evidence |
-|---|----------|-------|-------------|----------|
-| 1 | Critical/Medium/Low/Cosmetic | [phase] | [description] | [screenshot or console log] |
+| # | Severity | Layer | Phase | Description | Evidence |
+|---|----------|-------|-------|-------------|----------|
+| 1 | Critical/Medium/Low/Cosmetic | decision/tool/presentation | [phase] | [description] | [screenshot or console log] |
 
 ### Screenshots
 
