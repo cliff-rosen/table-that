@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# Test results
+backend/tests/results/
 .Python
 build/
 develop-eggs/

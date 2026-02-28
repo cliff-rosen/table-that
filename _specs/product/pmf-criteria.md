@@ -67,13 +67,17 @@ The killer insight: the AI doesn't just structure data — it does the research 
 
 10. **Response time** — Table creation under 15 seconds. Population proposals under 90 seconds. Per-row enrichment under 30 seconds per row.
 
+### Should have (growth lever)
+
+11. **Shareable tables** — Public link sharing with zero-friction viewing (no login required). This is the primary organic distribution mechanism. Every shared table is a product demo. Fork/duplicate for signed-in users to convert viewers into creators. (Roadmap #24)
+
 ### Nice to have (post-launch)
 
-11. Background/scheduled research jobs
-12. Multiple conversations per table (history)
-13. Mobile-responsive layout
-14. Google social login
-15. Domain-specific tool packs (academic, real estate, etc.)
+12. Background/scheduled research jobs
+13. Multiple conversations per table (history)
+14. Mobile-responsive layout
+15. Google social login
+16. Domain-specific tool packs (academic, real estate, etc.)
 
 ## Success Measures
 
@@ -88,6 +92,8 @@ The killer insight: the AI doesn't just structure data — it does the research 
 
 - **Organic signups**: Users finding and signing up without direct outreach.
 - **Use case diversity**: Are users applying it to domains we didn't explicitly target?
+- **Shared table views**: How many people view a table via a shared link? Ratio of viewers to creators indicates viral potential.
+- **Fork rate**: Of viewers who see a shared table, how many fork it or sign up? Target: 10%+.
 - **Word of mouth**: Users sharing or recommending the product.
 - **Willingness to pay**: Users expressing interest in paid tiers.
 
@@ -109,5 +115,5 @@ The killer insight: the AI doesn't just structure data — it does the research 
 - Feature completeness — We don't need every spreadsheet feature. We need the AI research loop to be excellent.
 - Visual polish beyond usability — Clean and functional beats beautiful but slow.
 - Scale — We don't need to handle tables with 100K rows. 500 rows with rich per-row research is the sweet spot.
-- Collaboration — Single-user is fine for v1. Multi-user adds complexity without validating the core value prop.
+- Collaboration — Single-user creation is fine for v1. Sharing is read-only (no collaborative editing). Multi-user editing adds complexity without validating the core value prop.
 - Platform breadth — Web only. No mobile app, no desktop app, no API.

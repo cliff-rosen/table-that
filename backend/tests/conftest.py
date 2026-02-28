@@ -39,3 +39,12 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "tests" in str(item.fspath):
             item.add_marker(pytest.mark.e2e)
+
+
+@pytest.fixture
+async def db():
+    """Provide an async DB session for a single test."""
+    from database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        yield session
