@@ -154,6 +154,32 @@ For each candidate vertical, score both prongs:
 
 A vertical is ready to pursue when both prongs score well. A vertical where the market is strong but the product needs work tells us what to build next. A vertical where the product works great but the market is thin tells us to keep looking.
 
+### The Tuning Loop
+
+D and T are not fixed properties of the product — they're tunable through existing configuration levers:
+
+- **System-level prompts** — Global AI behavior (what the AI does by default across all pages)
+- **Page-level prompts** — Per-page AI instructions (a "vendor comparison" page can have different AI behavior than a "submission tracker" page)
+- **Tool configurations** — Which tools are available, what parameters they use, what strategies they employ
+
+These levers already exist in the app architecture. Improving D and T for a vertical doesn't require new code — it requires the right configuration values. The question is: where do the right values come from?
+
+**They come from observation, not guessing.**
+
+The GTM strategy is not "perfect the product for a vertical, then launch into it." It's:
+
+1. **Launch with generic tuning** — The default system prompts and tool configs work across verticals at a baseline level. Good enough to be useful, not yet optimized for any specific domain.
+2. **Observe real users** — Watch where D and T fail. The AI called the wrong tool (D failure). The web scraper got blocked on a domain that matters for this vertical (T failure). The research strategy was too shallow for this use case (D failure). Track these through the signal agents (QA, Eval, Usage).
+3. **Tune the knobs** — Adjust system prompts, page configs, and tool parameters based on observed failures. "For real estate use cases, default to deep_research instead of quick_lookup." "When the user mentions brokerages, include the recommendations tool." "For this vertical, the AI should suggest these specific columns."
+4. **Quality improves** — The vertical-specific tuning makes D and T better for that cohort. Fewer wrong tool calls, fewer research failures, better schema suggestions.
+5. **Repeat** — More users in the vertical generate more failure data, which enables tighter tuning.
+
+This loop has two strategic implications:
+
+**GTM:** Preparing for a market means getting D, T, and P to a baseline for that vertical's common use cases. Refining in the market means running the observation loop and tightening configs. The first is achievable with synthetic testing (demos, QA walkthroughs). The second requires real users.
+
+**Defensibility:** The accumulated tuning knowledge is the moat. Anyone can build a table+AI app on top of the same LLM APIs. But the insight that "for commercial real estate, the AI should structure tables with these columns, use these research strategies, and avoid these common failure modes" — that's proprietary. It comes from the observation loop. More users in a vertical → more failure data → better tuning → better quality → more users. The flywheel compounds. A competitor starting from scratch would need to accumulate the same user-driven tuning data to match the quality, and by then the tuned product has more users generating more data.
+
 ## What We Optimize For
 
 1. **Time to first value** — The user should have a useful, populated table within their first session. Every friction point between "I need a list of X" and "here's a researched list of X" is a PMF killer.
