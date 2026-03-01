@@ -401,7 +401,7 @@ export default function DataTable({
             } else if (meta?.action === 'delete') {
               rowBg = 'bg-red-50 dark:bg-red-900/15 opacity-60 border-l-4 border-l-red-400';
             } else if (meta?.action === 'update') {
-              rowBg = 'border-l-4 border-l-amber-400 bg-white dark:bg-gray-900';
+              rowBg = 'border-l-4 border-l-green-400 bg-white dark:bg-gray-900';
             } else if (isSelected) {
               rowBg = 'bg-blue-50 dark:bg-blue-900/20';
             } else {
@@ -458,7 +458,7 @@ export default function DataTable({
                     isEditing ? 'p-0' : '',
                     col.type === 'number' ? 'text-right' : '',
                     !hasProposal ? 'cursor-pointer' : '',
-                    isChangedCell ? 'bg-amber-100/60 dark:bg-amber-800/20' : '',
+                    isChangedCell ? 'bg-green-100/60 dark:bg-green-800/20' : '',
                     schemaCellClass,
                   ].filter(Boolean).join(' ');
 

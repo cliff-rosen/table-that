@@ -32,6 +32,8 @@ interface ChatTrayProps {
     resizable?: boolean;
     /** Callback when a payload is detected. Return true to suppress the floating panel. */
     onPayloadReceived?: (payload: { type: string; data: any; messageIndex: number }) => boolean;
+    /** When true, hide suggestion chips (proposal is active, user should focus on table) */
+    proposalActive?: boolean;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -178,7 +180,8 @@ export default function ChatTray({
     minWidth = 320,
     maxWidth = 600,
     resizable = true,
-    onPayloadReceived
+    onPayloadReceived,
+    proposalActive = false,
 }: ChatTrayProps) {
 
     // Width state with localStorage persistence
@@ -640,8 +643,8 @@ export default function ChatTray({
                                     </div>
                                 )}
 
-                                {/* Suggested Values */}
-                                {message.suggested_values && message.suggested_values.length > 0 && (
+                                {/* Suggested Values (hidden when proposal is active) */}
+                                {!proposalActive && message.suggested_values && message.suggested_values.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_values.map((suggestion, sIdx) => (
                                             <button
@@ -657,8 +660,8 @@ export default function ChatTray({
                                     </div>
                                 )}
 
-                                {/* Suggested Actions */}
-                                {message.suggested_actions && message.suggested_actions.length > 0 && (
+                                {/* Suggested Actions (hidden when proposal is active) */}
+                                {!proposalActive && message.suggested_actions && message.suggested_actions.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_actions.map((action, aIdx) => (
                                             <button

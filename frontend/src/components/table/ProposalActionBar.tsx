@@ -1,7 +1,6 @@
 import {
   SparklesIcon,
   CheckIcon,
-  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '../ui/button';
 import {
@@ -25,7 +24,6 @@ interface ProposalActionBarProps {
   onToggleAll: (checked: boolean) => void;
   onApply: () => void;
   onDismiss: () => void;
-  onDone: () => void;
 }
 
 // =============================================================================
@@ -42,7 +40,6 @@ export default function ProposalActionBar({
   onToggleAll,
   onApply,
   onDismiss,
-  onDone,
 }: ProposalActionBarProps) {
   const ops = data.operations;
   const selectedCount = checkedOps.filter(Boolean).length;
@@ -127,32 +124,15 @@ export default function ProposalActionBar({
           <ProgressBar current={completedCount} total={runningTotal} />
         )}
 
-        {/* Done summary */}
+        {/* Done summary (brief — auto-dismisses) */}
         {phase === 'done' && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              {errorCount > 0 ? (
-                <>
-                  <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <span className="text-amber-700 dark:text-amber-300">
-                    Applied {successCount} of {successCount + errorCount} —{' '}
-                    {errorCount} failed
-                  </span>
-                </>
-              ) : (
-                <>
-                  <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  <span className="text-green-700 dark:text-green-300">
-                    {successCount === totalCount
-                      ? `All ${successCount} changes applied`
-                      : `${successCount} of ${totalCount} changes applied`}
-                  </span>
-                </>
-              )}
-            </div>
-            <Button size="sm" onClick={onDone}>
-              Done
-            </Button>
+          <div className="flex items-center gap-2 text-sm">
+            <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <span className="text-green-700 dark:text-green-300">
+              {errorCount > 0
+                ? `Applied ${successCount} of ${successCount + errorCount} — ${errorCount} failed`
+                : `All ${successCount} changes applied`}
+            </span>
           </div>
         )}
       </div>

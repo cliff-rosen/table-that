@@ -408,6 +408,7 @@ export default function TableViewPage() {
           table_name: table.name,
         }}
         onPayloadReceived={proposal.handlePayload}
+        proposalActive={proposal.active}
       />
 
       {/* Main content */}
@@ -495,7 +496,6 @@ export default function TableViewPage() {
             onToggleAll={proposal.dataBar.toggleAll}
             onApply={proposal.dataBar.apply}
             onDismiss={proposal.dismiss}
-            onDone={proposal.dataBar.done}
           />
         )}
 

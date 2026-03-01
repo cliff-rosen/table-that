@@ -8,6 +8,7 @@ import type {
 } from '../components/chat/DataProposalCard';
 import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 import { generateColumnId } from '../lib/utils/schemaOperations';
+import { showSuccessToast } from '../lib/errorToast';
 
 // =============================================================================
 // Types
@@ -342,12 +343,19 @@ export function useTableProposal(
     if (successes > 0) {
       await fetchRows();
     }
-  }, [dataProposal, checkedOps, onExecuteDataOp, fetchRows]);
 
-  const doneData = useCallback(() => {
-    sendMessage('[User accepted the data proposal and applied all changes.]');
+    // Auto-dismiss after a brief pause so user sees the result
+    const total = successes + errors;
+    if (errors === 0) {
+      showSuccessToast(`All ${successes} changes applied`);
+    } else {
+      showSuccessToast(`Applied ${successes} of ${total} — ${errors} failed`);
+    }
+    sendMessage(`[User accepted the data proposal and applied all changes.]`);
+    // Short delay so the toast is visible before the bar disappears
+    await new Promise((r) => setTimeout(r, 600));
     dismiss();
-  }, [sendMessage, dismiss]);
+  }, [dataProposal, checkedOps, onExecuteDataOp, fetchRows, sendMessage, dismiss]);
 
   // Schema actions
   const applySchema = useCallback(async () => {
@@ -393,7 +401,6 @@ export function useTableProposal(
     errorCount,
     toggleAll,
     apply: applyData,
-    done: doneData,
   } : null;
 
   // schemaBar for SchemaProposalStrip
