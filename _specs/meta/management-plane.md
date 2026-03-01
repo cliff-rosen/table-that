@@ -97,6 +97,33 @@ Each transition has a gate — a set of conditions that must be met before advan
 | Deploy → Observe | **Deployment succeeds.** Production deployment completes. Post-deploy smoke test passes on prod. | Failed deployment, smoke test failures, rollback needed. |
 | Observe → Strategize | **Signal is current.** Signal reports have been updated to reflect the current state of the product. | Stale or missing signal reports. |
 
+### Verify → Deploy Gate (Detailed)
+
+This is the most important gate — it's the last check before code reaches real users. The gate has four checks, run in order. All must pass.
+
+**1. Code Review** (`/review`)
+- Run the code review agent against changed files
+- All findings must be addressed (fixed or explicitly accepted)
+- Checks: project practices (CLAUDE.md, CODE_STRUCTURE_CHECKLIST.md), no security issues, no layout violations
+
+**2. Automated Tests** (`pytest`)
+- Run: `backend/venv/Scripts/python.exe -m pytest backend/tests/ -v`
+- All tests must pass. Zero tolerance for failures at the gate — if a test is flaky, fix the test, don't skip the gate.
+- Current test files: `test_tools.py`, `test_multi_tenancy_e2e.py`
+
+**3. Frontend Build**
+- Run: `npm run build` in `frontend/`
+- Must complete without errors. TypeScript errors that block the build are gate failures.
+- (Note: there are pre-existing TS warnings from KH cleanup residue — these don't block the build)
+
+**4. Pre-deploy QA** (`/qa-walkthrough` — for UI changes)
+- Required when changes affect user-facing UI or chat behavior
+- Can be skipped for backend-only changes that don't affect the user experience
+- Must produce a passing report (no Critical or Medium issues in affected phases)
+- Report is written to `_specs/signal/qa-latest.md`
+
+**Enforcement status:** Manual today. The deploy script (`deploy.ps1`) checks for uncommitted changes but does not run tests. Future: add test execution as a pre-deploy step in deploy.ps1.
+
 ### Failure Paths
 
 When a gate fails, the cycle doesn't advance — it routes back:
