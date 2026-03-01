@@ -106,7 +106,7 @@ The killer insight: the AI doesn't just structure data — it does the research 
 
 Every user interaction with the AI should be evaluated on three layers. Each layer has a different failure mode and a different fix:
 
-1. **Decision quality** — Did the AI make the right call about what to say or which tools to use? A wrong decision is a prompting/reasoning problem. Example failures: AI tries to research when the user just wants to rename a column; AI calls `lookup` when `deep_research` was needed; AI proposes 50 generic rows instead of 10 researched ones.
+1. **Decision quality** — Did the AI make the right call about what to say or which tools to use? A wrong decision is a prompting and/or tool design problem — both system/page prompts (what the AI is told to do) and tool descriptions (how tools present themselves to the AI, what their parameters signal) shape the AI's choices. Example failures: AI tries to research when the user just wants to rename a column; AI calls `lookup` when `deep_research` was needed; AI proposes 50 generic rows instead of 10 researched ones.
 
 2. **Tool reliability** — Given the AI made the right decision, did the tool execute correctly? A tool failure is an engineering problem. Example failures: `fetch_webpage` returns 403 on a bot-protected site; research times out; enrichment crashes mid-run and loses partial results; SerpAPI returns empty results for a reasonable query.
 

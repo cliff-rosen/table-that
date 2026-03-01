@@ -24,7 +24,7 @@ Product quality is evaluated on three layers (the **DTP framework**):
 
 | Layer | Question | Fix when broken |
 |-------|----------|-----------------|
-| **D — Decision** | Does the AI make the right choices about what to say and which tools to call? | Prompt tuning (system/page prompts) |
+| **D — Decision** | Does the AI make the right choices about what to say and which tools to call? | Prompt tuning (system/page prompts), tool design (tool descriptions, parameter schemas, when/how tools present themselves to the AI) |
 | **T — Tool** | Do the tools execute correctly and reliably? | Engineering (tool code, API integrations, error handling) |
 | **P — Presentation** | Is the result laid out in a way the user can follow? | Frontend UX work |
 
