@@ -26,6 +26,8 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | ID | P | Cat | Lyr | Title | Status | Created | Resolved |
 |----|---|-----|-----|-------|--------|---------|----------|
 | #21 | P1 | QUALITY | T | fetch_webpage 403s on bot-protected sites (Zillow, StreetEasy, etc.) | open | 2026-02-27 | |
+| #30 | P1 | QUALITY | T | Chat cancel functionality not correctly implemented | open | 2026-03-01 | |
+| #31 | P2 | QUALITY | P | Tool history renders poorly during streaming | open | 2026-03-01 | |
 
 ## Features
 
@@ -153,3 +155,9 @@ The Build→Populate→Enrich loop has natural moments of drama that currently f
 
 ### #24 — Shareable tables (public links, no-login viewing, viral distribution)
 Make tables shareable via public link. When a user creates a useful table (restaurant picks, vendor comparisons, publisher lists), they should be able to share it with a URL that anyone can open without registering. This is a critical growth lever: a shared table is a product demo that sells itself. Requirements: (1) **One-click share** — generate a public URL for any table, with optional read-only or comment-enabled modes. (2) **Zero-friction viewing** — recipients see the full table immediately, no login wall, no signup prompt blocking the content. (3) **Gentle conversion** — after viewing, show a soft CTA: "Want to make your own? Sign up free." or "Fork this table to customize it." Never gate the content. (4) **Fork/duplicate** — signed-in users can copy a shared table to their own account and modify it. (5) **Owner control** — creator can revoke the link, set it to expire, or make it unlisted. This is potentially the highest-leverage PMF feature: every shared table is organic distribution. A restaurant list texted to friends, a vendor comparison emailed to a team, a school list posted in a parent group. Each one shows the product in action to new users who have a reason to care.
+
+### #30 — Chat cancel functionality not correctly implemented
+Chat cancel button needs to be properly written and tested for all cases: cancelling during tool execution, during streaming text, during proposal generation, during enrich_column multi-row processing. Need to verify the cancel signal propagates correctly from frontend → backend SSE → agent loop, that partial results are handled gracefully, and that the UI returns to a clean state after cancel.
+
+### #31 — Tool history renders poorly during streaming
+When a chat message is being streamed, tool history shows as a raw list ("tool one, tool two, tool three") instead of proper formatted cards. Once the message is fully streamed, tool history renders correctly as clickable inline chips with the ToolResultCard component. The issue is that during streaming, tool_history isn't available yet (it arrives in the complete event), so the inline `[[tool:N]]` markers in the streaming text don't resolve to cards. Need a better streaming-time representation — either suppress the markers during streaming or show placeholder cards.

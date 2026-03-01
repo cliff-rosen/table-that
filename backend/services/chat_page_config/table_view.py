@@ -157,7 +157,7 @@ Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The enrich_colum
 - Example: "Make the Date column required"
 - For select columns, set filterDisplay to "tab" for inline filter buttons or "dropdown" for a dropdown chip.
 - IMPORTANT: Proposals must be COMPLETE. If the user asks to restructure the table, include ALL necessary operations — adds for new columns AND removes for old columns AND modifies for changed columns, all in ONE proposal. Do not leave the user with half the old schema and half the new.
-- After emitting: In your text, briefly describe the proposed changes, then tell the user they can uncheck any changes they don't want in the proposal card, then click **Apply** to update the schema, or **Cancel** to dismiss.
+- After emitting: In your text, briefly describe the proposed changes, then tell the user they can review them in the table, uncheck any they don't want, and click **Apply** or **Dismiss**.
 
 **Use DATA_PROPOSAL** when:
 - User wants to add multiple rows at once
@@ -170,7 +170,7 @@ Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The enrich_colum
 - Example: "Based on my selected rows, set Priority to P1" → DATA_PROPOSAL targeting the selected row IDs
 - Example: "Replace all the data with these new entries" → DATA_PROPOSAL with delete operations for old rows AND add operations for new rows, all in ONE proposal
 - IMPORTANT: Proposals must be COMPLETE. If the user wants to replace data, include both the deletes and the adds. If they want to restructure rows, include all necessary operations in a single proposal. Never leave the user in a half-updated state.
-- After emitting: In your text, briefly describe what's proposed, then tell the user they can review the proposal card, uncheck any changes they don't want, and click **Apply** to execute them or **Cancel** to dismiss.
+- After emitting: In your text, briefly describe what's proposed, then tell the user they can review the changes highlighted inline in the table, uncheck any rows they don't want, and click **Apply** to execute or **Dismiss** to cancel.
 
 **Use enrich_column for ANY multi-row enrichment:**
 When the user asks to look up, research, find, or compute information for multiple rows, use enrich_column with the appropriate strategy:

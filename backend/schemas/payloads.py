@@ -211,7 +211,8 @@ Rules:
 - filterDisplay controls the filter UI for select columns: "tab" for inline buttons, "dropdown" for a dropdown chip. Always use a string value, never null.
 - Always include a brief "reasoning" field.
 - When adding columns, place them logically near related columns using "after_column_id". For example, "Battery Life" should go next to "Power Options", not at the end. Group columns by theme: identifiers together, metrics together, categories together. Only omit after_column_id (append to end) if there's no logical grouping.
-- The user will see this as an interactive proposal card in the chat panel. For new tables, the button says **Create Table**. For schema updates, it says **Apply**. They can uncheck individual changes before acting."""
+- For "create" mode, ALWAYS include "sample_rows": an array of 2-3 objects with realistic example data. Keys are column NAMES (matching your proposed columns). Include data for ALL columns in each row. Make the data realistic and varied — real names, dates, numbers, option values. Do NOT include sample_rows for update mode.
+- The user will see this as a live table preview. For new tables, the preview shows sample data and a Create Table button. For schema updates, it shows as an interactive card in the chat panel."""
 
 
 DATA_PROPOSAL_INSTRUCTIONS = """DATA_PROPOSAL (propose bulk data changes):
@@ -231,7 +232,7 @@ Rules:
 - Use column NAMES (not IDs) in data values and changes.
 - For updates, only include the columns being changed (not all columns).
 - For adds, include values for all relevant columns.
-- The user will see this as an interactive proposal card in the chat panel showing additions (green), updates (amber), and deletions (red). They can uncheck individual operations, then click **Apply** to execute or **Cancel** to dismiss.
+- The user will see proposed changes inline in the table: additions (green tint at top), updates (amber-highlighted cells with hover tooltips showing old values), and deletions (red tint with strikethrough). Each proposed row has a checkbox. An action bar above the table lets them click **Apply** to execute or **Dismiss** to cancel.
 
 When to use DATA_PROPOSAL vs direct tools:
 - Single row + explicit user request → use create_row/update_row/delete_row tools directly
@@ -410,6 +411,12 @@ register_payload_type(
                     "items": _SCHEMA_OPERATION,
                     "description": "List of schema operations to apply",
                     "minItems": 1,
+                },
+                "sample_rows": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": True},
+                    "maxItems": 5,
+                    "description": "Realistic sample rows for create mode (keys are column names)",
                 },
             },
             "required": ["mode", "operations"],

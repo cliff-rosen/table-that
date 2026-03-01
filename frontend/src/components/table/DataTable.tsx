@@ -8,6 +8,8 @@ import {
 import type { ColumnDefinition, TableRow, SortState } from '../../types/table';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
+import { OpStatusIcon } from '../chat/DataProposalCard';
+import type { ProposalState } from '../../hooks/useInlineProposal';
 
 // =============================================================================
 // Helper: format date for display
@@ -151,7 +153,7 @@ function InlineEditor({ column, value, onSave, onCancel }: InlineEditorProps) {
 // CellRenderer
 // =============================================================================
 
-interface CellRendererProps {
+export interface CellRendererProps {
   column: ColumnDefinition;
   value: unknown;
 }
@@ -190,7 +192,7 @@ function TextCellRenderer({ value }: { value: unknown }) {
   );
 }
 
-function CellRenderer({ column, value }: CellRendererProps) {
+export function CellRenderer({ column, value }: CellRendererProps) {
   switch (column.type) {
     case 'boolean':
       return (
@@ -248,6 +250,8 @@ export interface DataTableProps {
   onCellCancel: () => void;
   /** Called when user clicks the sparkle icon on a column header */
   onColumnResearch?: (columnName: string) => void;
+  /** When present, enables inline proposal rendering (color-coded rows, per-op checkboxes) */
+  proposalState?: ProposalState;
 }
 
 export default function DataTable({
@@ -263,9 +267,11 @@ export default function DataTable({
   onCellSave,
   onCellCancel,
   onColumnResearch,
+  proposalState,
 }: DataTableProps) {
   const allSelected = rows.length > 0 && selectedRowIds.size === rows.length;
   const someSelected = selectedRowIds.size > 0 && selectedRowIds.size < rows.length;
+  const hasProposal = !!proposalState;
 
   return (
     <table className="w-full border-collapse">
@@ -274,11 +280,13 @@ export default function DataTable({
         <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           {/* Checkbox column */}
           <th className="w-12 px-3 py-3 text-left">
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={onToggleAllSelection}
-              className={someSelected ? 'opacity-70' : ''}
-            />
+            {!hasProposal && (
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={onToggleAllSelection}
+                className={someSelected ? 'opacity-70' : ''}
+              />
+            )}
           </th>
           {columns.map((col) => {
             const isSorted = sort?.column_id === col.id;
@@ -335,40 +343,78 @@ export default function DataTable({
         ) : (
           rows.map((row) => {
             const isSelected = selectedRowIds.has(row.id);
+            const meta = proposalState?.rowMeta.get(row.id);
+
+            // Row background classes based on proposal meta
+            let rowBg: string;
+            if (meta?.action === 'add') {
+              rowBg = 'bg-green-50 dark:bg-green-900/20 border-l-4 border-l-green-400';
+            } else if (meta?.action === 'delete') {
+              rowBg = 'bg-red-50 dark:bg-red-900/15 opacity-60 border-l-4 border-l-red-400';
+            } else if (meta?.action === 'update') {
+              rowBg = 'border-l-4 border-l-amber-400 bg-white dark:bg-gray-900';
+            } else if (isSelected) {
+              rowBg = 'bg-blue-50 dark:bg-blue-900/20';
+            } else {
+              rowBg = 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50';
+            }
+
             return (
               <tr
                 key={row.id}
-                className={`
-                  transition-colors
-                  ${isSelected
-                    ? 'bg-blue-50 dark:bg-blue-900/20'
-                    : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                  }
-                `}
+                className={`transition-colors ${rowBg}`}
               >
-                {/* Checkbox */}
+                {/* Checkbox / Proposal status */}
                 <td className="w-12 px-3 py-2.5">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleRowSelection(row.id)}
-                  />
+                  {meta && proposalState ? (
+                    // Proposal row: show op checkbox or status icon
+                    proposalState.phase !== 'idle' ? (
+                      <OpStatusIcon result={proposalState.opResults[meta.opIndex]} />
+                    ) : (
+                      <Checkbox
+                        checked={proposalState.checkedOps[meta.opIndex]}
+                        onCheckedChange={() => proposalState.onToggleOp(meta.opIndex)}
+                      />
+                    )
+                  ) : !hasProposal ? (
+                    // Normal mode: selection checkbox
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleRowSelection(row.id)}
+                    />
+                  ) : null}
                 </td>
 
                 {/* Data cells */}
                 {columns.map((col) => {
-                  const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === col.id;
+                  const isEditing = !hasProposal && editingCell?.rowId === row.id && editingCell?.columnId === col.id;
                   const cellValue = row.data[col.id];
+
+                  // Determine if this cell was changed (for update rows)
+                  const isChangedCell = meta?.action === 'update' && meta.oldValues && col.id in meta.oldValues;
+                  const oldValue = isChangedCell ? meta!.oldValues![col.id] : undefined;
+
+                  // Build cell classes
+                  const cellClasses = [
+                    'px-4 py-2.5 max-w-[300px]',
+                    isEditing ? 'p-0' : '',
+                    col.type === 'number' ? 'text-right' : '',
+                    !hasProposal ? 'cursor-pointer' : '',
+                    isChangedCell ? 'bg-amber-100/60 dark:bg-amber-800/20' : '',
+                  ].filter(Boolean).join(' ');
+
+                  // Tooltip for changed cells
+                  const titleAttr = isChangedCell
+                    ? `Was: ${oldValue !== null && oldValue !== undefined ? String(oldValue) : '(empty)'}`
+                    : undefined;
 
                   return (
                     <td
                       key={col.id}
-                      className={`
-                        px-4 py-2.5 cursor-pointer max-w-[300px]
-                        ${isEditing ? 'p-0' : ''}
-                        ${col.type === 'number' ? 'text-right' : ''}
-                      `}
+                      className={cellClasses}
+                      title={titleAttr}
                       onClick={() => {
-                        if (!isEditing) {
+                        if (!isEditing && !hasProposal) {
                           onCellClick(row.id, col.id);
                         }
                       }}
@@ -381,7 +427,9 @@ export default function DataTable({
                           onCancel={onCellCancel}
                         />
                       ) : (
-                        <CellRenderer column={col} value={cellValue} />
+                        <span className={meta?.action === 'delete' ? 'line-through' : ''}>
+                          <CellRenderer column={col} value={cellValue} />
+                        </span>
                       )}
                     </td>
                   );

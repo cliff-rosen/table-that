@@ -88,13 +88,18 @@ module.exports = {
         'fade-in': {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        'table-materialize': {
+          '0%': { opacity: '0', transform: 'scale(0.97) translateY(12px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' }
         }
       },
       animation: {
         'flowing-dot': 'flowingDot 1.4s ease-in-out infinite',
         'glow-pulse': 'glowPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'workflow-progress': 'workflow-progress 3s ease-in-out infinite',
-        'fade-in': 'fade-in 0.3s ease-out'
+        'fade-in': 'fade-in 0.3s ease-out',
+        'table-materialize': 'table-materialize 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards'
       }
     },
   },

@@ -33,6 +33,7 @@ export interface SchemaProposalData {
   table_name?: string;
   table_description?: string;
   operations: SchemaOperation[];
+  sample_rows?: Record<string, unknown>[];
 }
 
 // =============================================================================

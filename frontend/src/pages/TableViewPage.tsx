@@ -19,6 +19,8 @@ import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import { trackEvent } from '../lib/api/trackingApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import DataProposalCard, { type DataOperation } from '../components/chat/DataProposalCard';
+import ProposalActionBar from '../components/table/ProposalActionBar';
+import { useInlineProposal } from '../hooks/useInlineProposal';
 import { applySchemaOperations } from '../lib/utils/schemaOperations';
 import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 
@@ -357,12 +359,31 @@ export default function TableViewPage() {
     }
   }, [table, tableId]);
 
+  // Inline proposal hook — manages proposal state, row merging, execution
+  const inlineProposal = useInlineProposal(
+    table?.columns ?? [],
+    filteredRows,
+    tableId,
+    executeSingleDataOperation,
+    fetchRows,
+    sendMessage,
+  );
+
   const handleDataProposalAccept = useCallback(async () => {
     // Called when the user clicks "Done" after all operations complete
     await fetchRows();
     // Tell chat the data was applied so it can continue the workflow
     sendMessage('[User accepted the data proposal and applied all changes.]');
   }, [fetchRows, sendMessage]);
+
+  // Intercept data_proposal payloads to render inline in the table
+  const handlePayloadReceived = useCallback((payload: { type: string; data: any; messageIndex: number }) => {
+    if (payload.type === 'data_proposal') {
+      inlineProposal.activate(payload.data);
+      return true; // suppress floating panel
+    }
+    return false;
+  }, [inlineProposal.activate]);
 
   const payloadHandlers = useMemo(() => ({
     schema_proposal: {
@@ -435,6 +456,7 @@ export default function TableViewPage() {
           table_name: table.name,
         }}
         payloadHandlers={payloadHandlers}
+        onPayloadReceived={handlePayloadReceived}
       />
 
       {/* Main content */}
@@ -500,24 +522,41 @@ export default function TableViewPage() {
           />
         </div>
 
+        {/* Proposal action bar (when active) */}
+        {inlineProposal.active && inlineProposal.data && (
+          <ProposalActionBar
+            data={inlineProposal.data}
+            checkedOps={inlineProposal.checkedOps}
+            phase={inlineProposal.phase}
+            opResults={inlineProposal.opResults}
+            successCount={inlineProposal.successCount}
+            errorCount={inlineProposal.errorCount}
+            onToggleAll={inlineProposal.toggleAll}
+            onApply={inlineProposal.apply}
+            onDismiss={inlineProposal.dismiss}
+            onDone={inlineProposal.done}
+          />
+        )}
+
         {/* Data table - scrollable */}
         <div className="flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-900 pr-4">
           <DataTable
             columns={table.columns}
-            rows={filteredRows}
+            rows={inlineProposal.displayRows}
             selectedRowIds={selectedRowIds}
             onToggleRowSelection={handleToggleRowSelection}
             onToggleAllSelection={handleToggleAllSelection}
             sort={sort}
             onSort={handleSort}
-            editingCell={editingCell}
-            onCellClick={handleCellClick}
+            editingCell={inlineProposal.active ? null : editingCell}
+            onCellClick={inlineProposal.active ? () => {} : handleCellClick}
             onCellSave={handleCellSave}
             onCellCancel={handleCellCancel}
             onColumnResearch={(columnName) => {
               setChatOpen(true);
               sendMessage(`Research and fill the "${columnName}" column for all rows.`);
             }}
+            proposalState={inlineProposal.proposalState ?? undefined}
           />
         </div>
 

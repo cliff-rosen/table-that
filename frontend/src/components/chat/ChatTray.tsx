@@ -30,6 +30,8 @@ interface ChatTrayProps {
     maxWidth?: number;
     /** Whether to allow resizing (default: true) */
     resizable?: boolean;
+    /** Callback when a payload is detected. Return true to suppress the floating panel. */
+    onPayloadReceived?: (payload: { type: string; data: any; messageIndex: number }) => boolean;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -175,7 +177,8 @@ export default function ChatTray({
     defaultWidth = 420,
     minWidth = 320,
     maxWidth = 600,
-    resizable = true
+    resizable = true,
+    onPayloadReceived
 }: ChatTrayProps) {
 
     // Width state with localStorage persistence
@@ -363,20 +366,20 @@ export default function ChatTray({
 
             // Auto-open if we have a handler and haven't dismissed this payload
             if ((hasLocalHandler || hasGlobalHandler) && !dismissedPayloads.has(messageIndex)) {
-                setPendingPayload({
+                const payloadInfo = {
                     type: payloadType,
                     data: latestMessage.custom_payload.data,
                     messageIndex
-                });
-                // Auto-open the payload panel
-                setActivePayload({
-                    type: payloadType,
-                    data: latestMessage.custom_payload.data,
-                    messageIndex
-                });
+                };
+                const suppress = onPayloadReceived?.(payloadInfo);
+                setPendingPayload(payloadInfo);
+                if (!suppress) {
+                    // Auto-open the payload panel
+                    setActivePayload(payloadInfo);
+                }
             }
         }
-    }, [messages, payloadHandlers, dismissedPayloads]);
+    }, [messages, payloadHandlers, dismissedPayloads, onPayloadReceived]);
 
     // Handle opening the payload panel
     const handleOpenPayload = useCallback(() => {

@@ -39,7 +39,7 @@ interface ResearchStep {
   level?: string;
 }
 
-interface ResearchLogEntry {
+export interface ResearchLogEntry {
   row_id: number;
   label: string;
   status: 'found' | 'not_found';
@@ -57,9 +57,9 @@ export interface DataProposalData {
   research_log?: ResearchLogEntry[];
 }
 
-type OpStatus = 'pending' | 'running' | 'success' | 'error';
+export type OpStatus = 'pending' | 'running' | 'success' | 'error';
 
-interface OpResult {
+export interface OpResult {
   status: OpStatus;
   error?: string;
 }
@@ -100,7 +100,7 @@ function truncate(val: unknown, maxLen = 80): string {
   return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 }
 
-function OpStatusIcon({ result, large }: { result: OpResult; large?: boolean }) {
+export function OpStatusIcon({ result, large }: { result: OpResult; large?: boolean }) {
   const cls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
   switch (result.status) {
     case 'running':
@@ -214,7 +214,7 @@ function DeleteOperationRow({ op, checked, onToggle, result, disabled, large }: 
 // Progress Bar
 // =============================================================================
 
-function ProgressBar({ current, total }: { current: number; total: number }) {
+export function ProgressBar({ current, total }: { current: number; total: number }) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
   return (
     <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
@@ -470,7 +470,7 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
 // ResearchLog — the full research trace section
 // =============================================================================
 
-function ResearchLog({ log, defaultExpanded = false, large }: { log: ResearchLogEntry[]; defaultExpanded?: boolean; large?: boolean }) {
+export function ResearchLog({ log, defaultExpanded = false, large }: { log: ResearchLogEntry[]; defaultExpanded?: boolean; large?: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const foundCount = log.filter(e => e.status === 'found').length;
   const notFoundCount = log.filter(e => e.status === 'not_found').length;

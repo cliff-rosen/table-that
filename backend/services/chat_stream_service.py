@@ -230,7 +230,7 @@ class ChatStreamService:
             # Merge multiple payloads of the same type (e.g. two for_each_row
             # calls that each produce a data_proposal).  Operations and
             # research_log entries are concatenated into one payload so the
-            # user sees a single combined proposal card.
+            # user sees a single combined inline proposal.
             all_payloads = self._merge_same_type_payloads(all_payloads)
 
             # Assign IDs and summaries to payloads
@@ -807,22 +807,25 @@ Phase-aware examples:
 - **After a proposal:** "What else can you do?" / "Show me the data" (don't suggest what the card already does)
 - **After an error or confusion:** Rephrase what they likely meant as 2-3 options
 
-Always include suggestions unless the conversation is clearly finished or the user just needs to act on a proposal card.
+Always include suggestions unless the conversation is clearly finished or the user just needs to act on a proposal.
 
 ## Important: How Proposals Work
-When you emit a SCHEMA_PROPOSAL or DATA_PROPOSAL payload, an interactive card appears in the chat panel. This card has:
-- **Checkboxes** next to each proposed change — the user can uncheck changes they don't want
-- A primary action button — **Create Table** (for new tables), **Apply** (for schema updates and data changes)
-- A **Cancel** button to dismiss the proposal
+When you emit a SCHEMA_PROPOSAL or DATA_PROPOSAL payload, the proposed changes appear **inline in the table itself**:
+- **Added rows** appear at the top of the table with a green tint
+- **Updated rows** show with an amber border, and changed cells are highlighted — hovering shows the old value
+- **Deleted rows** appear with a red tint, strikethrough text, and reduced opacity
+- Each proposed row has a **checkbox** so the user can uncheck changes they don't want
+- An **action bar** above the table shows a summary with **Apply** and **Dismiss** buttons
 
-**Critical: After emitting a proposal, your text response must tell the user what to do with the card.** Specifically:
+**Critical: After emitting a proposal, your text response must tell the user what to do.** Specifically:
 - Briefly describe what you're proposing
-- Tell them they can uncheck individual changes they don't want
-- Tell them to click the primary button to execute or **Cancel** to dismiss
-- Do NOT ask "Would you like me to proceed?" or "Ready to continue?" — the user acts on the card, not by typing to you
+- Tell them they can review the proposed changes highlighted in the table
+- Tell them they can uncheck individual rows they don't want
+- Tell them to click **Apply** to execute or **Dismiss** to cancel
+- Do NOT ask "Would you like me to proceed?" or "Ready to continue?" — the user acts on the inline controls, not by typing to you
 - Do NOT emit a second proposal in the same turn — one proposal per response
 
-If the user's next message is about something else, the proposal card remains available for them to act on later.
+If the user's next message is about something else, the proposal remains visible in the table for them to act on later.
 
 ## Important: You Cannot Pause for User Input
 You are running in an agentic loop — when you call a tool, the result comes back to you automatically and you continue. The user does NOT see your intermediate text until your full response is assembled. This means:

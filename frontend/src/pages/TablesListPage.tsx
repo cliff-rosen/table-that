@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
@@ -10,7 +10,7 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { STARTERS } from '../config/starters';
-import { listTables, createTable, deleteTable } from '../lib/api/tableApi';
+import { listTables, createTable, deleteTable, createRow } from '../lib/api/tableApi';
 import type { TableListItem, ColumnDefinition, ColumnType } from '../types/table';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import { trackEvent } from '../lib/api/trackingApi';
@@ -18,6 +18,7 @@ import ImportModal from '../components/table/ImportModal';
 import { useChatContext } from '../context/ChatContext';
 import ChatTray from '../components/chat/ChatTray';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
+import ProposedTablePreview from '../components/table/ProposedTablePreview';
 import { applySchemaOperations, generateColumnId } from '../lib/utils/schemaOperations';
 import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 
@@ -507,7 +508,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage } = useChatContext();
+  const { updateContext, sendMessage, chatId } = useChatContext();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -515,6 +516,8 @@ export default function TablesListPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TableListItem | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
+  const prevChatIdRef = useRef<number | null>(null);
 
   const handleStarterClick = useCallback((prompt: string) => {
     setChatOpen(true);
@@ -535,6 +538,14 @@ export default function TablesListPage() {
   useEffect(() => {
     fetchTables();
   }, [fetchTables]);
+
+  // Clear active proposal when conversation resets
+  useEffect(() => {
+    if (chatId === null && prevChatIdRef.current !== null) {
+      setActiveProposal(null);
+    }
+    prevChatIdRef.current = chatId;
+  }, [chatId]);
 
   // Push context to chat whenever tables list changes
   useEffect(() => {
@@ -559,7 +570,7 @@ export default function TablesListPage() {
       trackEvent('table_create', { method: 'manual', table_id: created.id });
       showSuccessToast(`Table "${created.name}" created.`);
       setShowCreateModal(false);
-      await fetchTables();
+      navigate(`/tables/${created.id}`);
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
@@ -576,6 +587,62 @@ export default function TablesListPage() {
       showErrorToast(error, 'Failed to delete table');
     }
   }
+
+  // Intercept create-mode schema proposals to show in main content area
+  const handlePayloadReceived = useCallback((payload: { type: string; data: any; messageIndex: number }) => {
+    if (payload.type === 'schema_proposal' && payload.data?.mode === 'create') {
+      setActiveProposal(payload.data as SchemaProposalData);
+      return true; // suppress floating panel
+    }
+    return false;
+  }, []);
+
+  // Handle accept from ProposedTablePreview (supports optional sample data insertion)
+  const handleProposalAcceptFromPreview = useCallback(async (proposal: SchemaProposalData, includeSampleData: boolean) => {
+    const columns = applySchemaOperations([], proposal.operations);
+
+    if (columns.length === 0) {
+      showErrorToast('No columns in the proposal.', 'Invalid Proposal');
+      return;
+    }
+
+    try {
+      const created = await createTable({
+        name: proposal.table_name || 'Untitled Table',
+        description: proposal.table_description,
+        columns,
+      });
+      trackEvent('table_create', { method: 'chat_preview', table_id: created.id });
+
+      if (includeSampleData && proposal.sample_rows?.length) {
+        const nameToId = new Map(created.columns.map((c: ColumnDefinition) => [c.name.toLowerCase(), c.id]));
+        await Promise.all(proposal.sample_rows.map(async (row) => {
+          const data: Record<string, unknown> = {};
+          for (const [name, value] of Object.entries(row)) {
+            const colId = nameToId.get(name.toLowerCase());
+            if (colId) data[colId] = value;
+          }
+          if (Object.keys(data).length > 0) await createRow(created.id, data);
+        }));
+      }
+
+      updateContext({
+        current_page: 'table_view',
+        table_id: created.id,
+        table_name: created.name,
+        table_description: created.description || '',
+        columns: created.columns,
+        row_count: includeSampleData ? (proposal.sample_rows?.length || 0) : 0,
+        sample_rows: [],
+      });
+
+      sendMessage(`[User accepted and created "${created.name}"${includeSampleData ? ' with sample data' : ''}.]`);
+      setActiveProposal(null);
+      navigate(`/tables/${created.id}`);
+    } catch (error) {
+      showErrorToast(error, 'Failed to create table');
+    }
+  }, [navigate, updateContext, sendMessage]);
 
   // Handle accepted schema proposal — create a new table, then continue the conversation.
   // Sequence: create → update context (ref writes synchronously) → send message → navigate.
@@ -659,6 +726,7 @@ export default function TablesListPage() {
           current_page: 'tables_list',
         }}
         payloadHandlers={payloadHandlers}
+        onPayloadReceived={handlePayloadReceived}
       />
       <div className="flex-1 min-w-0 min-h-0 overflow-auto">
         <div className="max-w-6xl mx-auto w-full px-6 py-8">
@@ -704,7 +772,13 @@ export default function TablesListPage() {
           </div>
 
           {/* Content */}
-          {tables.length === 0 ? (
+          {activeProposal ? (
+            <ProposedTablePreview
+              proposal={activeProposal}
+              onAccept={handleProposalAcceptFromPreview}
+              onDismiss={() => setActiveProposal(null)}
+            />
+          ) : tables.length === 0 ? (
             <EmptyState
               onCreateClick={() => setShowCreateModal(true)}
               onChatClick={() => setChatOpen(true)}
