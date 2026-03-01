@@ -17,12 +17,11 @@ import TableToolbar from '../components/table/TableToolbar';
 import { Button } from '../components/ui/button';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import { trackEvent } from '../lib/api/trackingApi';
-import SchemaProposalCard from '../components/chat/SchemaProposalCard';
-import DataProposalCard, { type DataOperation } from '../components/chat/DataProposalCard';
+import type { DataOperation } from '../components/chat/DataProposalCard';
 import ProposalActionBar from '../components/table/ProposalActionBar';
-import { useInlineProposal } from '../hooks/useInlineProposal';
-import { applySchemaOperations } from '../lib/utils/schemaOperations';
-import type { SchemaProposalData } from '../lib/utils/schemaOperations';
+import SchemaProposalStrip from '../components/table/SchemaProposalStrip';
+import { applySchemaOperations, type SchemaProposalData } from '../lib/utils/schemaOperations';
+import { useTableProposal } from '../hooks/useTableProposal';
 
 // =============================================================================
 // TableViewPage (Main)
@@ -314,25 +313,6 @@ export default function TableViewPage() {
   // Payload Handlers (for chat proposals)
   // -----------------------------------------------------------------------
 
-  const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
-    if (!table) return;
-
-    try {
-      const columns = applySchemaOperations(table.columns, proposalData.operations);
-      const updateData: Record<string, unknown> = { columns };
-      if (proposalData.table_name) updateData.name = proposalData.table_name;
-      if (proposalData.table_description) updateData.description = proposalData.table_description;
-
-      const updated = await updateTable(tableId, updateData);
-      setTable(updated);
-      showSuccessToast('Schema updated successfully');
-      // Tell chat the schema was applied so it can continue the workflow
-      sendMessage(`[User accepted the schema proposal and applied changes to "${updated.name}".]`);
-    } catch (err) {
-      showErrorToast(err, 'Failed to apply schema changes');
-    }
-  }, [table, tableId, sendMessage]);
-
   const executeSingleDataOperation = useCallback(async (op: DataOperation) => {
     if (!table) throw new Error('No table loaded');
 
@@ -359,55 +339,27 @@ export default function TableViewPage() {
     }
   }, [table, tableId]);
 
-  // Inline proposal hook — manages proposal state, row merging, execution
-  const inlineProposal = useInlineProposal(
+  const handleApplySchema = useCallback(async (data: SchemaProposalData) => {
+    if (!table) throw new Error('No table');
+    const columns = applySchemaOperations(table.columns, data.operations);
+    const payload: Record<string, unknown> = { columns };
+    if (data.table_name) payload.name = data.table_name;
+    if (data.table_description) payload.description = data.table_description;
+    const updated = await updateTable(tableId, payload);
+    setTable(updated);
+    showSuccessToast('Schema updated');
+  }, [table, tableId]);
+
+  // Unified proposal hook — one state slot, mutual exclusion by construction
+  const proposal = useTableProposal(
     table?.columns ?? [],
     filteredRows,
     tableId,
     executeSingleDataOperation,
+    handleApplySchema,
     fetchRows,
     sendMessage,
   );
-
-  const handleDataProposalAccept = useCallback(async () => {
-    // Called when the user clicks "Done" after all operations complete
-    await fetchRows();
-    // Tell chat the data was applied so it can continue the workflow
-    sendMessage('[User accepted the data proposal and applied all changes.]');
-  }, [fetchRows, sendMessage]);
-
-  // Intercept data_proposal payloads to render inline in the table
-  const handlePayloadReceived = useCallback((payload: { type: string; data: any; messageIndex: number }) => {
-    if (payload.type === 'data_proposal') {
-      inlineProposal.activate(payload.data);
-      return true; // suppress floating panel
-    }
-    return false;
-  }, [inlineProposal.activate]);
-
-  const payloadHandlers = useMemo(() => ({
-    schema_proposal: {
-      render: (payload: any, callbacks: any) => (
-        <SchemaProposalCard data={payload} columns={table?.columns} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
-      ),
-      onAccept: handleSchemaProposalAccept,
-      renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
-    },
-    data_proposal: {
-      render: (payload: any, callbacks: any, options?: any) => (
-        <DataProposalCard
-          data={payload}
-          onAccept={callbacks.onAccept}
-          onReject={callbacks.onReject}
-          onExecuteOperation={executeSingleDataOperation}
-          onOperationsComplete={fetchRows}
-          isMaximized={options?.isMaximized}
-        />
-      ),
-      onAccept: handleDataProposalAccept,
-      renderOptions: { headerTitle: 'AI Research Results', headerIcon: '🔬' },
-    },
-  }), [handleSchemaProposalAccept, handleDataProposalAccept, executeSingleDataOperation, fetchRows, table?.columns]);
 
   // -----------------------------------------------------------------------
   // Render: loading state
@@ -455,8 +407,7 @@ export default function TableViewPage() {
           table_id: table.id,
           table_name: table.name,
         }}
-        payloadHandlers={payloadHandlers}
-        onPayloadReceived={handlePayloadReceived}
+        onPayloadReceived={proposal.handlePayload}
       />
 
       {/* Main content */}
@@ -522,41 +473,51 @@ export default function TableViewPage() {
           />
         </div>
 
+        {/* Schema proposal strip (when active) */}
+        {proposal.schemaBar && (
+          <SchemaProposalStrip
+            data={proposal.schemaBar.data}
+            applying={proposal.schemaBar.applying}
+            onApply={proposal.schemaBar.apply}
+            onDismiss={proposal.dismiss}
+          />
+        )}
+
         {/* Proposal action bar (when active) */}
-        {inlineProposal.active && inlineProposal.data && (
+        {proposal.dataBar && (
           <ProposalActionBar
-            data={inlineProposal.data}
-            checkedOps={inlineProposal.checkedOps}
-            phase={inlineProposal.phase}
-            opResults={inlineProposal.opResults}
-            successCount={inlineProposal.successCount}
-            errorCount={inlineProposal.errorCount}
-            onToggleAll={inlineProposal.toggleAll}
-            onApply={inlineProposal.apply}
-            onDismiss={inlineProposal.dismiss}
-            onDone={inlineProposal.done}
+            data={proposal.dataBar.data}
+            checkedOps={proposal.dataBar.checkedOps}
+            phase={proposal.dataBar.phase}
+            opResults={proposal.dataBar.opResults}
+            successCount={proposal.dataBar.successCount}
+            errorCount={proposal.dataBar.errorCount}
+            onToggleAll={proposal.dataBar.toggleAll}
+            onApply={proposal.dataBar.apply}
+            onDismiss={proposal.dismiss}
+            onDone={proposal.dataBar.done}
           />
         )}
 
         {/* Data table - scrollable */}
         <div className="flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-900 pr-4">
           <DataTable
-            columns={table.columns}
-            rows={inlineProposal.displayRows}
+            columns={proposal.displayColumns}
+            rows={proposal.displayRows}
             selectedRowIds={selectedRowIds}
             onToggleRowSelection={handleToggleRowSelection}
             onToggleAllSelection={handleToggleAllSelection}
             sort={sort}
             onSort={handleSort}
-            editingCell={inlineProposal.active ? null : editingCell}
-            onCellClick={inlineProposal.active ? () => {} : handleCellClick}
+            editingCell={proposal.active ? null : editingCell}
+            onCellClick={proposal.active ? () => {} : handleCellClick}
             onCellSave={handleCellSave}
             onCellCancel={handleCellCancel}
             onColumnResearch={(columnName) => {
               setChatOpen(true);
               sendMessage(`Research and fill the "${columnName}" column for all rows.`);
             }}
-            proposalState={inlineProposal.proposalState ?? undefined}
+            proposalOverlay={proposal.proposalOverlay}
           />
         </div>
 

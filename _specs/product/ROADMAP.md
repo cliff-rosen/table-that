@@ -52,6 +52,7 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | #23 | P1 | GROWTH | — | User journey stage tracking (build → populate → organize → enrich) | open | 2026-02-27 | |
 | #24 | P1 | GROWTH | — | Shareable tables (public links, no-login viewing, viral distribution) | open | 2026-02-27 | |
 | #27 | P1 | CORE | P | Direct UI triggers for column enrichment (bypass chat) | open | 2026-03-01 | |
+| #32 | P1 | CORE | T | Multi-column enrichment in a single pass | open | 2026-03-01 | |
 | #28 | P1 | GROWTH | P | First-time empty state and onboarding (templates, suggested prompts, guided first table) | open | 2026-03-01 | |
 | #29 | P1 | CORE | P | Visual impact for core operations (animations for schema creation, data population, enrichment) | open | 2026-03-01 | |
 
@@ -155,6 +156,9 @@ The Build→Populate→Enrich loop has natural moments of drama that currently f
 
 ### #24 — Shareable tables (public links, no-login viewing, viral distribution)
 Make tables shareable via public link. When a user creates a useful table (restaurant picks, vendor comparisons, publisher lists), they should be able to share it with a URL that anyone can open without registering. This is a critical growth lever: a shared table is a product demo that sells itself. Requirements: (1) **One-click share** — generate a public URL for any table, with optional read-only or comment-enabled modes. (2) **Zero-friction viewing** — recipients see the full table immediately, no login wall, no signup prompt blocking the content. (3) **Gentle conversion** — after viewing, show a soft CTA: "Want to make your own? Sign up free." or "Fork this table to customize it." Never gate the content. (4) **Fork/duplicate** — signed-in users can copy a shared table to their own account and modify it. (5) **Owner control** — creator can revoke the link, set it to expire, or make it unlisted. This is potentially the highest-leverage PMF feature: every shared table is organic distribution. A restaurant list texted to friends, a vendor comparison emailed to a team, a school list posted in a parent group. Each one shows the product in action to new users who have a reason to care.
+
+### #32 — Multi-column enrichment in a single pass
+When enriching multiple related columns (e.g. phone number + website URL for a store, or founded year + CEO for a company), run them in a single per-row loop instead of separate passes. The AI already visits the same sources for both — doing two loops wastes time, API calls, and money. Need a way to define multiple target columns for one enrichment run, where a single research pass extracts all values at once and writes them to their respective columns. This changes the enrichment model from "one column at a time" to "one research question per row that fills N columns."
 
 ### #30 — Chat cancel functionality not correctly implemented
 Chat cancel button needs to be properly written and tested for all cases: cancelling during tool execution, during streaming text, during proposal generation, during enrich_column multi-row processing. Need to verify the cancel signal propagates correctly from frontend → backend SSE → agent loop, that partial results are handled gracefully, and that the UI returns to a clean state after cancel.

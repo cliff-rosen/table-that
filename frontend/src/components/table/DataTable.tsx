@@ -9,7 +9,7 @@ import type { ColumnDefinition, TableRow, SortState } from '../../types/table';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { OpStatusIcon } from '../chat/DataProposalCard';
-import type { ProposalState } from '../../hooks/useInlineProposal';
+import type { ProposalOverlay } from '../../hooks/useTableProposal';
 
 // =============================================================================
 // Helper: format date for display
@@ -233,6 +233,19 @@ export function CellRenderer({ column, value }: CellRendererProps) {
 }
 
 // =============================================================================
+// Helper: describe schema changes for modify columns
+// =============================================================================
+
+function describeChanges(changes: Partial<{ name: string; type: string; required: boolean; options: string[] }>): string {
+  const parts: string[] = [];
+  if (changes.name) parts.push(`renamed: ${changes.name}`);
+  if (changes.type) parts.push(`type: ${changes.type}`);
+  if (changes.required !== undefined) parts.push(changes.required ? 'required' : 'optional');
+  if (changes.options) parts.push(`options: ${changes.options.join(', ')}`);
+  return parts.length > 0 ? `→ ${parts.join(', ')}` : '';
+}
+
+// =============================================================================
 // DataTable
 // =============================================================================
 
@@ -250,8 +263,8 @@ export interface DataTableProps {
   onCellCancel: () => void;
   /** Called when user clicks the sparkle icon on a column header */
   onColumnResearch?: (columnName: string) => void;
-  /** When present, enables inline proposal rendering (color-coded rows, per-op checkboxes) */
-  proposalState?: ProposalState;
+  /** When present, enables inline proposal rendering (color-coded rows/columns) */
+  proposalOverlay?: ProposalOverlay;
 }
 
 export default function DataTable({
@@ -267,11 +280,13 @@ export default function DataTable({
   onCellSave,
   onCellCancel,
   onColumnResearch,
-  proposalState,
+  proposalOverlay,
 }: DataTableProps) {
   const allSelected = rows.length > 0 && selectedRowIds.size === rows.length;
   const someSelected = selectedRowIds.size > 0 && selectedRowIds.size < rows.length;
-  const hasProposal = !!proposalState;
+  const hasProposal = !!proposalOverlay;
+  const dataOverlay = proposalOverlay?.kind === 'data' ? proposalOverlay : undefined;
+  const schemaOverlay = proposalOverlay?.kind === 'schema' ? proposalOverlay : undefined;
 
   return (
     <table className="w-full border-collapse">
@@ -290,26 +305,50 @@ export default function DataTable({
           </th>
           {columns.map((col) => {
             const isSorted = sort?.column_id === col.id;
+            const schemaMeta = schemaOverlay?.columnMeta.get(col.id);
+            const isSortDisabled = schemaMeta?.action === 'add' || schemaMeta?.action === 'remove';
+
+            // Schema-proposal header classes
+            let schemaThClasses = '';
+            if (schemaMeta?.action === 'add') {
+              schemaThClasses = 'bg-green-50 dark:bg-green-900/20 border-l-4 border-l-green-400';
+            } else if (schemaMeta?.action === 'remove') {
+              schemaThClasses = 'bg-red-50 dark:bg-red-900/15 border-l-4 border-l-red-400';
+            } else if (schemaMeta?.action === 'modify') {
+              schemaThClasses = 'bg-amber-50 dark:bg-amber-900/20 border-l-4 border-l-amber-400';
+            }
+
             return (
               <th
                 key={col.id}
-                className="group/th px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                onClick={() => onSort(col.id)}
+                className={`group/th px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider select-none transition-colors ${
+                  isSortDisabled ? '' : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700'
+                } ${schemaThClasses}`}
+                onClick={() => !isSortDisabled && onSort(col.id)}
               >
                 <div className={`flex items-center gap-1 ${col.type === 'number' ? 'justify-end' : ''}`}>
-                  <span>{col.name}</span>
-                  <span className="flex flex-col ml-1">
-                    {isSorted ? (
-                      sort.direction === 'asc' ? (
-                        <ChevronUpIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                      ) : (
-                        <ChevronDownIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                      )
-                    ) : (
-                      <ChevronUpIcon className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
-                    )}
+                  <span className={schemaMeta?.action === 'remove' ? 'line-through opacity-60' : ''}>
+                    {col.name}
                   </span>
-                  {onColumnResearch && rows.length > 0 && (
+                  {schemaMeta?.action === 'add' && (
+                    <span className="text-[10px] text-green-600 dark:text-green-400 font-normal normal-case ml-1">
+                      {col.type}
+                    </span>
+                  )}
+                  {!isSortDisabled && (
+                    <span className="flex flex-col ml-1">
+                      {isSorted ? (
+                        sort.direction === 'asc' ? (
+                          <ChevronUpIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                        ) : (
+                          <ChevronDownIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                        )
+                      ) : (
+                        <ChevronUpIcon className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
+                      )}
+                    </span>
+                  )}
+                  {!schemaMeta && onColumnResearch && rows.length > 0 && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -323,6 +362,16 @@ export default function DataTable({
                     </button>
                   )}
                 </div>
+                {schemaMeta?.action === 'remove' && (
+                  <span className="text-[10px] text-red-600 dark:text-red-400 font-normal normal-case block mt-0.5">
+                    Data will be lost
+                  </span>
+                )}
+                {schemaMeta?.action === 'modify' && schemaMeta.changes && (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal normal-case block mt-0.5">
+                    {describeChanges(schemaMeta.changes)}
+                  </span>
+                )}
               </th>
             );
           })}
@@ -343,7 +392,7 @@ export default function DataTable({
         ) : (
           rows.map((row) => {
             const isSelected = selectedRowIds.has(row.id);
-            const meta = proposalState?.rowMeta.get(row.id);
+            const meta = dataOverlay?.rowMeta.get(row.id);
 
             // Row background classes based on proposal meta
             let rowBg: string;
@@ -366,14 +415,14 @@ export default function DataTable({
               >
                 {/* Checkbox / Proposal status */}
                 <td className="w-12 px-3 py-2.5">
-                  {meta && proposalState ? (
+                  {meta && dataOverlay ? (
                     // Proposal row: show op checkbox or status icon
-                    proposalState.phase !== 'idle' ? (
-                      <OpStatusIcon result={proposalState.opResults[meta.opIndex]} />
+                    dataOverlay.phase !== 'idle' ? (
+                      <OpStatusIcon result={dataOverlay.opResults[meta.opIndex]} />
                     ) : (
                       <Checkbox
-                        checked={proposalState.checkedOps[meta.opIndex]}
-                        onCheckedChange={() => proposalState.onToggleOp(meta.opIndex)}
+                        checked={dataOverlay.checkedOps[meta.opIndex]}
+                        onCheckedChange={() => dataOverlay.onToggleOp(meta.opIndex)}
                       />
                     )
                   ) : !hasProposal ? (
@@ -389,10 +438,19 @@ export default function DataTable({
                 {columns.map((col) => {
                   const isEditing = !hasProposal && editingCell?.rowId === row.id && editingCell?.columnId === col.id;
                   const cellValue = row.data[col.id];
+                  const schemaMeta = schemaOverlay?.columnMeta.get(col.id);
 
                   // Determine if this cell was changed (for update rows)
                   const isChangedCell = meta?.action === 'update' && meta.oldValues && col.id in meta.oldValues;
                   const oldValue = isChangedCell ? meta!.oldValues![col.id] : undefined;
+
+                  // Schema proposal cell classes
+                  let schemaCellClass = '';
+                  if (schemaMeta?.action === 'add') {
+                    schemaCellClass = 'bg-green-50/40 dark:bg-green-900/10';
+                  } else if (schemaMeta?.action === 'remove') {
+                    schemaCellClass = 'bg-red-50/40 dark:bg-red-900/10 opacity-60';
+                  }
 
                   // Build cell classes
                   const cellClasses = [
@@ -401,6 +459,7 @@ export default function DataTable({
                     col.type === 'number' ? 'text-right' : '',
                     !hasProposal ? 'cursor-pointer' : '',
                     isChangedCell ? 'bg-amber-100/60 dark:bg-amber-800/20' : '',
+                    schemaCellClass,
                   ].filter(Boolean).join(' ');
 
                   // Tooltip for changed cells
@@ -426,8 +485,10 @@ export default function DataTable({
                           onSave={(val) => onCellSave(row.id, col.id, val)}
                           onCancel={onCellCancel}
                         />
+                      ) : schemaMeta?.action === 'add' ? (
+                        <span className="text-sm text-gray-400 dark:text-gray-500">—</span>
                       ) : (
-                        <span className={meta?.action === 'delete' ? 'line-through' : ''}>
+                        <span className={`${meta?.action === 'delete' ? 'line-through' : ''} ${schemaMeta?.action === 'remove' ? 'line-through' : ''}`}>
                           <CellRenderer column={col} value={cellValue} />
                         </span>
                       )}
