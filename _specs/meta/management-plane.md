@@ -2,11 +2,11 @@
 
 ## What This Is
 
-This document describes how we develop Table That — the methodology, the tools, the agent ecosystem, and how they fit together. It's the entry point for understanding the management layer that sits above the codebase.
+This document describes how we develop table.that — the methodology, the operational cycle, the agent ecosystem, and how they fit together. It's the entry point for understanding the management layer that sits above the codebase.
 
 ## The Goal
 
-Reach product-market fit for table that. PMF means real users completing the build-populate-enrich loop, coming back, and telling others about it.
+Reach product-market fit for table.that. PMF means real users completing the build-populate-enrich loop, coming back, and telling others about it.
 
 ## The Methodology
 
@@ -30,13 +30,149 @@ Product quality is evaluated on three layers (the **DTP framework**):
 
 D and T are **tunable** through existing configuration levers — system prompts, page-level prompts, tool configurations. The right configuration values come from **observing real users**, not guessing. This creates a flywheel: more users → more failure data → better tuning → better quality → more users. The accumulated tuning knowledge is our defensibility.
 
-### How the two prongs connect
+---
 
-1. **Prepare:** Choose a vertical where both prongs look viable. Get DTP to baseline quality through synthetic testing (demos, QA walkthroughs, evals).
-2. **Launch:** Put the product in front of real users in that vertical.
-3. **Observe:** Watch where D and T fail. Track through signal agents.
-4. **Tune:** Adjust prompts and tool configs based on observed failures.
-5. **Repeat:** Quality improves, more users arrive, loop tightens.
+## The Process
+
+The project has three phases:
+
+```
+Definition ──► Operational (cyclic) ──► Target Reached (PMF)
+  (now)
+```
+
+**Definition** is where we are now — establishing methodology, building the management plane, wiring up agents.
+
+**Target Reached** is PMF — real users, organic growth, the product works and spreads.
+
+**Operational** is where we'll spend most of our time. It's a cycle:
+
+### The Operational Cycle
+
+```
+    ┌──────────────────────────────────────────────┐
+    │                                              │
+    ▼                                              │
+Strategize ──► Build ──► Verify ──► Deploy ──► Observe
+```
+
+Five nodes. Each transition has a quality gate. Observation feeds back into the next strategy cycle.
+
+### Nodes
+
+**Strategize** — Analyze all available signal, review the roadmap, decide what to work on next.
+- Reads: signal reports (QA, evals, usage, marketing), roadmap, prior briefs
+- Produces: Priority Brief (top recommendations with rationale), Proposed Roadmap changes
+- Human approves priorities and directs execution
+
+**Build** — Implement the chosen work. Design the approach, write the code.
+- Reads: roadmap item, product spec, technical docs, codebase
+- Produces: code changes (on a branch or uncommitted)
+- Includes planning as a sub-phase — scope and approach are defined before writing code
+
+**Verify** — Confirm the changes are correct, safe, and ready to ship.
+- Reads: code changes, existing tests, live app (for E2E)
+- Produces: test results, review findings, pass/fail signal
+- Multiple checks: code review, automated tests, pre-deploy QA, eval scores
+
+**Deploy** — Ship to production.
+- Reads: verified code, migration scripts
+- Produces: running production code
+- Includes database migrations, deployment script execution, post-deploy smoke test
+
+**Observe** — Gather signal on the deployed changes and the product overall.
+- Reads: live production app, usage data, tool outputs
+- Produces: signal reports written to `_specs/signal/` (QA, evals, usage, marketing analysis)
+- These reports persist and are consumed by the next Strategize cycle
+
+### Transitions and Quality Gates
+
+Each transition has a gate — a set of conditions that must be met before advancing.
+
+| Transition | Gate | What blocks advancement |
+|------------|------|------------------------|
+| Strategize → Build | **Scope is clear.** Chosen work item has a defined scope, dependencies are met, approach is understood. | Ambiguous requirements, unmet dependencies, no clear acceptance criteria. |
+| Build → Verify | **Code is complete.** Implementation addresses the scope, no known gaps, ready for review. | Incomplete implementation, build errors, untested assumptions. |
+| Verify → Deploy | **All checks pass.** Code review clean. Automated tests pass. Pre-deploy QA walkthrough passes for affected areas. Eval scores acceptable (no regressions). | Failing tests, review findings, QA failures, eval score regressions. |
+| Deploy → Observe | **Deployment succeeds.** Production deployment completes. Post-deploy smoke test passes on prod. | Failed deployment, smoke test failures, rollback needed. |
+| Observe → Strategize | **Signal is current.** Signal reports have been updated to reflect the current state of the product. | Stale or missing signal reports. |
+
+### Failure Paths
+
+When a gate fails, the cycle doesn't advance — it routes back:
+
+- **Verify fails** → back to Build. Fix the issue, then re-enter Verify.
+- **Deploy fails** → back to Build or Verify depending on the failure. Deployment bugs need code fixes; config issues may just need a re-verify.
+- **Observe reveals a regression** → enters the next Strategize cycle as a high-priority signal. The PMF Director should flag it.
+
+### Roadmap Management
+
+The roadmap is not a node in the cycle — it's a side effect that updates at transitions:
+- Strategize: item moves to "prioritized" / new items added
+- Build: item is in progress
+- Deploy: item status changes to done, resolved date set
+- Observe: new defects or items may be added based on findings
+
+Managed via the `/roadmap` skill. Single source of truth: `_specs/product/ROADMAP.md`.
+
+---
+
+## The Agent Ecosystem
+
+Agents are defined by contracts (see `agent-contract-schema.md`) and connected through a graph (see `agent-graph.md`). Each agent serves one or more nodes in the operational cycle.
+
+### Agents by Cycle Node
+
+| Cycle Node | Agent | Mandate | Status |
+|------------|-------|---------|--------|
+| **Strategize** | PMF Director | What should we work on to reach PMF? | Exists (needs signal file update) |
+| **Strategize** | Marketing | Which vertical, and how do we reach its users? | Not built |
+| **Build** | — | (Human + Claude Code, no dedicated agent) | — |
+| **Verify** | Code Review | Does this code follow our practices? | Exists |
+| **Verify** | QA Walkthrough | Does the product work from a user's perspective? | Exists (needs signal output) |
+| **Verify** | Eval Runner | Are the AI tools giving accurate answers? | Not built |
+| **Deploy** | Migrate-Prod | Run production database migrations | Exists |
+| **Observe** | QA Walkthrough | What's working/broken in production? | Same agent, different target (prod vs dev) |
+| **Observe** | Eval Runner | Are tool accuracy scores holding? | Same agent, monitoring mode |
+| **Observe** | Usage Analyst | Where are users dropping off? | Not built |
+| **Observe** | Demo Producer | What does the product look like for a given audience? | Exists (needs signal output) |
+| **Utility** | Roadmap | Track planned work | Exists |
+
+Note: QA Walkthrough and Eval Runner appear in both **Verify** and **Observe**. In Verify they're pre-deploy checks (gate keepers). In Observe they're post-deploy monitoring (signal producers). Same agent, different context and target.
+
+### Key Design Principles
+
+1. **One mandate per agent.** If an agent has two jobs, split it.
+2. **Signal agents produce persistent files.** A finding that exists only in a conversation is invisible to other agents. Signal agents write to `_specs/signal/`.
+3. **Strategy agents don't gather their own signal.** The PMF Director reads signal reports. It does not scan the codebase, run tests, or browse the app. If it needs a signal that doesn't exist, that's a gap in the signal layer.
+4. **Inputs and outputs define the graph edges.** Dependencies are explicit, not implied.
+5. **Agents serve the cycle.** Every agent maps to a cycle node. An agent that doesn't serve any node doesn't belong in the graph.
+
+### Implementation: Skills vs. Agents
+
+Claude Code has two mechanisms for agent implementation:
+
+- **Skills** (`.claude/skills/*/SKILL.md`) — Invoked via `/slash-command`. Run in the main conversation context. Have access to everything (MCP tools, full conversation history).
+- **Agents** (`.claude/agents/*.md`) — Launched as subprocesses via the Task tool. Run in isolated context. Typically use a cheaper model (sonnet).
+
+The choice between skill and agent is an implementation detail — the contract schema describes *what* the agent does regardless of *how* it runs. Use a skill when the agent needs the main context (MCP tools, conversation flow). Use an agent subprocess when it should run in isolation (code review, where you don't want to pollute the main context).
+
+### Signal Flow
+
+```
+Observe agents run → write to _specs/signal/ → Strategize agents read →
+produce recommendations → human approves → Build begins
+```
+
+When fully wired:
+- Run `/qa-walkthrough` → writes qa-latest.md
+- Run `/eval` → writes eval-latest.md
+- Run `/usage` → writes usage-latest.md
+- Run `/marketing` → writes marketing-latest.md
+- Run `/pmf-director` → reads all signal files → produces Priority Brief + Proposed Roadmap
+- Human reviews, approves changes, directs next Build cycle
+
+---
 
 ## The Specs Directory
 
@@ -57,7 +193,7 @@ _specs/
 │   ├── ROADMAP-proposed.md        ← PMF Director's proposed changes (never auto-applied)
 │   └── pmf-briefs/                ← Priority Briefs produced by PMF Director
 │
-├── signal/                        ← Persistent artifacts from signal agents (to be created)
+├── signal/                        ← Persistent artifacts from signal agents
 │   ├── qa-latest.md               ← QA Walkthrough output
 │   ├── eval-latest.md             ← Eval Runner output
 │   ├── usage-latest.md            ← Usage Analyst output
@@ -71,51 +207,6 @@ _specs/
     └── reference/                 ← External reference material
 ```
 
-## The Agent Ecosystem
-
-Agents are defined by contracts (see `agent-contract-schema.md`) and connected through a graph (see `agent-graph.md`). The graph has four layers:
-
-### Layers
-
-| Layer | Purpose | Agents |
-|-------|---------|--------|
-| **Strategy** | Decides what to work on | PMF Director, Marketing |
-| **Signal** | Observes and measures | QA Walkthrough, Eval Runner, Usage Analyst |
-| **Execution** | Does the work | Demo Producer, Code Review |
-| **Operations** | Ships and maintains | Roadmap, Migrate-Prod |
-
-### Key design principles
-
-1. **One mandate per agent.** If an agent has two jobs, split it.
-2. **Signal agents produce persistent files.** A finding that exists only in a conversation is invisible to other agents. Signal agents write to `_specs/signal/`.
-3. **Strategy agents don't gather their own signal.** The PMF Director reads signal reports. It does not scan the codebase, run tests, or browse the app. If it needs a signal that doesn't exist, that's a gap in the signal layer.
-4. **Inputs and outputs define the graph edges.** Dependencies are explicit, not implied.
-5. **Authority matches layer.** Strategy proposes. Signal reads. Execution executes (with approval). Operations executes on command.
-
-### Implementation: skills vs. agents
-
-Claude Code has two mechanisms for agent implementation:
-
-- **Skills** (`.claude/skills/*/SKILL.md`) — Invoked via `/slash-command`. Run in the main conversation context. Have access to everything (MCP tools, full conversation history).
-- **Agents** (`.claude/agents/*.md`) — Launched as subprocesses via the Task tool. Run in isolated context. Typically use a cheaper model (sonnet).
-
-The choice between skill and agent is an implementation detail — the contract schema describes *what* the agent does regardless of *how* it runs. Use a skill when the agent needs the main context (MCP tools, conversation flow). Use an agent subprocess when it should run in isolation (code review, where you don't want to pollute the main context).
-
-### Signal flow
-
-```
-Signal agents observe → write to _specs/signal/ → strategy agents read →
-produce recommendations → human approves → execution agents act
-```
-
-This flow is the operational backbone. When it's fully wired:
-- Run `/qa-walkthrough` → writes qa-latest.md
-- Run `/eval` → writes eval-latest.md
-- Run `/usage` → writes usage-latest.md
-- Run `/marketing` → writes marketing-latest.md
-- Run `/pmf-director` → reads all signal files → produces Priority Brief + Proposed Roadmap
-- Human reviews, approves changes, directs execution
-
 ## The Roadmap
 
 `_specs/product/ROADMAP.md` is the single source of truth for all planned work. Each item has:
@@ -128,69 +219,47 @@ This flow is the operational backbone. When it's fully wired:
 
 The PMF Director proposes roadmap changes to `ROADMAP-proposed.md`. Humans review and apply (or don't). The roadmap is never auto-modified by strategy agents.
 
+---
+
 ## Current State
 
-### What works now
+We are in the **Definition phase** — establishing the process, wiring up agents, building the management plane.
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Product spec | Complete | `table-that-v1-spec.md` |
-| PMF criteria | Complete | Target user, DTP rubric, vertical methodology, tuning loop |
-| Roadmap | Active | 22 open items with priorities, categories, and DTP layers |
-| Agent contract schema | Complete | YAML schema for defining agents |
-| Agent graph | Complete | All agents defined with contracts, dependencies mapped |
-| PMF Director skill | Exists | Needs update: should read signal files instead of scanning codebase |
-| QA Walkthrough | Exists (skill + agent) | Needs consolidation; needs to write to `_specs/signal/qa-latest.md` |
-| Demo Producer skill | Exists | Needs to append to `_specs/signal/demo-log.md` |
-| Code Review | Exists (skill + agent) | Working as designed |
-| Roadmap skill | Exists | Working as designed |
-| Migrate-Prod skill | Exists | Working as designed |
+### What's ready for the operational cycle
 
-### What's partially implemented
+| Cycle Node | Readiness | What works | What's missing |
+|------------|-----------|------------|----------------|
+| **Strategize** | Partial | PMF Director skill exists, roadmap + PMF criteria defined | PMF Director still scans codebase instead of reading signal files. Marketing agent not built. Signal directory not created. |
+| **Build** | Ready | Human + Claude Code with full codebase access, code practices documented | — |
+| **Verify** | Partial | Code Review agent works. QA Walkthrough exists. | QA doesn't write persistent signal. Eval Runner not built. No formal pre-deploy gate defined. |
+| **Deploy** | Ready | deploy.ps1 works, Migrate-Prod skill works | No automated pre-deploy gate enforcement (manual today). |
+| **Observe** | Minimal | QA Walkthrough can run against prod. Demo Producer exists. | No signal directory. QA/Demo don't write persistent reports. Usage Analyst not built. Eval Runner not built. |
 
-| Component | Status | What's missing |
-|-----------|--------|----------------|
-| Signal directory | Not created | `_specs/signal/` doesn't exist yet, no signal files |
-| QA signal output | Defined in contract | Agent doesn't write persistent report yet |
-| Demo signal output | Defined in contract | Skill doesn't append to demo-log.md yet |
-| PMF Director signal reading | Defined in contract | Still scans codebase instead of reading signal files |
+### Transition to operational
 
-### What doesn't exist yet
+To exit Definition and enter the Operational cycle, we need:
 
-| Component | Dependency | Notes |
-|-----------|------------|-------|
-| Eval Runner agent | Roadmap #25, ground truth dataset | Measures tool accuracy (D, T) |
-| Usage Analyst agent | Roadmap #23 (journey tracking) | Measures funnel and drop-off |
-| Marketing agent | Signal files | Vertical selection + distribution strategy |
-| Signal directory | None | Just needs to be created |
+1. **Signal directory exists** with template files (`_specs/signal/`)
+2. **At least one signal agent writes persistent output** (QA Walkthrough → qa-latest.md)
+3. **PMF Director reads signal files** instead of scanning codebase
+4. **Verify gate is defined** — what checks must pass before Deploy
 
-## Management Plane Roadmap
+Once those are in place, we can run the cycle — even if some agents are missing, the cycle structure works and we fill in gaps iteratively.
 
-### Phase 1: Wire up the signal loop (do now)
+### Implementation priority
 
-1. Create `_specs/signal/` directory with template files
-2. Update QA Walkthrough to write `qa-latest.md`
-3. Update Demo Producer to append to `demo-log.md`
-4. Update PMF Director to read signal files instead of scanning codebase
-5. Consolidate QA Walkthrough (skill + agent duplication)
+| # | Task | Enables |
+|---|------|---------|
+| 1 | Create `_specs/signal/` directory with template files | All signal flow |
+| 2 | Update QA Walkthrough to write `qa-latest.md` | Observe → Strategize flow |
+| 3 | Update PMF Director to read signal files | Strategize node works correctly |
+| 4 | Define Verify gate checklist | Build → Verify → Deploy flow |
+| 5 | Update Demo Producer to append to `demo-log.md` | Observe signal completeness |
+| 6 | Build Eval Runner | Verify + Observe quality (D, T measurement) |
+| 7 | Build Usage Analyst | Observe signal (requires journey tracking #23) |
+| 8 | Build Marketing agent | Strategize completeness |
 
-**Outcome:** The core signal → strategy flow works end-to-end. Running `/qa-walkthrough` then `/pmf-director` produces informed recommendations based on persistent signal.
-
-### Phase 2: Build missing signal agents (do soon)
-
-6. Build Eval Runner — needs ground truth dataset first (roadmap #25)
-7. Build Usage Analyst — needs journey tracking first (roadmap #23)
-8. Build Marketing agent — vertical scoring + distribution planning
-
-**Outcome:** All four signal types (QA, eval, usage, marketing) feed into the PMF Director. Strategy recommendations are grounded in real data.
-
-### Phase 3: Close the loop (do after real users)
-
-9. Instrument the tuning loop — track D/T/P failures per vertical, tie to prompt/tool config changes
-10. Build per-vertical config profiles — system prompt + tool config bundles tuned from observation data
-11. Marketing agent produces actionable channel plans based on usage signal
-
-**Outcome:** The system becomes self-improving. Observation drives tuning, tuning drives quality, quality drives growth.
+---
 
 ## File Reference
 
@@ -203,7 +272,7 @@ The PMF Director proposes roadmap changes to `ROADMAP-proposed.md`. Humans revie
 | `_specs/product/ROADMAP.md` | All planned work | Human (via `/roadmap` skill) |
 | `_specs/product/ROADMAP-proposed.md` | PMF Director's proposed changes | PMF Director |
 | `_specs/product/pmf-briefs/*.md` | Priority Briefs | PMF Director |
-| `_specs/signal/*.md` | Signal reports | Signal agents |
+| `_specs/signal/*.md` | Signal reports | Signal/Observe agents |
 | `.claude/skills/*/SKILL.md` | Skill implementations | Human |
 | `.claude/agents/*.md` | Agent subprocess definitions | Human |
 | `CLAUDE.md` | Code practices (Claude Code convention — must stay in root) | Human |
