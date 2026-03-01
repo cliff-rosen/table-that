@@ -114,6 +114,62 @@ Every user interaction with the AI should be evaluated on three layers. Each lay
 
 The same bad user experience can fail at any one of these layers, and diagnosing which layer failed determines the fix. The QA Walkthrough agent should evaluate every interaction against all three layers.
 
+### The 3×3 Quality Matrix
+
+The three quality layers (D, T, P) apply independently at each step of the value loop (Build, Populate, Enrich). This gives a 3×3 matrix — nine cells, each a specific question about product quality:
+
+|  | **Decision (D)** | **Tool (T)** | **Presentation (P)** |
+|--|-------------------|--------------|----------------------|
+| **Build** | Does the AI propose the right schema? Right columns, types, and structure for this use case? | Do schema proposal mechanics work? Table creation, column type handling, after-column positioning? | Is the schema proposal card clear? Can the user see, adjust, and approve what's being created? |
+| **Populate** | Does the AI research real entities vs generate samples? Does it find the right data for this domain? | Do web research tools return good results for this vertical's data sources? 403s, timeouts, empty results? | Is the data proposal clear? Can the user tell what's real vs hallucinated? Check/uncheck individual items? |
+| **Enrich** | Does the AI pick the right strategy and thoroughness? Does it understand what the enrichment column means in context? | Does per-row research return accurate results? Value coercion, partial failures, handling of booleans/selects/numbers? | Are enrichment results shown clearly? Per-row progress, accept/reject individual results, how enriched data appears in the table? |
+
+**How to use the matrix:**
+
+- **For a vertical to be ready**, all nine cells must work. A vertical where Build×D and Populate×T are broken isn't ready regardless of how good everything else is.
+- **To diagnose a problem**, identify the cell. "Populate×Tool is broken for real estate because listing sites return 403" is actionable. "The product doesn't work for real estate" is not.
+- **To plan work**, look at which cells are weakest for your target vertical. A column of D failures means prompt/tool-design work. A row of Enrich failures means the enrichment pipeline needs attention.
+- **The QA Walkthrough and Eval Runner should score against this matrix**, not just pass/fail per phase.
+
+### Two Types of Friction
+
+There are two separate product development challenges, each a different type of friction to overcome:
+
+**Friction 1: Product-cohort fit** — The product actually delivers value for this vertical. All nine cells of the 3×3 matrix work. The AI makes good decisions, the tools return accurate data, the results are presented clearly. This is the core product quality problem.
+
+**Friction 2: Discovery-to-value journey** — Once a user makes contact with the app, there's a happy path from introduction to the moment they discover the fit. This is a separate challenge from whether the product works — it's about whether the user can *find out* that it works for them before they give up.
+
+These have completely different fixes:
+- Product-cohort fit → DTP tuning (prompts, tools, UX)
+- Discovery journey → Landing page messaging, onboarding flow, templates, visual impact, copy that speaks to the visitor's specific pain
+
+And they compound: if discovery is great but the product is broken, you're accelerating churn. If the product is great but discovery is broken, nobody ever finds out.
+
+### The Discovery Journey
+
+The discovery journey is the path from first contact to first value. Every step must reduce friction, not add it.
+
+**The empty state problem.** The most critical moment is what a user sees when they log in for the first time to an empty space. Right now: an empty tables list with a chat panel and no guidance. This is where most users will decide whether to engage or leave. The empty state must:
+- Immediately suggest what to do ("Try: 'Build me a list of...'")
+- Offer templates relevant to common use cases
+- Show, don't tell — a 10-second preview of what a finished table looks like
+- Make the first action feel effortless, not intimidating
+
+**Visual impact of core operations.** The Build→Populate→Enrich loop has natural moments of drama — a schema appearing, rows of real data flowing in, enrichment results filling column by column. These moments should feel impressive, not clinical. Animations, transitions, and visual feedback should make the core operations pop:
+- Schema proposal appearing and transforming into a table
+- Data populating row by row with a sense of real-time discovery
+- Enrichment progress visible per-row, results landing with visual confirmation
+- The table transforming from empty to populated to enriched — each step should feel like a reveal
+
+This isn't polish for polish's sake. The visual experience is part of how the user discovers the value. If enrichment results silently appear in a column while the user is looking at the chat panel, they miss the aha moment. If the data proposal is a flat list of JSON-like entries, it doesn't feel like "AI just did 2 hours of research for you."
+
+**The full journey:**
+- **Landing page** — Does the messaging speak to this vertical's pain? Can a visitor tell within 10 seconds that this solves their specific problem?
+- **First login (empty state)** — Templates, suggested prompts, examples. Not a blank canvas.
+- **First interaction** — The AI response should feel fast, smart, and relevant. Schema proposals should look professional and domain-appropriate.
+- **First success** — A populated table with real data, within 5 minutes of signing up.
+- **Aha moment** — The moment they realize the AI did real research, not just generated samples. Usually during Enrich, when per-row results start filling in with information they'd have spent hours gathering manually. This moment needs to be visually unmissable.
+
 ## Vertical Selection Methodology
 
 PMF requires two things simultaneously: the right market and a working product. Neither alone is sufficient.
