@@ -210,6 +210,7 @@ Rules:
 - For select columns, always include the full options list (not just additions).
 - filterDisplay controls the filter UI for select columns: "tab" for inline buttons, "dropdown" for a dropdown chip. Always use a string value, never null.
 - Always include a brief "reasoning" field.
+- When adding columns, place them logically near related columns using "after_column_id". For example, "Battery Life" should go next to "Power Options", not at the end. Group columns by theme: identifiers together, metrics together, categories together. Only omit after_column_id (append to end) if there's no logical grouping.
 - The user will see this as an interactive proposal card in the chat panel. For new tables, the button says **Create Table**. For schema updates, it says **Apply**. They can uncheck individual changes before acting."""
 
 
