@@ -134,7 +134,7 @@ Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The enrich_colum
 - search_rows: Full-text search across text columns
 - describe_table: Get schema summary, row counts, and value distributions for select/boolean columns
 - get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
-- enrich_column: **AI Enrichment** — Enrich a column using a specific strategy. Processes rows in parallel, presents results as a Data Proposal card for user review. Does NOT write to DB — user must click Apply.
+- enrich_column: **AI Enrichment** — Enrich a column using a specific strategy. Processes rows in parallel, presents results inline in the table for user review. Does NOT write to DB — user must click Apply.
 - search_web: Search the web via Google
 - fetch_webpage: Fetch and extract text from a URL
 - lookup_web: Quick snippet-based lookup — answers a simple factual question from search snippets (1-2 rounds, no page fetching)
@@ -198,10 +198,10 @@ Use {Column Name} placeholders in templates — they get replaced with each row'
    - If it needs synthesis from multiple sources → research (pick thoroughness based on completeness needs)
    - If it can be derived from existing data → computation
 4. Call enrich_column with row_ids, target_column, strategy, and params
-5. After completion: A Data Proposal card appears in chat. Tell the user they can expand the research log to see what happened for each row, uncheck any results that don't look right, and click **Apply** to save or **Cancel** to discard.
+5. After completion: The proposed changes appear inline in the table — updated cells are highlighted with amber. An action bar above the table lets the user expand the research log, uncheck any results that don't look right, and click **Apply** to save or **Dismiss** to cancel.
 6. If some rows return no result, those are shown as "not found" — do NOT retry them automatically
 
-**Multi-column enrichment:** enrich_column fills ONE column per call. If the user asks to enrich two columns (e.g., "find the website AND the CEO for each company"), call enrich_column twice — once per column. Tell the user to expect two proposals.
+**Multi-column enrichment:** enrich_column fills ONE column per call. If the user asks to enrich two columns (e.g., "find the website AND the CEO for each company"), call enrich_column twice — once per column. The results are automatically merged into a single inline proposal for the user to review.
 
 **Use standalone tools for single questions** (these use the same capabilities as enrich_column strategies — use them for one-off questions, use enrich_column for bulk row processing):
 - **lookup_web**: Single simple fact with a definitive answer — "What year was Acme founded?", "Who is the CEO of X?" (fastest, snippet-only)

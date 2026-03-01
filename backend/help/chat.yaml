@@ -35,10 +35,10 @@ sections:
          - "Delete row 12"
          - "Change row 5's status to Closed"
 
-      3. **Proposals** — Schema changes and multi-row data operations appear as interactive review cards.
-         - "Add a Priority column with options P0, P1, P2, P3" → Schema Proposal card
-         - "Add 10 sample bugs" → Data Proposal card
-         - "Mark all Open bugs as Closed" → Data Proposal card
+      3. **Proposals** — Schema changes and multi-row data operations appear inline in the table for review.
+         - "Add a Priority column with options P0, P1, P2, P3" → columns highlighted in the table
+         - "Add 10 sample bugs" → rows highlighted in the table
+         - "Mark all Open bugs as Closed" → changed cells highlighted in the table
 
       ### What the Assistant Knows
 
@@ -57,13 +57,13 @@ sections:
   - category: chat
     topic: schema-proposals
     title: Schema Proposals
-    summary: How to ask for schema changes, what the proposal card shows, reviewing and applying
+    summary: How to ask for schema changes, inline preview in the table, reviewing and applying
     roles: [member, org_admin, platform_admin]
     order: 1
     content: |
       ## Schema Proposals
 
-      A **Schema Proposal** is how the chat assistant proposes changes to your table structure. Any request to add, remove, modify, or reorder columns goes through a proposal card.
+      A **Schema Proposal** is how the chat assistant proposes changes to your table structure. Any request to add, remove, modify, or reorder columns is previewed inline in the table.
 
       ### How to Ask for Schema Changes
 
@@ -76,24 +76,20 @@ sections:
       - "I need a bug tracker with title, severity, status, and assignee"
       - "Reorder columns so Status comes after Title"
 
-      ### What the Proposal Card Shows
+      ### How Proposals Appear
 
-      The assistant responds with an interactive card listing each proposed change:
-      - **Add** (green): New column with name, type, and options
-      - **Modify** (amber): Shows what's changing on an existing column (e.g., name, type, options, required)
-      - **Remove** (red): Column to be deleted — warns about data loss
-      - **Reorder** (blue): Column being moved to a new position
+      Proposed changes are shown directly in the table:
+      - **Add** (green): New columns appear in-place with a green highlight
+      - **Modify** (amber): Changed columns are highlighted with an amber border
+      - **Remove** (red): Columns to be removed are shown with a red highlight and reduced opacity
 
-      Each change has a checkbox. You can uncheck changes you don't want.
+      An action strip appears above the table summarizing the changes with **Apply** and **Dismiss** buttons.
 
       ### Reviewing and Applying
 
-      1. Review each proposed change in the proposal card
-      2. Uncheck any changes you don't want
-      3. Click **Create Table** (for new tables) or **Apply** (for schema updates) to execute the checked changes
-      4. The table schema updates immediately
-
-      Click **Cancel** to dismiss the proposal without making any changes.
+      1. Review the proposed changes highlighted in the table
+      2. Click **Apply** to execute the changes, or **Dismiss** to cancel
+      3. The table schema updates immediately on Apply
 
       ### Important Notes
       - Removing a column deletes all data in that column permanently
@@ -105,13 +101,13 @@ sections:
   - category: chat
     topic: data-proposals
     title: Data Proposals
-    summary: How bulk data operations work — adds, updates, deletes as reviewable proposal cards
+    summary: How bulk data operations work — adds, updates, deletes previewed inline in the table
     roles: [member, org_admin, platform_admin]
     order: 2
     content: |
       ## Data Proposals
 
-      A **Data Proposal** is how the chat assistant proposes bulk data changes. Any request involving multiple rows — adding, updating, or deleting — goes through a proposal card.
+      A **Data Proposal** is how the chat assistant proposes bulk data changes. Any request involving multiple rows — adding, updating, or deleting — is previewed inline in the table.
 
       ### When Data Proposals Are Used
 
@@ -124,21 +120,21 @@ sections:
 
       For a single explicit row (e.g., "Add a bug called Login timeout"), the assistant uses a direct tool instead — no proposal needed.
 
-      ### What the Proposal Card Shows
+      ### How Proposals Appear
 
-      Operations are grouped by type:
-      - **Additions** (green): New rows with all column values shown
-      - **Updates** (amber): Existing rows with changed values highlighted
-      - **Deletions** (red): Rows to be deleted
+      Proposed changes are shown directly in the table:
+      - **Additions** (green): New rows appear at the top with a green highlight and left border
+      - **Updates** (amber): Existing rows show changed cells highlighted in amber
+      - **Deletions** (red): Rows to be deleted are shown with a red highlight and reduced opacity
 
-      Each operation has a checkbox. A summary line shows counts: "3 additions, 2 updates, 1 deletion"
+      An action bar appears above the table with a summary (e.g., "3 additions, 2 updates, 1 deletion"), checkboxes to toggle individual operations, and **Apply** / **Dismiss** buttons.
 
       ### Reviewing and Applying
 
-      1. Review the proposed changes in the proposal card — each row is shown with its data
-      2. Uncheck any operations you don't want
+      1. Review the proposed changes highlighted inline in the table
+      2. Uncheck any operations you don't want in the action bar
       3. Click **Apply** to execute the checked operations
-      4. Watch the progress bar as changes are applied one by one
+      4. Watch the progress as changes are applied one by one
       5. When complete, click **Done** — the data table refreshes
 
       ### How Apply Works
@@ -148,7 +144,7 @@ sections:
       - Each update modifies a row via the API
       - Each delete removes a row via the API
 
-      This means some operations can succeed even if others fail. The card shows progress (pending → done or error) for each operation.
+      This means some operations can succeed even if others fail. The action bar shows progress for each operation.
 
       ### Tips
       - For bulk updates, the assistant reads your data first to find matching rows by row ID
@@ -159,13 +155,13 @@ sections:
   - category: chat
     topic: single-operations
     title: Single-Row Operations via Chat
-    summary: Quick adds, edits, and deletes using direct tools — no proposal card needed
+    summary: Quick adds, edits, and deletes using direct tools — no proposal needed
     roles: [member, org_admin, platform_admin]
     order: 3
     content: |
       ## Single-Row Operations via Chat
 
-      For simple, single-row changes, the chat assistant acts immediately using tools — no proposal card to review.
+      For simple, single-row changes, the chat assistant acts immediately using tools — no proposal to review.
 
       ### Adding a Single Row
       - "Add a bug: Login page crashes on Safari, Critical, Open"
@@ -263,35 +259,39 @@ sections:
     content: |
       ## Enriching Data with Web Research
 
-      The chat assistant can automatically research each row in your table and fill in missing information using the **for_each_row** tool.
+      The chat assistant can automatically research each row in your table and fill in missing information using the **enrich_column** tool.
 
       ### How It Works
 
       When you ask to fill in a column based on web research:
-      1. The assistant first fetches the matching rows and shows them to you
-      2. It explains the planned operation and asks for your confirmation
-      3. On confirmation, it calls **for_each_row** with the specific row IDs
-      4. For each row, **research_web** searches the web and reads pages to find the value
-      5. You can watch the progress as each row is researched (search queries, page fetches)
-      6. All results are presented as a **Data Proposal** card in the chat for you to review
-      7. You can uncheck any incorrect results, then click **Apply**
+      1. The assistant identifies the target column and rows to enrich
+      2. It calls **enrich_column** with the appropriate strategy (lookup, research, or computation)
+      3. For each row, the enrichment agent searches the web and reads pages to find the value
+      4. You can watch the progress as each row is processed (search queries, page fetches)
+      5. All results appear inline in the table — updated cells are highlighted in amber
+      6. An action bar lets you expand the research log, uncheck any results, and click **Apply** or **Dismiss**
+
+      ### Enrichment Strategies
+
+      - **Lookup**: Simple factual lookups with definitive answers — "Find the founding year for each company"
+      - **Research**: Multi-source web research that synthesizes findings — "Summarize recent news about each company"
+      - **Computation**: Derive values from existing columns — "Calculate Price × Quantity"
 
       ### Examples
 
-      - "For each company in California, find their LinkedIn URL"
+      - "For each company, find their LinkedIn URL"
       - "Look up the website for each company"
       - "Find the headquarters city for each organization"
       - "Research the founding year for each company"
+      - "Add a column for Company Size and research it for each row"
 
       ### How to Use
 
-      1. Make sure your table has the target column (e.g., "LinkedIn URL")
-      2. Ask the assistant: "For each company, look up their LinkedIn URL"
-      3. The assistant shows you the matching rows and explains what it will do
-      4. Confirm the operation
-      5. Watch the research progress (searching, fetching pages)
-      6. Review the Data Proposal card showing all found values
-      7. Uncheck any incorrect results, then click **Apply**
+      1. Make sure your table has the target column (or ask the assistant to add one first)
+      2. Ask the assistant: "Look up the LinkedIn URL for each company"
+      3. Watch the research progress as each row is processed
+      4. Review the proposed changes highlighted inline in the table
+      5. Uncheck any incorrect results in the action bar, then click **Apply**
 
       ### Bulk Transformations (No Web Required)
 
@@ -302,7 +302,7 @@ sections:
 
       ### Key Points
 
-      - Results are always presented as a Data Proposal card — nothing changes until you click **Apply**
+      - Results appear inline in the table — nothing changes until you click **Apply**
       - You can uncheck individual row updates you don't want before applying
-      - The assistant always asks for confirmation before starting the research
-      - The research tool processes up to 20 rows per call — for larger tables, the assistant runs multiple batches
+      - Multiple enrichment calls (e.g., filling two columns) are automatically merged into one proposal
+      - The enrichment tool processes up to 200 rows per call

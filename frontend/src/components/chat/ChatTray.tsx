@@ -372,8 +372,12 @@ export default function ChatTray({
                     messageIndex
                 };
                 const suppress = onPayloadReceived?.(payloadInfo);
-                setPendingPayload(payloadInfo);
-                if (!suppress) {
+                if (suppress) {
+                    // Parent handled this payload inline (e.g. table proposal)
+                    // — don't show pending banner or floating panel
+                    setPendingPayload(null);
+                } else {
+                    setPendingPayload(payloadInfo);
                     // Auto-open the payload panel
                     setActivePayload(payloadInfo);
                 }

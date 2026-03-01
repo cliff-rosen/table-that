@@ -775,8 +775,8 @@ async def execute_enrich_column(
     summary = (
         f"Enriched {total} rows for '{target_col_name}' using {strategy.display_name}. "
         f"Found values for {found_count} rows, {skipped} not found. "
-        f"Results have been automatically presented to the user as a "
-        f"Data Proposal card with a full research trace. "
+        f"Results are now shown inline in the table — updated cells are highlighted "
+        f"and the user can review, uncheck, and Apply or Dismiss. "
         f"IMPORTANT: Do NOT write a DATA_PROPOSAL in your response — "
         f"it is already delivered via the tool payload. "
         f"Do NOT call research_web or other tools to retry failed rows. "
