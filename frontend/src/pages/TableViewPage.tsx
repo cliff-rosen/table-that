@@ -408,7 +408,6 @@ export default function TableViewPage() {
           table_name: table.name,
         }}
         onPayloadReceived={proposal.handlePayload}
-        proposalActive={proposal.active}
       />
 
       {/* Main content */}
