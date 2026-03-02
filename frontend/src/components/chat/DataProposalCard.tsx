@@ -800,9 +800,9 @@ export default function DataProposalCard({ data, onAccept, onReject, onExecuteOp
             Cancel
           </Button>
           <Button
-            size="sm"
             onClick={handleApply}
             disabled={selectedCount === 0}
+            className="bg-green-600 hover:bg-green-700 text-white px-5"
           >
             Apply {selectedCount === totalCount
               ? `All ${totalCount} ${parts.length === 1 ? parts[0].replace(/^\d+ /, '') : 'Changes'}`

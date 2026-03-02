@@ -363,9 +363,9 @@ export default function SchemaProposalCard({ data, columns, onAccept, onReject }
           Cancel
         </Button>
         <Button
-          size="sm"
           onClick={handleApply}
           disabled={selectedCount === 0}
+          className="bg-green-600 hover:bg-green-700 text-white px-5"
         >
           {isCreate
             ? (selectedCount === totalCount

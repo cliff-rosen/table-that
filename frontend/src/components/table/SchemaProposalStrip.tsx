@@ -57,7 +57,7 @@ export default function SchemaProposalStrip({
             <Button variant="outline" size="sm" onClick={onDismiss} disabled={applying}>
               Dismiss
             </Button>
-            <Button size="sm" onClick={onApply} disabled={applying}>
+            <Button onClick={onApply} disabled={applying} className="bg-green-600 hover:bg-green-700 text-white px-5">
               {applying ? 'Applying...' : 'Apply'}
             </Button>
           </div>

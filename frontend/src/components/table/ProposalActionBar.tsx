@@ -106,9 +106,9 @@ export default function ProposalActionBar({
                 Dismiss
               </Button>
               <Button
-                size="sm"
                 onClick={onApply}
                 disabled={selectedCount === 0}
+                className="bg-green-600 hover:bg-green-700 text-white px-5"
               >
                 Apply{' '}
                 {selectedCount === totalCount
