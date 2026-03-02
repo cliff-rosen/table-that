@@ -250,10 +250,18 @@ export function useTableProposal(
   }, []);
 
   const dismiss = useCallback(() => {
+    const wasData = proposal?.kind === 'data';
+    const wasSchema = proposal?.kind === 'schema';
     setProposal(null);
     resetDataState();
     resetSchemaState();
-  }, [resetDataState, resetSchemaState]);
+    // Inform the LLM that the proposal was dismissed so it stays in sync
+    if (wasData) {
+      sendMessage(`[User dismissed the data proposal without applying changes.]`);
+    } else if (wasSchema) {
+      sendMessage(`[User dismissed the schema proposal without applying changes.]`);
+    }
+  }, [proposal, resetDataState, resetSchemaState, sendMessage]);
 
   const handlePayload = useCallback((payload: { type: string; data: any; messageIndex: number }): boolean => {
     if (payload.type === 'data_proposal') {

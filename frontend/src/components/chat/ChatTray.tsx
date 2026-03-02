@@ -32,6 +32,8 @@ interface ChatTrayProps {
     resizable?: boolean;
     /** Callback when a payload is detected. Return true to suppress the floating panel. */
     onPayloadReceived?: (payload: { type: string; data: any; messageIndex: number }) => boolean;
+    /** When true, a proposal is active and the user must accept/dismiss before chatting */
+    proposalActive?: boolean;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -179,6 +181,7 @@ export default function ChatTray({
     maxWidth = 600,
     resizable = true,
     onPayloadReceived,
+    proposalActive = false,
 }: ChatTrayProps) {
 
     // Width state with localStorage persistence
@@ -434,7 +437,7 @@ export default function ChatTray({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        if (input.trim() && !isLoading) {
+        if (input.trim() && !isLoading && !proposalActive) {
             trackEvent('chat_message_send', { page: initialContext?.current_page });
             sendMessage(input.trim(), InteractionType.TEXT_INPUT);
             setInput('');
@@ -847,11 +850,17 @@ export default function ChatTray({
 
                     {/* Input */}
                     <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                        {proposalActive && (
+                            <div className="mb-2 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg">
+                                Please accept or dismiss the proposed changes before sending a new message.
+                            </div>
+                        )}
                         <form onSubmit={handleSubmit} className="flex items-end gap-2">
                             <textarea
                                 ref={inputRef}
                                 value={input}
                                 onChange={(e) => {
+                                    if (proposalActive) return;
                                     setInput(e.target.value);
                                     // Auto-resize
                                     e.target.style.height = 'auto';
@@ -863,14 +872,15 @@ export default function ChatTray({
                                         handleSubmit(e);
                                     }
                                 }}
-                                placeholder="Type your message..."
+                                placeholder={proposalActive ? "Accept or dismiss changes first..." : "Type your message..."}
+                                disabled={proposalActive}
                                 rows={1}
-                                className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
+                                className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading || proposalActive ? 'opacity-50' : ''}`}
                                 style={{ minHeight: '36px', maxHeight: '150px' }}
                             />
                             <button
                                 type="submit"
-                                disabled={!input.trim() || isLoading}
+                                disabled={!input.trim() || isLoading || proposalActive}
                                 className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                             >
                                 <PaperAirplaneIcon className="h-4 w-4" />

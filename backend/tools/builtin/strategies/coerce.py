@@ -44,6 +44,18 @@ _NOT_FOUND_SENTINELS = {
     "",
 }
 
+# Regex patterns that indicate the LLM is explaining it couldn't find an answer
+# rather than returning an actual value. These catch natural-language "not found"
+# responses that don't match the exact sentinels above.
+_NOT_FOUND_PATTERNS = [
+    re.compile(r"(?:i\s+)?(?:couldn'?t|could\s+not|was\s+(?:not\s+)?unable\s+to|wasn'?t\s+able\s+to)\s+(?:find|determine|locate|identify|discover|verify|confirm)", re.IGNORECASE),
+    re.compile(r"(?:no|not\s+any)\s+(?:\w+\s+)?(?:email|address|phone|contact|website|url|information|data|results?|answer)\s+(?:was|were|could\s+be)\s+found", re.IGNORECASE),
+    re.compile(r"(?:unable|impossible)\s+to\s+(?:find|determine|locate|identify|discover|verify)", re.IGNORECASE),
+    re.compile(r"(?:there\s+(?:is|are|was|were)\s+no|does\s+not\s+(?:appear|seem)\s+to\s+(?:have|be))\s+(?:(?:a|an|any)\s+)?(?:publicly\s+)?(?:available|known|listed)", re.IGNORECASE),
+    re.compile(r"^(?:i\s+)?(?:did\s+not|didn'?t)\s+find\b", re.IGNORECASE),
+    re.compile(r"information\s+(?:is|was)\s+not\s+(?:publicly\s+)?(?:available|found|listed|accessible)", re.IGNORECASE),
+]
+
 
 def strip_preamble(text: str) -> str:
     """Remove common LLM preamble phrases so the answer is a clean value."""
@@ -70,7 +82,17 @@ def is_not_found(value: Optional[str]) -> bool:
     # Catch error messages from failed tool calls
     if stripped.lower().startswith("error:"):
         return True
-    return stripped.lower().rstrip(".") in _NOT_FOUND_SENTINELS
+    # Exact sentinel match
+    if stripped.lower().rstrip(".") in _NOT_FOUND_SENTINELS:
+        return True
+    # Pattern-based detection: catch LLM natural-language "couldn't find" responses
+    for pattern in _NOT_FOUND_PATTERNS:
+        if pattern.search(stripped):
+            logger.debug(
+                f"is_not_found: pattern match on {stripped[:80]!r}"
+            )
+            return True
+    return False
 
 
 def coerce_value(
