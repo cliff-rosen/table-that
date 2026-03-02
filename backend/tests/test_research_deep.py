@@ -99,40 +99,47 @@ _shared_table = None
 
 
 async def _create_test_table():
-    """Create a temp table + seed rows. Returns (table, row_ids)."""
-    async with fresh_session() as session:
-        table_service = TableService(session)
-        row_service = RowService(session)
+    """Create a temp table + seed rows. Returns (table, row_ids).
+    Retries once on stale connection from previous module teardown."""
+    for attempt in range(2):
+        try:
+            async with fresh_session() as session:
+                table_service = TableService(session)
+                row_service = RowService(session)
 
-        table = await table_service.create(
-            user_id=TEST_USER_ID,
-            data=TableCreate(
-                name="__test_research_deep__",
-                description="Temp table for deep research tests",
-                columns=[
-                    ColumnDefinition(id="col_name", name="Name", type="text", required=True),
-                    ColumnDefinition(id="col_founded", name="Founded", type="text"),
-                    ColumnDefinition(
-                        id="col_industry",
-                        name="Industry",
-                        type="select",
-                        options=["Tech", "Finance", "Healthcare"],
+                table = await table_service.create(
+                    user_id=TEST_USER_ID,
+                    data=TableCreate(
+                        name="__test_research_deep__",
+                        description="Temp table for deep research tests",
+                        columns=[
+                            ColumnDefinition(id="col_name", name="Name", type="text", required=True),
+                            ColumnDefinition(id="col_founded", name="Founded", type="text"),
+                            ColumnDefinition(
+                                id="col_industry",
+                                name="Industry",
+                                type="select",
+                                options=["Tech", "Finance", "Healthcare"],
+                            ),
+                        ],
                     ),
-                ],
-            ),
-        )
+                )
 
-        seeds = [
-            {"col_name": "Anthropic", "col_founded": "2021", "col_industry": "Tech"},
-            {"col_name": "Stripe", "col_founded": "2010", "col_industry": "Finance"},
-            {"col_name": "Moderna", "col_founded": "2010", "col_industry": "Healthcare"},
-        ]
-        row_ids = []
-        for data in seeds:
-            row = await row_service.create(table.id, RowCreate(data=data))
-            row_ids.append(row.id)
+                seeds = [
+                    {"col_name": "Anthropic", "col_founded": "2021", "col_industry": "Tech"},
+                    {"col_name": "Stripe", "col_founded": "2010", "col_industry": "Finance"},
+                    {"col_name": "Moderna", "col_founded": "2010", "col_industry": "Healthcare"},
+                ]
+                row_ids = []
+                for data in seeds:
+                    row = await row_service.create(table.id, RowCreate(data=data))
+                    row_ids.append(row.id)
 
-    return table, row_ids
+            return table, row_ids
+        except AttributeError as e:
+            if "'send'" in str(e) and attempt == 0:
+                continue
+            raise
 
 
 async def _delete_test_table(table_id: int):
