@@ -47,6 +47,7 @@ If the user specified specific phases or areas:
 - "core only" → Run Phases 2-5 (need to register first, but focus on core)
 - "phase 1-3" → Run Phases 1-3
 - "cross only" → Run Phase 6
+- "context only" → Run Phase 7 (needs at least one existing table)
 
 ---
 
@@ -251,6 +252,77 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
 
 ---
 
+### Phase 7: Context Integrity
+
+**Flow spec:** `_specs/flows/core-flow.md` — Context Integrity section
+
+> This phase tests that the chat AI operates on the correct table after navigations and chat-mediated changes. Requires at least one table from earlier phases.
+
+#### Prerequisite
+
+The table created in Phase 2 must exist with data. We'll create a second table to test cross-table navigation.
+
+#### 7a. Create a Second Table via Chat Proposal
+
+1. Navigate to `/tables` (tables list)
+2. Open the chat panel (click "Ask AI" if closed)
+3. Type "Create a table called QA Pets with columns: name, species, age"
+4. Wait up to 30 seconds for the schema proposal
+5. Accept the proposal (click Apply or accept in the preview)
+6. **Verify:**
+   - [ ] Navigates to the new table's view page
+   - [ ] Table name shows "QA Pets" (or close) in the header
+   - [ ] Columns match what was proposed
+7. [SCREENSHOT] `qa-7a-second-table.png`
+
+#### 7b. Continue Chatting After Proposal-Created Table
+
+1. Without navigating away, type "What table am I viewing?" (or "What columns does this table have?")
+2. Wait for AI response
+3. **Verify (Context correctness after chat-mediated creation):**
+   - [ ] AI response references the NEW table (QA Pets), not the table from Phase 2
+   - [ ] AI correctly lists the new table's columns (name, species, age)
+   - [ ] AI does NOT mention the old table's columns (company, position, salary, etc.)
+4. [SCREENSHOT] `qa-7b-context-after-create.png`
+
+#### 7c. Navigate to First Table, Verify Context Switch
+
+1. Click the back/navigation link to return to `/tables` (tables list)
+2. Click on the table created in Phase 2 (the job applications table)
+3. Open the chat panel if closed
+4. Type "What table am I viewing?" (or "Describe this table's columns")
+5. Wait for AI response
+6. **Verify (Context switch after navigation):**
+   - [ ] AI response references the FIRST table (job applications), not QA Pets
+   - [ ] AI correctly lists the first table's columns
+   - [ ] Chat panel does NOT show conversation from QA Pets table
+7. [SCREENSHOT] `qa-7c-context-switch.png`
+
+#### 7d. Navigate Back to Second Table, Verify Context Switch
+
+1. Navigate back to `/tables`, then click on "QA Pets"
+2. Open the chat panel if closed
+3. Type "What columns does this table have?"
+4. Wait for AI response
+5. **Verify (Return navigation context):**
+   - [ ] AI response references QA Pets
+   - [ ] AI correctly lists QA Pets columns (name, species, age)
+   - [ ] No references to job applications table
+6. [SCREENSHOT] `qa-7d-context-return.png`
+
+#### 7e. Ask AI to Add Data After Navigation
+
+1. Still on the QA Pets table, type "Add 3 sample pets"
+2. Wait for data proposal
+3. **Verify (Tool targeting after navigation):**
+   - [ ] AI proposes rows for QA Pets (with name, species, age), not for the other table
+   - [ ] Data proposal contains values appropriate for a pets table
+   - [ ] ProposalActionBar appears with correct count
+4. Dismiss the proposal (don't need to apply)
+5. [SCREENSHOT] `qa-7e-data-after-nav.png`
+
+---
+
 ## Cleanup
 
 After all tests, close the browser.
@@ -283,8 +355,9 @@ Write the full report to `_specs/signal/qa-latest.md`, overwriting the previous 
 | 4 | Core Flow Step 3 | Add Column | PASS/FAIL/SKIP | [count] |
 | 5 | Core Flow Step 4 | Enrich | PASS/FAIL/SKIP | [count] |
 | 6 | Cross-Cutting | Session + UI + Console | PASS/FAIL | [count] |
+| 7 | Context Integrity | Table navigation + chat context | PASS/FAIL | [count] |
 
-**Overall: [X/6 phases passed]**
+**Overall: [X/7 phases passed]**
 
 ## DTP Assessment
 
@@ -296,6 +369,7 @@ Write the full report to `_specs/signal/qa-latest.md`, overwriting the previous 
 | 4 | PASS/FAIL/SKIP | PASS/FAIL/SKIP | PASS/FAIL/SKIP | [notes] |
 | 5 | PASS/FAIL/SKIP | PASS/FAIL/SKIP | PASS/FAIL/SKIP | [notes] |
 | 6 | n/a | PASS/FAIL | PASS/FAIL | [notes] |
+| 7 | PASS/FAIL | PASS/FAIL | PASS/FAIL | [notes] |
 
 ## Checklist Coverage
 

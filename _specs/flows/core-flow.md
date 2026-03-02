@@ -369,6 +369,27 @@ The backend suppresses suggestion chips while a proposal is active — the user'
 - [ ] Dark mode: all proposal UI elements render correctly
 - [ ] Mobile/narrow viewport: proposal bars remain usable
 
+### Context Integrity
+
+Verifies that the chat AI always operates on the correct table, especially after navigations and chat-mediated changes (e.g., proposal acceptance that creates a table and navigates).
+
+**After chat-mediated table creation (proposal accept → navigate):**
+- [ ] AI knows the correct table name after accepting a proposal that creates a new table
+- [ ] AI lists the correct columns for the newly created table
+- [ ] AI does not reference columns/data from a previously viewed table
+- [ ] Tool calls (add rows, enrich) target the correct table_id
+
+**After navigating between tables:**
+- [ ] Navigate from Table A to list to Table B: AI references Table B, not Table A
+- [ ] Navigate back to Table A: AI references Table A, not Table B
+- [ ] Chat conversation from Table A does not appear when viewing Table B
+- [ ] Context includes correct columns, row count, and sample rows for current table
+
+**Continued interaction after navigation:**
+- [ ] Asking AI to add rows after navigating to a table targets the correct table
+- [ ] Asking AI to modify schema after navigating targets the correct table
+- [ ] AI's understanding of column types/options matches the current table
+
 ### Error Cases
 
 - [ ] Network error during Apply: error toast, proposal stays active (user can retry)

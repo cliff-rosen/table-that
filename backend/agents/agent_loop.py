@@ -642,6 +642,7 @@ async def _process_tools(
         output_type = "unknown"
         tool_result_str = ""
         tool_result_data = None
+        progress_events: list = []  # Collect ToolProgress events for trace
 
         # Execute tool
         tool_config = tools.get(tool_name)
@@ -686,6 +687,13 @@ async def _process_tools(
                         if cancellation_token.is_cancelled:
                             raise asyncio.CancelledError(f"Tool {tool_name} cancelled during streaming")
                         if isinstance(item, ToolProgress):
+                            progress_events.append({
+                                "stage": item.stage,
+                                "message": item.message,
+                                "progress": item.progress,
+                                "data": item.data,
+                                "elapsed_ms": int((time.time() - tool_start_time) * 1000),
+                            })
                             yield AgentToolProgress(
                                 tool_name=tool_name,
                                 stage=item.stage,
@@ -724,6 +732,13 @@ async def _process_tools(
                     generator_final_result = None
                     for item_type, item_value in items:
                         if item_type == 'progress' and isinstance(item_value, ToolProgress):
+                            progress_events.append({
+                                "stage": item_value.stage,
+                                "message": item_value.message,
+                                "progress": item_value.progress,
+                                "data": item_value.data,
+                                "elapsed_ms": int((time.time() - tool_start_time) * 1000),
+                            })
                             yield AgentToolProgress(
                                 tool_name=tool_name,
                                 stage=item_value.stage,
@@ -778,6 +793,7 @@ async def _process_tools(
             output_type=output_type,
             output_to_model=tool_result_str,
             payload=_safe_serialize(tool_result_data) if tool_result_data else None,
+            progress_events=progress_events if progress_events else None,
             execution_ms=execution_ms,
         )
         tool_calls.append(tool_call)

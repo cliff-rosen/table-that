@@ -17,7 +17,7 @@ import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tools.registry import ToolConfig, register_tool
+from tools.registry import ToolConfig, ToolProgress, ToolResult, register_tool
 
 logger = logging.getLogger(__name__)
 
@@ -523,19 +523,37 @@ async def execute_lookup_web(
     db: AsyncSession,
     user_id: int,
     context: Dict[str, Any],
-) -> str:
-    """Standalone tool executor: quick snippet-based lookup."""
+):
+    """Standalone tool executor: quick snippet-based lookup. Yields ToolProgress for each step."""
     question = params.get("question", "").strip()
     if not question:
-        return "Error: question is required."
+        yield ToolResult(text="Error: question is required.")
+        return
 
     cancel_token = context.get("_cancellation_token")
     answer = "Could not determine an answer."
     async for step in _lookup_web_core(question, 2, db, user_id, cancellation_token=cancel_token):
-        if step["action"] == "answer":
+        action = step["action"]
+        if action == "answer":
             answer = step.get("text") or "Could not determine an answer."
+        elif action == "search":
+            yield ToolProgress(
+                stage="search",
+                message=f"Searching: {step.get('query', '')[:80]}",
+                data={"query": step.get("query"), "detail": step.get("detail")},
+            )
+        elif action == "thinking":
+            yield ToolProgress(
+                stage="thinking",
+                message=step.get("text", "")[:120],
+            )
+        elif action == "error":
+            yield ToolProgress(
+                stage="error",
+                message=step.get("detail", ""),
+            )
 
-    return answer
+    yield ToolResult(text=answer)
 
 
 register_tool(ToolConfig(
@@ -559,7 +577,7 @@ register_tool(ToolConfig(
     executor=execute_lookup_web,
     category="web",
     is_global=True,
-    streaming=False,
+    streaming=True,
 ))
 
 
@@ -749,24 +767,31 @@ async def execute_research_web(
     db: AsyncSession,
     user_id: int,
     context: Dict[str, Any],
-) -> str:
+):
     """
-    Standalone tool executor: runs the research loop and returns the final answer.
-    Progress steps are consumed silently (not streamed to frontend).
-    When called from strategies, use _research_web_core directly to get progress.
+    Standalone tool executor: runs the research loop and yields ToolProgress for each step.
+    When called from strategies, use _research_web_core directly.
     """
     query = params.get("query", "").strip()
     if not query:
-        return "Error: query is required."
+        yield ToolResult(text="Error: query is required.")
+        return
 
     thoroughness = params.get("thoroughness", "exploratory")
     if thoroughness not in ("exploratory", "comprehensive"):
-        return "Error: thoroughness must be 'exploratory' or 'comprehensive'."
+        yield ToolResult(text="Error: thoroughness must be 'exploratory' or 'comprehensive'.")
+        return
 
     max_steps = min(max(params.get("max_steps", 5), 1), 8)
     # Comprehensive gets more steps
     if thoroughness == "comprehensive":
         max_steps = min(max(max_steps, 8), 15)
+
+    yield ToolProgress(
+        stage="starting",
+        message=f"Research ({thoroughness}): {query[:80]}",
+        data={"thoroughness": thoroughness, "max_steps": max_steps},
+    )
 
     cancel_token = context.get("_cancellation_token")
     answer = "Could not determine an answer."
@@ -774,10 +799,33 @@ async def execute_research_web(
         query, max_steps, db, user_id,
         cancellation_token=cancel_token, thoroughness=thoroughness,
     ):
-        if step["action"] == "answer":
+        action = step["action"]
+        if action == "answer":
             answer = step.get("text") or "Could not determine an answer."
+        elif action == "search":
+            yield ToolProgress(
+                stage="search",
+                message=f"Searching: {step.get('query', '')[:80]}",
+                data={"query": step.get("query"), "detail": step.get("detail")},
+            )
+        elif action == "fetch":
+            yield ToolProgress(
+                stage="fetch",
+                message=f"Reading: {step.get('url', '')[:80]}",
+                data={"url": step.get("url"), "detail": step.get("detail")},
+            )
+        elif action == "thinking":
+            yield ToolProgress(
+                stage="thinking",
+                message=step.get("text", "")[:120],
+            )
+        elif action == "error":
+            yield ToolProgress(
+                stage="error",
+                message=step.get("detail", ""),
+            )
 
-    return answer
+    yield ToolResult(text=answer)
 
 
 register_tool(ToolConfig(
@@ -812,5 +860,5 @@ register_tool(ToolConfig(
     executor=execute_research_web,
     category="web",
     is_global=True,
-    streaming=False,
+    streaming=True,
 ))
