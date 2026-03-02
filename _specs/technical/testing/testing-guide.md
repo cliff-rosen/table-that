@@ -4,6 +4,20 @@
 
 ---
 
+## What can I run?
+
+| Test | What it tests | Command | Results |
+|------|--------------|---------|---------|
+| **Auth flow** | Registration, login, auth guards, profile | `cd backend && python -m pytest tests/test_auth_flow.py -v -s` | `backend/tests/results/auth_flow_results.md` |
+| **Core flow** | Create table, add rows, add columns, update rows, isolation | `cd backend && python -m pytest tests/test_core_flow.py -v -s` | `backend/tests/results/core_flow_results.md` |
+| **Tool tests** | Tool executors, web search/research, enrichment strategies | `cd backend && python -m pytest tests/test_tools.py -v -s` | `backend/tests/results/tool_test_results.md` |
+| **All API tests** | All of the above combined (49 tests, ~90s) | `cd backend && python -m pytest tests/test_auth_flow.py tests/test_core_flow.py tests/test_tools.py -v -s` | All three files above |
+| **QA Walkthrough** | Full browser UX — landing page through AI enrichment | `/qa-walkthrough` | `_specs/signal/qa-latest.md` |
+
+All pytest tests require the backend running at `http://localhost:8000`. QA Walkthrough also requires the frontend at `http://192.168.0.12:5173` and Playwright MCP.
+
+---
+
 ## Conceptual Model
 
 ### Test depth (what calls what)
