@@ -63,10 +63,14 @@ def strip_preamble(text: str) -> str:
 
 
 def is_not_found(value: Optional[str]) -> bool:
-    """Check if a value is a not-found sentinel."""
+    """Check if a value is a not-found sentinel or an error message."""
     if not value:
         return True
-    return value.strip().lower().rstrip(".") in _NOT_FOUND_SENTINELS
+    stripped = value.strip()
+    # Catch error messages from failed tool calls
+    if stripped.lower().startswith("error:"):
+        return True
+    return stripped.lower().rstrip(".") in _NOT_FOUND_SENTINELS
 
 
 def coerce_value(

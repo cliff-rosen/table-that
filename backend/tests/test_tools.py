@@ -351,6 +351,68 @@ class TestStandaloneTools:
             results.set_error(str(e))
         results.finish_test()
 
+    async def test_fetch_webpage_zillow(self, db, results):
+        results.start_test(
+            "fetch_webpage: Zillow (CloudFront)",
+            SECTION_1,
+            'url="https://www.zillow.com/homedetails/123-Main-St/"',
+        )
+        try:
+            from tools.builtin.web import execute_fetch_webpage
+
+            out = await execute_fetch_webpage(
+                {"url": "https://www.zillow.com"}, db, TEST_USER_ID, {}
+            )
+            results.set_output(out[:500] if len(out) > 500 else out)
+            # Should get 200 with real content (not a 403)
+            results.set_passed("Error:" not in out and len(out) > 200)
+        except Exception as e:
+            results.set_error(str(e))
+        results.finish_test()
+
+    async def test_fetch_webpage_streeteasy(self, db, results):
+        results.start_test(
+            "fetch_webpage: StreetEasy (CloudFront)",
+            SECTION_1,
+            'url="https://streeteasy.com"',
+        )
+        try:
+            from tools.builtin.web import execute_fetch_webpage
+
+            out = await execute_fetch_webpage(
+                {"url": "https://streeteasy.com"}, db, TEST_USER_ID, {}
+            )
+            results.set_output(out[:500] if len(out) > 500 else out)
+            # Should get 200 with real content (not a 403)
+            results.set_passed("Error:" not in out and len(out) > 200)
+        except Exception as e:
+            results.set_error(str(e))
+        results.finish_test()
+
+    async def test_fetch_webpage_blocked_graceful(self, db, results):
+        results.start_test(
+            "fetch_webpage: apartments.com (Akamai, expect graceful error)",
+            SECTION_1,
+            'url="https://www.apartments.com"',
+        )
+        try:
+            from tools.builtin.web import execute_fetch_webpage
+
+            out = await execute_fetch_webpage(
+                {"url": "https://www.apartments.com"}, db, TEST_USER_ID, {}
+            )
+            results.set_output(out[:500] if len(out) > 500 else out)
+            # Akamai will likely 403 — we want a clean Error: string, not a crash
+            # Pass if we got content (unlikely) OR a clean error with 403
+            if "Error:" in out:
+                results.set_passed("403" in out)
+            else:
+                # Got through — also fine
+                results.set_passed(len(out) > 100)
+        except Exception as e:
+            results.set_error(str(e))
+        results.finish_test()
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Phase 2: Core Generators (step dict traces)

@@ -21,11 +21,30 @@ from tools.registry import ToolConfig, register_tool
 
 logger = logging.getLogger(__name__)
 
-CHROME_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
-)
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Cache-Control": "max-age=0",
+}
+
+# Backward-compat alias
+CHROME_USER_AGENT = BROWSER_HEADERS["User-Agent"]
 
 
 # =============================================================================
@@ -148,7 +167,7 @@ async def execute_fetch_webpage(
         async with httpx.AsyncClient(
             timeout=30.0,
             follow_redirects=True,
-            headers={"User-Agent": CHROME_USER_AGENT},
+            headers=BROWSER_HEADERS,
         ) as client:
             resp = await client.get(url)
             resp.raise_for_status()
@@ -196,6 +215,13 @@ async def execute_fetch_webpage(
 
         return "\n".join(line for line in result_lines if line or line == "")
 
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 403:
+            return f"Error: Access denied (403) for {url} — site blocked automated access"
+        elif status == 429:
+            return f"Error: Rate limited (429) for {url} — too many requests"
+        return f"Error: HTTP {status} fetching {url}"
     except httpx.HTTPError as e:
         logger.warning(f"Webpage fetch failed for {url}: {e}")
         return f"Error: Failed to fetch {url} — {e}"
