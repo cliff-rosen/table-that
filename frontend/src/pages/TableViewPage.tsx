@@ -39,7 +39,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, sendMessage, messages, isLoading } = useChatContext();
+  const { updateContext, sendMessage, messages } = useChatContext();
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,9 +61,8 @@ export default function TableViewPage() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedRef = useRef(false);
 
-  // Track message count for auto-refresh after tool execution
-  const prevMessageCountRef = useRef(messages.length);
-  const wasLoadingRef = useRef(false);
+  // Track which messages we've already checked for data-tool usage
+  const lastCheckedIndexRef = useRef(0);
 
   // -----------------------------------------------------------------------
   // Fetch table definition
@@ -172,21 +171,23 @@ export default function TableViewPage() {
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
   useEffect(() => {
-    // Detect transition from loading → not loading (response complete)
-    if (wasLoadingRef.current && !isLoading && messages.length > prevMessageCountRef.current) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === 'assistant' && lastMsg.tool_history) {
-        const usedDataTool = lastMsg.tool_history.some(
+    if (messages.length <= lastCheckedIndexRef.current) return;
+
+    // Check only new messages since last check
+    for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg?.role === 'assistant' && msg.tool_history) {
+        const usedDataTool = msg.tool_history.some(
           (t) => DATA_TOOLS.includes(t.tool_name)
         );
         if (usedDataTool) {
           fetchRows();
+          break;
         }
       }
     }
-    wasLoadingRef.current = isLoading;
-    prevMessageCountRef.current = messages.length;
-  }, [isLoading, messages, fetchRows]);
+    lastCheckedIndexRef.current = messages.length;
+  }, [messages, fetchRows]);
 
   // -----------------------------------------------------------------------
   // Handlers

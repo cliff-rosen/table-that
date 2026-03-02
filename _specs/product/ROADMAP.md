@@ -28,6 +28,7 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | #21 | P1 | QUALITY | T | fetch_webpage 403s on bot-protected sites (Zillow, StreetEasy, etc.) | open | 2026-02-27 | |
 | #30 | P1 | QUALITY | T | Chat cancel functionality not correctly implemented | open | 2026-03-01 | |
 | #31 | P2 | QUALITY | P | Tool history renders poorly during streaming | open | 2026-03-01 | |
+| #36 | P1 | QUALITY | T | CHAT_MAX_TOKENS too low (4096) — long responses truncated | open | 2026-03-02 | |
 
 ## Features
 
@@ -48,7 +49,7 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | #18 | P2 | META | D | Harvest orchestration guidelines from Google Drive | open | 2026-02-27 | |
 | #19 | P1 | AI | T | Recommendations tool via SerpAPI | open | 2026-02-27 | |
 | #20 | P1 | INFRA | T | Persistent Job Architecture for Long-Running Agents | open | 2026-02-27 | |
-| #22 | P1 | CORE | D,P | Direct update policy, audit log, and frontend staleness | open | 2026-02-27 | |
+| #22 | P1 | CORE | D,P | Graduated trust model for data proposals (manual-first, auto-apply opt-in, requires #35) | open | 2026-02-27 | |
 | #23 | P1 | GROWTH | — | User journey stage tracking (build → populate → organize → enrich) | open | 2026-02-27 | |
 | #24 | P1 | GROWTH | — | Shareable tables (public links, no-login viewing, viral distribution) | open | 2026-02-27 | |
 | #27 | P1 | CORE | P | Direct UI triggers for column enrichment (bypass chat) | open | 2026-03-01 | |
@@ -56,6 +57,8 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | #33 | P1 | CORE | P,T | Column-level entity types (URL, email, phone, address, etc.) | open | 2026-03-01 | |
 | #28 | P1 | GROWTH | P | First-time empty state and onboarding (templates, suggested prompts, guided first table) | open | 2026-03-01 | |
 | #29 | P1 | CORE | P | Visual impact for core operations (animations for schema creation, data population, enrichment) | open | 2026-03-01 | |
+| #34 | P2 | CORE | T,P | Assets/files document space (user-uploaded or chat-generated, global or table-scoped) | open | 2026-03-02 | |
+| #35 | P1 | CORE | T | Data checkpointing for undo and analysis (snapshot table state at each mutation) | open | 2026-03-02 | |
 
 ## Tasks
 
@@ -134,8 +137,25 @@ Decouple agentic loop execution from client connections so jobs survive disconne
 ### #21 — fetch_webpage 403s on bot-protected sites
 Sites like Zillow, StreetEasy, LinkedIn return 403 Forbidden to the current fetch_webpage tool because it uses a plain HTTP client with no browser fingerprint. Need a headless browser fallback: when a direct fetch gets a 403 or other bot-block signal, retry with a real browser (Playwright/Puppeteer) that renders JavaScript and presents a normal browser fingerprint.
 
-### #22 — Direct update policy, audit log, and frontend staleness
-Three related issues around tool-driven table mutations: (1) **Policy clarity** — establish clear, consistent rules for when the AI uses direct update tools (update_row, delete_row) vs presenting a data_proposal for user approval. Communicate this policy to both the AI (system prompt) and the user (help text). (2) **Audit log with undo** — when the AI makes direct updates, log them in a reviewable history so the user can see what changed and undo individual mutations. Even though the user didn't explicitly approve, the changes should be transparent and reversible. (3) **Frontend staleness** — when a tool mutates table data server-side, the frontend table view doesn't refresh. The user sees a chat message saying "I updated the row" but the table still shows stale data. Need a mechanism to signal the frontend to re-fetch after tool-driven mutations.
+### #22 — Graduated trust model for data proposals
+
+**Core principle:** The user starts in full-control mode and can opt into automation only after they understand it and have a safety net.
+
+**Phase A — Manual review (no dependencies, implement now):**
+- Every data proposal requires explicit review. The user sees the proposal view with row-level checkboxes and an Apply/Dismiss action bar.
+- On the **first data proposal** a user ever receives, include an onboarding moment: explain that changes are always reviewed first, mention that an auto-apply setting exists, and tell them where to find it in settings. Frame it as: "Right now I'll always show you changes for review first. Later you can turn on auto-apply if you want me to just make changes directly."
+- The auto-apply setting exists in the UI but is **disabled/locked** with a tooltip explaining it requires undo support (blocked by #35).
+
+**Phase B — Auto-apply opt-in (requires #35 — checkpointing & undo):**
+- Once #35 ships (table checkpoints + undo button), unlock the auto-apply setting.
+- When the user enables auto-apply, the AI skips the proposal view and applies changes directly — but every mutation creates a checkpoint.
+- A persistent **Undo button** is visible whenever auto-applied changes exist. One click rolls back to the previous checkpoint.
+- The user can still toggle back to manual review at any time.
+
+**Frontend staleness (both phases):**
+- When the AI mutates data (whether via auto-apply or direct tool calls like update_row), the frontend table must refresh. Need a signal mechanism (SSE event or refetch trigger) so the user sees current data immediately after any server-side mutation.
+
+**Depends on:** #35 (data checkpointing) for Phase B.
 
 ### #23 — User journey stage tracking (build → populate → organize → enrich)
 Track each table's progression through the four core stages: (1) **Build** — schema defined, (2) **Populate** — initial data seeded (via AI research, manual entry, or CSV import), (3) **Organize** — user sorts, filters, or rearranges, (4) **Enrich** — for-each-row AI enrichment run. Store the current stage per table and timestamp transitions. This gives us the key PMF signal: where do users drop off? If most tables never get past Build, the population flow is broken. If they populate but never enrich, the enrichment UX needs work. Feed this data into the PMF Director as a primary signal source. Also enables in-product nudges ("Your table has data but no enrichment yet — try adding a column and letting AI research each row").
@@ -161,6 +181,28 @@ Make tables shareable via public link. When a user creates a useful table (resta
 ### #33 — Column-level entity types (URL, email, phone, address, etc.)
 Complement #17 (row-level entity typing) with column-level entity types. Where #17 tells the system "each row is a SaaS Product," this tells it "this column holds URLs" or "this column holds phone numbers." An entity type is a semantic overlay on top of the base column type (text, number, etc.) — it drives rendering (URLs as clickable links, emails as mailto, phones as callable), validation (is this a well-formed URL?), and potentially enrichment behavior (an address column could auto-geocode). Some entity types may require structured/JSON storage — a URL has href + display text + domain; an address has street + city + state + zip — so the column stores richer data than a plain string while the entity type knows how to render and edit it. Start with URL, email, phone; expand to address, currency, rating, etc. based on vertical needs.
 
+### #35 — Data checkpointing for undo and analysis
+Snapshot table data at each state-changing operation so users can undo and so the system can analyze what changed. Every mutation — schema change, data proposal applied, enrichment run, direct tool update, CSV import, manual edit — creates a checkpoint capturing the full table state (or a diff).
+
+**This is a critical prerequisite for #22 Phase B (auto-apply).** The auto-apply setting cannot be unlocked until checkpointing and the undo button ship.
+
+**Deliverables:**
+
+1. **Checkpoint engine** — automatically creates a checkpoint before every state-changing operation. Captures: full row data (or diff), schema state, operation metadata (type, source, timestamp, user/AI attribution). Implementation: full snapshots vs incremental diffs (space vs complexity tradeoff), retention policy (keep all vs prune old ones).
+
+2. **Undo button** — persistent, always-visible control on the table view. One click reverts to the previous checkpoint. Must feel instant and safe — this is the safety net that makes automation trustworthy. Should support multi-level undo (not just one step back).
+
+3. **Time travel / history timeline** — visual log of every checkpoint with diffs showing exactly what changed at each step. User can browse history, preview any past state, and jump back to it. "Go back to before I added those columns" or "undo that enrichment run."
+
+4. **Change analysis** — compare table states across checkpoints. "How many rows changed during that enrichment?" "What percentage of values were overwritten vs added?" "Show me everything the AI changed today." Enables both user insight and system-level analytics.
+
+**Relationship to #22:** Checkpointing is the data layer; #22's graduated trust model is the policy layer. #22 Phase A (manual review) can ship without this. #22 Phase B (auto-apply) is blocked until this ships — because auto-apply without undo is unacceptable.
+
+**Blocks:** #22 Phase B (auto-apply opt-in).
+
+### #34 — Assets/files document space
+Users can upload files or the chat can generate documents (reports, summaries, analysis exports, etc.) that live in a persistent document space. The space can be **global** (accessible across all tables) or **table-specific** (scoped to a single table). This enables persistent artifacts beyond just table data — attached CSVs, generated analysis reports, reference documents, images, prompt templates, etc. Use cases: (1) User uploads a PDF or CSV as reference material for enrichment. (2) Chat generates a summary report and saves it as a document the user can revisit. (3) User attaches supporting files to a table (contracts, screenshots, specs) that live alongside the data. (4) Global documents serve as shared context across tables (company info, style guides, reusable prompts). Needs: document storage model (S3 or equivalent), association to table or global scope, upload UX, chat-driven generation and saving, document viewer/preview, and integration with the AI context (so the assistant can reference uploaded documents during enrichment).
+
 ### #32 — Multi-column enrichment in a single pass
 When enriching multiple related columns (e.g. phone number + website URL for a store, or founded year + CEO for a company), run them in a single per-row loop instead of separate passes. The AI already visits the same sources for both — doing two loops wastes time, API calls, and money. Need a way to define multiple target columns for one enrichment run, where a single research pass extracts all values at once and writes them to their respective columns. This changes the enrichment model from "one column at a time" to "one research question per row that fills N columns."
 
@@ -169,3 +211,6 @@ Chat cancel button needs to be properly written and tested for all cases: cancel
 
 ### #31 — Tool history renders poorly during streaming
 When a chat message is being streamed, tool history shows as a raw list ("tool one, tool two, tool three") instead of proper formatted cards. Once the message is fully streamed, tool history renders correctly as clickable inline chips with the ToolResultCard component. The issue is that during streaming, tool_history isn't available yet (it arrives in the complete event), so the inline `[[tool:N]]` markers in the streaming text don't resolve to cards. Need a better streaming-time representation — either suppress the markers during streaming or show placeholder cards.
+
+### #36 — CHAT_MAX_TOKENS too low (4096) — long responses truncated
+`CHAT_MAX_TOKENS` is set to 4096 in `backend/services/chat_stream_service.py` line 58. This is the `max_tokens` parameter passed to the Claude API for each agent loop turn. With the model being `claude-sonnet-4-20250514`, which supports up to 64k output tokens, 4096 is unnecessarily restrictive. Long responses — especially those containing schema proposals with many columns, data proposals with many rows, or detailed enrichment explanations — will hit the limit and get truncated mid-JSON, breaking payload parsing entirely. Should increase to at least 8192 or 16384. Consider whether it should be configurable per-page or per-operation (e.g., enrichment responses need less, data proposals with 50 rows need more).

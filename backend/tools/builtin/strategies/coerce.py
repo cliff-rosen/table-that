@@ -41,8 +41,43 @@ _NOT_FOUND_SENTINELS = {
     "no data",
     "no result",
     "no answer",
+    "unable to determine",
+    "unable to find",
+    "information not available",
+    "no information available",
+    "no information found",
+    "data not available",
     "",
 }
+
+# Patterns that catch natural-language "I couldn't find it" responses from LLMs.
+# These fire when the LLM paraphrases instead of using the exact sentinel phrase.
+_NOT_FOUND_PATTERNS = [
+    re.compile(
+        r"^I (?:could(?:n't| not)|was(?:n't| not) able to|wasn't able to|cannot|can't|am unable to|was unable to)"
+        r" (?:find|determine|locate|identify|confirm|verify|discover|establish|obtain|access)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:no|there (?:is|was|are|were) no|there (?:doesn't|does not|didn't|did not) (?:appear|seem))"
+        r" .*?(?:information|data|result|answer|evidence|record|detail|mention)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:unfortunately|regrettably),? .*?"
+        r"(?:could(?:n't| not)|unable|no (?:information|data|result|answer))",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:the |this )?(?:information|data|answer|result|value)"
+        r" (?:is|was|could) not (?:be )?(?:found|available|determined|located)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:it (?:is|was) not (?:possible|clear)|not enough (?:information|data))",
+        re.IGNORECASE,
+    ),
+]
 
 
 def strip_preamble(text: str) -> str:
@@ -67,10 +102,19 @@ def is_not_found(value: Optional[str]) -> bool:
     if not value:
         return True
     stripped = value.strip()
+    lower = stripped.lower()
     # Catch error messages from failed tool calls
-    if stripped.lower().startswith("error:"):
+    if lower.startswith("error:"):
         return True
-    return stripped.lower().rstrip(".") in _NOT_FOUND_SENTINELS
+    # Exact sentinel match
+    if lower.rstrip(".") in _NOT_FOUND_SENTINELS:
+        return True
+    # Pattern match for natural-language "I couldn't find it" phrasings
+    for pattern in _NOT_FOUND_PATTERNS:
+        if pattern.search(stripped):
+            logger.debug(f"is_not_found: pattern matched on: {stripped[:120]!r}")
+            return True
+    return False
 
 
 def coerce_value(

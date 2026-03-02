@@ -199,12 +199,19 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
    - [ ] ProposalActionBar appears with progress bar
    - [ ] Progress bar advances as rows are processed
    - [ ] After enrichment: updated cells show green highlight
-5. If enrichment completes with a data proposal, click "Apply"
-6. **Verify:**
+5. **Capture tool call details** — after enrichment completes, take a snapshot and record:
+   - **Tool name:** Look for the ToolResultCard chip in chat (wrench icon + tool name text, e.g., "Enrich Column"). Record the exact tool name shown.
+   - **Strategy used:** Look for the DataProposalCard header title — it will be one of: "AI Lookup Results", "AI Research Results", "AI Comprehensive Research Results", or "AI Enrichment Results". Record which one.
+   - **Strategy badges:** In the Research Log section, look for strategy badges on each row entry: "Lookup", "Research", or "Compute". Record which strategies were used.
+   - **Research log summary:** Record the "N found, N not found" text from the Research Log header.
+   - **Step types observed:** Note which step types appear in expanded research entries (Search, Fetch, Compute, Result, etc.)
+6. [SCREENSHOT] `qa-5-enrichment-complete.png` (capture showing the research log / results card)
+7. If enrichment completes with a data proposal, click "Apply"
+8. **Verify:**
    - [ ] Progress tracking, success banner
    - [ ] Auto-dismisses after completion
    - [ ] Table refreshes with enriched data in target column
-7. [SCREENSHOT] `qa-5-enriched.png`
+9. [SCREENSHOT] `qa-5-enriched.png`
 
 ---
 
@@ -398,7 +405,8 @@ Write the full report to `_specs/signal/qa-latest.md`, overwriting the previous 
 | Apply inserts rows with progress | PASS/FAIL | 3 | |
 | SCHEMA_PROPOSAL (update) for new column | PASS/FAIL/SKIP | 4 | |
 | New column appears with green highlight | PASS/FAIL/SKIP | 4 | |
-| enrich_column tool called | PASS/FAIL/SKIP | 5 | |
+| enrich_column tool called | PASS/FAIL/SKIP | 5 | Tool name: [exact name from ToolResultCard chip] |
+| Strategy and results card | PASS/FAIL/SKIP | 5 | Card title: [exact DataProposalCard header]. Strategies: [badges seen]. Research log: [N found, N not found] |
 | Progress bar during enrichment | PASS/FAIL/SKIP | 5 | |
 | Enriched data applied to table | PASS/FAIL/SKIP | 5 | |
 

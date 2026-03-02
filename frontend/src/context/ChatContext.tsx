@@ -149,6 +149,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         setMessages(prev => [...prev, assistantMessage]);
                         setStreamingText('');
                         setStatusText(null);
+                        setIsLoading(false);
 
                         if (responsePayload.conversation_id) {
                             setChatId(responsePayload.conversation_id);
