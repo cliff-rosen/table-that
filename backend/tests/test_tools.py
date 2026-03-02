@@ -13,8 +13,6 @@ Then browse: tests/results/tool_test_results.md
 
 import logging
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -24,130 +22,12 @@ from database import AsyncSessionLocal
 from schemas.table import ColumnDefinition, RowCreate, TableCreate
 from services.row_service import RowService
 from services.table_service import TableService
+from tests.helpers import ResultsWriter, ResultRecord, StepRecord
 
 logger = logging.getLogger(__name__)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 TEST_USER_ID = 1  # cliff.rosen@gmail.com
-
-RESULTS_DIR = Path(__file__).parent / "results"
-RESULTS_FILE = RESULTS_DIR / "tool_test_results.md"
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ResultsWriter — writes markdown report
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@dataclass
-class StepRecord:
-    action: str
-    detail: str
-    data: Optional[Dict[str, Any]] = None
-
-
-@dataclass
-class ResultRecord:
-    name: str
-    section: str
-    input_desc: str
-    output: Optional[str] = None
-    steps: List[StepRecord] = field(default_factory=list)
-    passed: Optional[bool] = None
-    error: Optional[str] = None
-
-
-class ResultsWriter:
-    """Collects test records and writes a markdown report at the end."""
-
-    def __init__(self):
-        self.records: List[ResultRecord] = []
-        self._current: Optional[ResultRecord] = None
-
-    def start_test(self, name: str, section: str, input_desc: str):
-        self._current = ResultRecord(name=name, section=section, input_desc=input_desc)
-
-    def add_step(self, action: str, detail: str, data: Optional[Dict] = None):
-        if self._current:
-            self._current.steps.append(StepRecord(action=action, detail=detail, data=data))
-
-    def set_output(self, output: str):
-        if self._current:
-            self._current.output = output
-
-    def set_passed(self, passed: bool):
-        if self._current:
-            self._current.passed = passed
-
-    def set_error(self, error: str):
-        if self._current:
-            self._current.error = error
-            self._current.passed = False
-
-    def finish_test(self):
-        if self._current:
-            self.records.append(self._current)
-            self._current = None
-
-    def write(self):
-        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-        sections_order = [
-            "1. Standalone Tools",
-            "2. Core Generators",
-            "3. Table Tools",
-            "4. Strategies",
-        ]
-
-        lines = [
-            f"# Tool Test Results — {now}\n",
-        ]
-
-        # Summary
-        total = len(self.records)
-        passed = sum(1 for r in self.records if r.passed)
-        failed = sum(1 for r in self.records if r.passed is False)
-        lines.append(f"**{passed}/{total} passed** | {failed} failed\n")
-        lines.append("---\n")
-
-        for section in sections_order:
-            section_records = [r for r in self.records if r.section == section]
-            if not section_records:
-                continue
-
-            lines.append(f"## {section}\n")
-
-            for rec in section_records:
-                status = "PASS" if rec.passed else "FAIL"
-                emoji = "+" if rec.passed else "-"
-                lines.append(f"### {emoji} {rec.name} [{status}]\n")
-                lines.append(f"- **Input:** {rec.input_desc}")
-
-                if rec.steps:
-                    lines.append(f"- **Steps:**")
-                    for i, step in enumerate(rec.steps, 1):
-                        detail_short = step.detail[:200] if step.detail else ""
-                        lines.append(f"  {i}. [{step.action}] {detail_short}")
-
-                if rec.output is not None:
-                    output_display = rec.output[:500]
-                    if len(rec.output) > 500:
-                        output_display += "..."
-                    lines.append(f"- **Output:** {output_display}")
-
-                if rec.error:
-                    lines.append(f"- **Error:** {rec.error}")
-
-                lines.append("")
-
-        with open(RESULTS_FILE, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-
-        print(f"\n{'='*60}")
-        print(f"Results written to: {RESULTS_FILE}")
-        print(f"{'='*60}\n")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
