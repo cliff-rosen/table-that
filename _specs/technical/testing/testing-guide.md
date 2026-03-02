@@ -4,17 +4,121 @@
 
 ---
 
-## Overview
+## Conceptual Model
 
-Testing is organized into three layers:
+### Test depth (what calls what)
 
-| Layer | What it tests | How it runs | Speed |
-|-------|--------------|-------------|-------|
-| **API tests** (pytest) | Backend HTTP contract | `python -m pytest` against live server | ~90s for all 49 tests |
-| **QA Walkthrough** (Playwright) | Full UI + AI behavior | `/qa-walkthrough` skill via Claude | ~5-10 minutes |
-| **Tool tests** (pytest) | Internal tool/strategy logic | `python -m pytest` against live DB | ~45s |
+Testing is organized as a stack. The top layer is closest to the user; the bottom layer is deepest in the backend. Each layer exercises the layers below it.
 
-All API and tool tests require the backend to be running. QA Walkthrough requires both backend and frontend dev servers.
+```
+┌─────────────────────────────────────────────────────────┐
+│  QA Walkthrough  (Playwright browser)                   │
+│  Tests: full UX — AI decisions, proposal rendering,     │
+│         chat interaction, visual correctness             │
+│                                                         │
+│  Exercises the same HTTP endpoints as the API tests,    │
+│  but through the real frontend React app.               │
+├────────────────────────┬────────────────────────────────┤
+│  Auth Flow Tests       │  Core Flow Tests               │
+│  (pytest, HTTP)        │  (pytest, HTTP)                │
+│                        │                                │
+│  Tests: backend        │  Tests: backend                │
+│  contract — request/   │  contract — tables,            │
+│  response, status      │  rows, schema updates,         │
+│  codes, auth guards    │  pagination, isolation         │
+├────────────────────────┴────────────────────────────────┤
+│  Tool Tests  (pytest, Python functions)                 │
+│  Tests: internal logic — tool executors, core           │
+│         generators, enrichment strategies               │
+│                                                         │
+│  Calls Python functions directly, not HTTP.             │
+│  Catches logic bugs that API tests would see as         │
+│  wrong output values.                                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Overlap between layers:**
+
+The QA Walkthrough and API tests both exercise the same HTTP endpoints (`POST /api/tables`, `POST /api/auth/register`, etc.), but from different angles:
+
+| | QA Walkthrough | API Tests |
+|---|---|---|
+| **Calls endpoints via** | Browser (React app → fetch) | Python `requests` library |
+| **Also tests** | AI decision quality, proposal UI, visual layout, chat SSE | Nothing beyond the HTTP response |
+| **Speed** | 5-10 minutes | 55 seconds |
+| **Deterministic** | No — AI may not cooperate (phases can SKIP) | Yes — same input always gives same output |
+| **Catches** | Frontend rendering bugs, AI behavior regressions, UX flow breaks | Contract bugs, auth logic, data integrity, isolation |
+
+Tool tests go one level deeper — they skip HTTP entirely and call `execute_compute_value()`, `_lookup_web_core()`, `strategy.execute_one()` as Python functions. They catch bugs in tool logic that the API tests would only see as "wrong value in response."
+
+### Asset dependencies (what each layer needs to run)
+
+```
+                    ┌──────────────────────┐
+                    │     Flow Specs       │
+                    │  (define "correct")  │
+                    ├──────────────────────┤
+                    │ core-flow.md         │
+                    │ new-user-flow.md     │
+                    └──────┬───────┬───────┘
+                           │       │
+              ┌────────────┘       └────────────┐
+              ▼                                 ▼
+┌──────────────────────────┐    ┌───────────────────────────┐
+│   QA Walkthrough Skill   │    │     API Test Suites       │
+│                          │    │                           │
+│ Reads:                   │    │ Reads:                    │
+│  · SKILL.md (phases,     │    │  · conftest.py (APIClient,│
+│    rubric, report fmt)   │    │    fixtures)              │
+│                          │    │  · helpers.py (writers)   │
+│ Needs running:           │    │                           │
+│  · Frontend dev server   │    │ Needs running:            │
+│  · Backend server        │    │  · Backend server         │
+│  · Playwright MCP        │    │                           │
+│                          │    │                           │
+│ Writes:                  │    │ Writes:                   │
+│  · _specs/signal/        │    │  · backend/tests/results/ │
+│    qa-latest.md ─────────┼──┐ │    auth_flow_results.md   │
+│                          │  │ │    core_flow_results.md   │
+└──────────────────────────┘  │ └───────────────────────────┘
+                              │
+                              │  ┌───────────────────────────┐
+                              │  │     Tool Tests            │
+                              │  │                           │
+                              │  │ Reads:                    │
+                              │  │  · helpers.py (writers)   │
+                              │  │                           │
+                              │  │ Needs running:            │
+                              │  │  · Backend (DB + web)     │
+                              │  │                           │
+                              │  │ Writes:                   │
+                              │  │  · backend/tests/results/ │
+                              │  │    tool_test_results.md   │
+                              │  └───────────────────────────┘
+                              │
+                              ▼
+                    ┌──────────────────────┐
+                    │   PMF Director       │
+                    │   reads qa-latest.md │
+                    │   as signal input    │
+                    └──────────────────────┘
+```
+
+The flow specs are the authoritative source of truth. They define what "correct" means for both the QA Walkthrough (which checks each item via browser) and the API tests (which check the subset that's testable via HTTP). The QA Walkthrough skill doc (SKILL.md) translates flow spec checklists into browser test phases. The API tests translate them into pytest assertions.
+
+Results flow downstream: all test layers write reports, but only `qa-latest.md` feeds into the PMF Director signal loop.
+
+---
+
+## Quick reference
+
+| Layer | Command | Speed | Deterministic | Results file |
+|-------|---------|-------|---------------|-------------|
+| Auth flow | `pytest tests/test_auth_flow.py -v -s` | ~25s | Yes | `tests/results/auth_flow_results.md` |
+| Core flow | `pytest tests/test_core_flow.py -v -s` | ~30s | Yes | `tests/results/core_flow_results.md` |
+| Tool tests | `pytest tests/test_tools.py -v -s` | ~45s | Yes | `tests/results/tool_test_results.md` |
+| All pytest | `pytest tests/test_auth_flow.py tests/test_core_flow.py tests/test_tools.py -v -s` | ~90s | Yes | All three |
+| QA Walkthrough | `/qa-walkthrough` | 5-10 min | No | `_specs/signal/qa-latest.md` |
 
 ---
 
