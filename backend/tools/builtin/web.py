@@ -46,6 +46,37 @@ BROWSER_HEADERS = {
 # Backward-compat alias
 CHROME_USER_AGENT = BROWSER_HEADERS["User-Agent"]
 
+# Honest bot headers for sites that prefer transparent identification
+# (e.g. Wikipedia/Wikimedia block fake browser UAs but welcome honest bots)
+BOT_HEADERS = {
+    "User-Agent": "TableThat/1.0 (data research tool; https://table.that)",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+}
+
+# Domains that require honest bot identification — they 403 fake browser UAs
+_BOT_HEADER_DOMAINS = {
+    "wikipedia.org",
+    "wikimedia.org",
+    "wiktionary.org",
+    "wikidata.org",
+    "mediawiki.org",
+}
+
+
+def _headers_for_url(url: str) -> dict:
+    """Pick the right headers based on the target domain."""
+    try:
+        from urllib.parse import urlparse
+        hostname = urlparse(url).hostname or ""
+        for domain in _BOT_HEADER_DOMAINS:
+            if hostname == domain or hostname.endswith("." + domain):
+                return BOT_HEADERS
+    except Exception:
+        pass
+    return BROWSER_HEADERS
+
 
 # =============================================================================
 # search_web
@@ -167,7 +198,7 @@ async def execute_fetch_webpage(
         async with httpx.AsyncClient(
             timeout=30.0,
             follow_redirects=True,
-            headers=BROWSER_HEADERS,
+            headers=_headers_for_url(url),
         ) as client:
             resp = await client.get(url)
             resp.raise_for_status()
