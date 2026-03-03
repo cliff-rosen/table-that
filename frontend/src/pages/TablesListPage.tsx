@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
@@ -17,7 +17,6 @@ import DeleteConfirmModal from '../components/table/DeleteConfirmModal';
 import TableCard from '../components/table/TableCard';
 import { useChatContext } from '../context/ChatContext';
 import ChatTray from '../components/chat/ChatTray';
-import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import ProposedTablePreview from '../components/table/ProposedTablePreview';
 import { applySchemaOperations } from '../lib/utils/schemaOperations';
 import type { SchemaProposalData } from '../lib/utils/schemaOperations';
@@ -105,7 +104,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage, chatId } = useChatContext();
+  const { updateContext, sendMessage, chatId, messages } = useChatContext();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -115,6 +114,7 @@ export default function TablesListPage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
   const prevChatIdRef = useRef<number | null>(null);
+  const lastCheckedIndexRef = useRef(0);
 
   const handleStarterClick = useCallback((prompt: string) => {
     setChatOpen(true);
@@ -185,14 +185,18 @@ export default function TablesListPage() {
     }
   }
 
-  // Intercept create-mode schema proposals to show in main content area
-  const handlePayloadReceived = useCallback((payload: { type: string; data: any; messageIndex: number }) => {
-    if (payload.type === 'schema_proposal' && payload.data?.mode === 'create') {
-      setActiveProposal(payload.data as SchemaProposalData);
-      return true; // suppress floating panel
+  // Detect create-mode schema proposals from chat messages
+  useEffect(() => {
+    if (messages.length <= lastCheckedIndexRef.current) return;
+
+    for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg?.role === 'assistant' && msg.custom_payload?.type === 'schema_proposal' && msg.custom_payload.data?.mode === 'create') {
+        setActiveProposal(msg.custom_payload.data as SchemaProposalData);
+      }
     }
-    return false;
-  }, []);
+    lastCheckedIndexRef.current = messages.length;
+  }, [messages]);
 
   // Handle accept from ProposedTablePreview (supports optional sample data insertion)
   const handleProposalAcceptFromPreview = useCallback(async (proposal: SchemaProposalData, includeSampleData: boolean) => {
@@ -241,57 +245,6 @@ export default function TablesListPage() {
     }
   }, [navigate, updateContext, sendMessage]);
 
-  // Handle accepted schema proposal — create a new table, then continue the conversation.
-  // Sequence: create → update context (ref writes synchronously) → send message → navigate.
-  // Messages and streaming persist in the shared ChatContext across the navigation.
-  const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
-    const columns = applySchemaOperations([], proposalData.operations);
-
-    if (columns.length === 0) {
-      showErrorToast('No columns in the proposal.', 'Invalid Proposal');
-      return;
-    }
-
-    try {
-      const created = await createTable({
-        name: proposalData.table_name || 'Untitled Table',
-        description: proposalData.table_description,
-        columns,
-      });
-      trackEvent('table_create', { method: 'chat', table_id: created.id });
-      showSuccessToast(`Table "${created.name}" created.`);
-
-      // Set table context so the AI can operate on it (contextRef updates synchronously)
-      updateContext({
-        current_page: 'table_view',
-        table_id: created.id,
-        table_name: created.name,
-        table_description: created.description || '',
-        columns: created.columns,
-        row_count: 0,
-        sample_rows: [],
-      });
-
-      // Continue the conversation — sendMessage reads contextRef, which already has table info
-      sendMessage(`[User accepted the schema proposal and created the table "${created.name}".]`);
-
-      // Navigate — messages + streaming persist in shared ChatContext
-      navigate(`/tables/${created.id}`);
-    } catch (error) {
-      showErrorToast(error, 'Failed to create table');
-    }
-  }, [navigate, updateContext, sendMessage]);
-
-  const payloadHandlers = useMemo(() => ({
-    schema_proposal: {
-      render: (payload: any, callbacks: any) => (
-        <SchemaProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
-      ),
-      onAccept: handleSchemaProposalAccept,
-      renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
-    },
-  }), [handleSchemaProposalAccept]);
-
   // Loading skeleton
   if (isLoading) {
     return (
@@ -322,8 +275,6 @@ export default function TablesListPage() {
         initialContext={{
           current_page: 'tables_list',
         }}
-        payloadHandlers={payloadHandlers}
-        onPayloadReceived={handlePayloadReceived}
       />
       <div className="flex-1 min-w-0 min-h-0 overflow-auto">
         <div className="max-w-6xl mx-auto w-full px-6 py-8">

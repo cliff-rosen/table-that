@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
@@ -20,7 +20,6 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import { trackEvent } from '../lib/api/trackingApi';
-import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import { applySchemaOperations, generateColumnId } from '../lib/utils/schemaOperations';
 import type { SchemaProposalData } from '../lib/utils/schemaOperations';
 
@@ -239,8 +238,9 @@ export default function TableEditPage() {
   const [hasChanges, setHasChanges] = useState(false);
 
   // Chat
-  const { updateContext } = useChatContext();
+  const { updateContext, messages } = useChatContext();
   const [chatOpen, setChatOpen] = useState(true);
+  const lastCheckedIndexRef = useRef(0);
 
   // -----------------------------------------------------------------------
   // Fetch table
@@ -353,7 +353,7 @@ export default function TableEditPage() {
   };
 
   // -----------------------------------------------------------------------
-  // Payload Handlers
+  // Schema Proposal Handling
   // -----------------------------------------------------------------------
 
   const handleSchemaProposalAccept = useCallback(async (proposalData: SchemaProposalData) => {
@@ -382,15 +382,18 @@ export default function TableEditPage() {
     }
   }, [columns, name, description, tableId]);
 
-  const payloadHandlers = useMemo(() => ({
-    schema_proposal: {
-      render: (payload: any, callbacks: any) => (
-        <SchemaProposalCard data={payload} columns={columns} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
-      ),
-      onAccept: handleSchemaProposalAccept,
-      renderOptions: { headerTitle: 'Schema Proposal', headerIcon: '📋' },
-    },
-  }), [handleSchemaProposalAccept, columns]);
+  // Detect schema proposals from chat messages
+  useEffect(() => {
+    if (messages.length <= lastCheckedIndexRef.current) return;
+
+    for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg?.role === 'assistant' && msg.custom_payload?.type === 'schema_proposal' && msg.custom_payload.data) {
+        handleSchemaProposalAccept(msg.custom_payload.data as SchemaProposalData);
+      }
+    }
+    lastCheckedIndexRef.current = messages.length;
+  }, [messages, handleSchemaProposalAccept]);
 
   // -----------------------------------------------------------------------
   // Render: loading
@@ -433,7 +436,6 @@ export default function TableEditPage() {
           table_id: table.id,
           table_name: name,
         }}
-        payloadHandlers={payloadHandlers}
       />
 
       {/* Main content */}

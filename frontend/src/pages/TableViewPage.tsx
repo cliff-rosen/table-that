@@ -168,26 +168,39 @@ export default function TableViewPage() {
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
 
-  // Auto-refresh rows when chat executes data-modifying tools
+  // Auto-refresh rows when chat executes data-modifying tools,
+  // and detect incoming payloads for inline proposal rendering
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
   useEffect(() => {
     if (messages.length <= lastCheckedIndexRef.current) return;
 
-    // Check only new messages since last check
+    let needsRefresh = false;
+
     for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg?.role === 'assistant' && msg.tool_history) {
+      if (msg?.role !== 'assistant') continue;
+
+      // Check for data-modifying tools
+      if (msg.tool_history) {
         const usedDataTool = msg.tool_history.some(
           (t) => DATA_TOOLS.includes(t.tool_name)
         );
-        if (usedDataTool) {
-          fetchRows();
-          break;
-        }
+        if (usedDataTool) needsRefresh = true;
+      }
+
+      // Check for payloads (schema/data proposals)
+      if (msg.custom_payload?.type && msg.custom_payload.data) {
+        proposal.handlePayload({
+          type: msg.custom_payload.type,
+          data: msg.custom_payload.data,
+          messageIndex: i,
+        });
       }
     }
+
+    if (needsRefresh) fetchRows();
     lastCheckedIndexRef.current = messages.length;
-  }, [messages, fetchRows]);
+  }, [messages, fetchRows, proposal.handlePayload]);
 
   // -----------------------------------------------------------------------
   // Handlers
@@ -408,7 +421,6 @@ export default function TableViewPage() {
           table_id: table.id,
           table_name: table.name,
         }}
-        onPayloadReceived={proposal.handlePayload}
       />
 
       {/* Main content */}

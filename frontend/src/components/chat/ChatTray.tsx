@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
 import { trackEvent } from '../../lib/api/trackingApi';
-import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
 
-import { InteractionType, PayloadHandler, ToolHistoryEntry, AgentTrace } from '../../types/chat';
+import { InteractionType, ToolHistoryEntry, AgentTrace } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
@@ -15,7 +14,6 @@ const CHAT_ID_KEY = 'chatCurrentConversationId';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
-    payloadHandlers?: Record<string, PayloadHandler>;
     /** Hide the chat tray completely (used when modal takes over) */
     hidden?: boolean;
     /** Whether the chat tray is open */
@@ -30,66 +28,6 @@ interface ChatTrayProps {
     maxWidth?: number;
     /** Whether to allow resizing (default: true) */
     resizable?: boolean;
-    /** Callback when a payload is detected. Return true to suppress the floating panel. */
-    onPayloadReceived?: (payload: { type: string; data: any; messageIndex: number }) => boolean;
-}
-
-function getDefaultHeaderTitle(payloadType: string): string {
-    const titles: Record<string, string> = {
-        'schema_proposal': 'Schema Proposal',
-        'presentation_categories': 'Presentation Categories',
-        'stream_suggestions': 'Stream Suggestions',
-        'portfolio_insights': 'Portfolio Insights',
-        'quick_setup': 'Quick Setup',
-        'validation_results': 'Validation Results',
-        'import_suggestions': 'Import Suggestions'
-    };
-    return titles[payloadType] || 'Details';
-}
-
-function getDefaultHeaderIcon(payloadType: string): string {
-    const icons: Record<string, string> = {
-        'schema_proposal': '📋',
-        'presentation_categories': '📊',
-        'stream_suggestions': '💡',
-        'portfolio_insights': '📊',
-        'quick_setup': '🚀',
-        'validation_results': '✅',
-        'import_suggestions': '📥'
-    };
-    return icons[payloadType] || '✨';
-}
-
-/**
- * Button to view a payload from a message. Shows the payload's icon and title.
- */
-function PayloadButton({
-    payloadType,
-    payloadData,
-    messageIndex,
-    payloadHandlers,
-    onOpen
-}: {
-    payloadType: string;
-    payloadData: unknown;
-    messageIndex: number;
-    payloadHandlers?: Record<string, PayloadHandler>;
-    onOpen: (payload: { type: string; data: unknown; messageIndex: number }) => void;
-}): React.ReactElement | null {
-    const handler = payloadHandlers?.[payloadType] || getPayloadHandler(payloadType);
-    if (!handler) return null;
-
-    const opts = handler.renderOptions || {};
-    return (
-        <button
-            type="button"
-            onClick={() => onOpen({ type: payloadType, data: payloadData, messageIndex })}
-            className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
-        >
-            {opts.headerIcon && <span>{opts.headerIcon}</span>}
-            <span>View {opts.headerTitle || 'Result'}</span>
-        </button>
-    );
 }
 
 /**
@@ -170,7 +108,6 @@ function MessageContent({
 
 export default function ChatTray({
     initialContext,
-    payloadHandlers,
     hidden = false,
     isOpen,
     onOpenChange,
@@ -178,7 +115,6 @@ export default function ChatTray({
     minWidth = 320,
     maxWidth = 600,
     resizable = true,
-    onPayloadReceived,
 }: ChatTrayProps) {
 
     // Width state with localStorage persistence
@@ -237,23 +173,6 @@ export default function ChatTray({
     const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    // Payload that's available but not yet opened by user
-    const [pendingPayload, setPendingPayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
-    // Payload currently being displayed in the panel (user has clicked to view)
-    const [activePayload, setActivePayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
-    // Whether payload panel is shown as fullscreen modal
-    const [payloadMaximized, setPayloadMaximized] = useState(false);
-    // Track which message indices have had their payloads dismissed
-    // Initialize with all existing payloads to prevent auto-opening old payloads on remount
-    const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(() => {
-        const initialDismissed = new Set<number>();
-        messages.forEach((msg, idx) => {
-            if (msg.custom_payload?.type && msg.custom_payload.data) {
-                initialDismissed.add(idx);
-            }
-        });
-        return initialDismissed;
-    });
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
     const [toolsTrace, setToolsTrace] = useState<AgentTrace | undefined>(undefined);
     const [diagnosticsToShow, setDiagnosticsToShow] = useState<AgentTrace | null>(null);
@@ -339,9 +258,6 @@ export default function ChatTray({
     const prevChatIdRef = useRef(chatId);
     useEffect(() => {
         if (chatId === null && prevChatIdRef.current !== null) {
-            setDismissedPayloads(new Set());
-            setPendingPayload(null);
-            setActivePayload(null);
             setToolsToShow(null);
             setToolsTrace(undefined);
             setDiagnosticsToShow(null);
@@ -349,85 +265,19 @@ export default function ChatTray({
         prevChatIdRef.current = chatId;
     }, [chatId]);
 
-    // Detect new payloads and auto-open the panel
-    // Payloads come through custom_payload regardless of source (tool or LLM)
-    useEffect(() => {
-        const messageIndex = messages.length - 1;
-        const latestMessage = messages[messageIndex];
-        if (!latestMessage) return;
-
-        // Check custom_payload - this is where all payloads arrive (from tools or LLM)
-        if (latestMessage.custom_payload?.type && latestMessage.custom_payload.data) {
-            const payloadType = latestMessage.custom_payload.type;
-
-            // Check if we have a handler for this payload type (local or global)
-            const hasLocalHandler = payloadHandlers && payloadHandlers[payloadType];
-            const hasGlobalHandler = getPayloadHandler(payloadType);
-
-            // Auto-open if we have a handler and haven't dismissed this payload
-            if ((hasLocalHandler || hasGlobalHandler) && !dismissedPayloads.has(messageIndex)) {
-                const payloadInfo = {
-                    type: payloadType,
-                    data: latestMessage.custom_payload.data,
-                    messageIndex
-                };
-                const suppress = onPayloadReceived?.(payloadInfo);
-                if (suppress) {
-                    // Parent handled this payload inline (e.g. table proposal)
-                    // — don't show pending banner or floating panel
-                    setPendingPayload(null);
-                } else {
-                    setPendingPayload(payloadInfo);
-                    // Auto-open the payload panel
-                    setActivePayload(payloadInfo);
-                }
-            }
-        }
-    }, [messages, payloadHandlers, dismissedPayloads, onPayloadReceived]);
-
-    // Handle opening the payload panel
-    const handleOpenPayload = useCallback(() => {
-        if (pendingPayload) {
-            setActivePayload({
-                type: pendingPayload.type,
-                data: pendingPayload.data,
-                messageIndex: pendingPayload.messageIndex
-            });
-        }
-    }, [pendingPayload]);
-
-    // Handle closing/dismissing the payload panel
-    const handleClosePayload = useCallback(() => {
-        // Mark this payload as dismissed so it won't re-appear
-        // Use messageIndex from either pendingPayload or activePayload
-        const messageIndex = pendingPayload?.messageIndex ?? activePayload?.messageIndex;
-        if (messageIndex !== undefined) {
-            setDismissedPayloads(prev => new Set(prev).add(messageIndex));
-        }
-        setActivePayload(null);
-        setPendingPayload(null);
-        setPayloadMaximized(false);
-    }, [pendingPayload, activePayload]);
-
-    // Handle full chat reset - clears messages and all payload state
+    // Handle full chat reset
     const handleReset = useCallback(() => {
         reset();
-        setPendingPayload(null);
-        setActivePayload(null);
-        setDismissedPayloads(new Set());
         // Persist "new chat" state so refresh doesn't reload old conversation
         sessionStorage.setItem(CHAT_ID_KEY, 'new');
         // Focus the input after reset
         setTimeout(() => inputRef.current?.focus(), 0);
     }, [reset]);
 
-    // Auto-focus input when tray opens, close payload panel when tray closes
+    // Auto-focus input when tray opens
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
-        } else if (!isOpen) {
-            // Close payload panel when tray closes to prevent stale state
-            setActivePayload(null);
         }
     }, [isOpen]);
 
@@ -619,15 +469,6 @@ export default function ChatTray({
                                                         <span>Diagnostics</span>
                                                     </button>
                                                 )}
-                                                {message.custom_payload?.type && message.custom_payload.data && (
-                                                    <PayloadButton
-                                                        payloadType={message.custom_payload.type}
-                                                        payloadData={message.custom_payload.data}
-                                                        messageIndex={idx}
-                                                        payloadHandlers={payloadHandlers}
-                                                        onOpen={setActivePayload}
-                                                    />
-                                                )}
                                             </>
                                         </div>
                                     </div>
@@ -802,46 +643,6 @@ export default function ChatTray({
                             </div>
                         )}
 
-                        {/* Pending Payload Notification - shows when there's a payload ready to view */}
-                        {pendingPayload && !activePayload && (() => {
-                            const handler = payloadHandlers?.[pendingPayload.type] || getPayloadHandler(pendingPayload.type);
-                            const renderOptions = handler?.renderOptions || {};
-                            const headerTitle = renderOptions.headerTitle || getDefaultHeaderTitle(pendingPayload.type);
-                            const headerIcon = renderOptions.headerIcon || getDefaultHeaderIcon(pendingPayload.type);
-
-                            return (
-                                <div className="mx-2 mb-2">
-                                    <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <span className="text-lg flex-shrink-0">{headerIcon}</span>
-                                                <span className="text-sm font-medium text-blue-900 dark:text-blue-100 truncate">
-                                                    {headerTitle} ready
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                <button
-                                                    type="button"
-                                                    onClick={handleOpenPayload}
-                                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-                                                >
-                                                    View
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleClosePayload}
-                                                    className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded transition-colors"
-                                                    title="Dismiss"
-                                                >
-                                                    <XMarkIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
                         <div ref={messagesEndRef} />
                     </div>
 
@@ -893,94 +694,6 @@ export default function ChatTray({
                     </div>
                 )}
             </div>
-
-            {/* Floating Payload Panel - positioned next to chat tray (or fullscreen modal when maximized) */}
-            {activePayload && (() => {
-                // Check local handlers first, then fall back to global registry
-                const handler = payloadHandlers?.[activePayload.type] || getPayloadHandler(activePayload.type);
-                const renderOptions = handler?.renderOptions || {};
-                const panelWidth = renderOptions.panelWidth || '500px';
-                const headerTitle = renderOptions.headerTitle || getDefaultHeaderTitle(activePayload.type);
-                const headerIcon = renderOptions.headerIcon || getDefaultHeaderIcon(activePayload.type);
-
-                const payloadContent = (
-                    <>
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20 flex-shrink-0">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <span>{headerIcon}</span>
-                                {headerTitle}
-                            </h3>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setPayloadMaximized(!payloadMaximized)}
-                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                    aria-label={payloadMaximized ? 'Restore panel' : 'Maximize panel'}
-                                >
-                                    {payloadMaximized
-                                        ? <ArrowsPointingInIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                                        : <ArrowsPointingOutIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                                    }
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleClosePayload}
-                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                    aria-label="Close panel"
-                                >
-                                    <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Payload Content - scrollable area for card content */}
-                        <div className="flex-1 min-h-0 p-4 overflow-y-auto scrollbar-thin">
-                            {handler ? (
-                                handler.render(activePayload.data, {
-                                    onAccept: (data) => {
-                                        if (handler.onAccept) {
-                                            handler.onAccept(data);
-                                        }
-                                        handleClosePayload();
-                                    },
-                                    onReject: () => {
-                                        if (handler.onReject) {
-                                            handler.onReject(activePayload.data);
-                                        }
-                                        handleClosePayload();
-                                    }
-                                }, { isMaximized: payloadMaximized })
-                            ) : (
-                                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                    <p>No handler configured for payload type: {activePayload.type}</p>
-                                </div>
-                            )}
-                        </div>
-                    </>
-                );
-
-                if (payloadMaximized) {
-                    return (
-                        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1200px] h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
-                                {payloadContent}
-                            </div>
-                        </div>
-                    );
-                }
-
-                return (
-                    <div
-                        className="h-full bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden"
-                        style={{ width: panelWidth }}
-                    >
-                        <div className="flex flex-col h-full">
-                            {payloadContent}
-                        </div>
-                    </div>
-                );
-            })()}
 
             {/* Tool History Panel */}
             {toolsToShow && (
