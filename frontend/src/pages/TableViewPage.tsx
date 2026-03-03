@@ -5,9 +5,17 @@ import {
   PencilSquareIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
+import { showErrorToast, showSuccessToast } from '../lib/errorToast';
+
 import { getTable, updateTable, listRows, createRow, updateRow, deleteRow, bulkDeleteRows, searchRows, exportTableCsv } from '../lib/api/tableApi';
-import type { TableDefinition, TableRow, SortState } from '../types/table';
+import { trackEvent } from '../lib/api/trackingApi';
+import { useTableProposal } from '../hooks/useTableProposal';
 import { useChatContext } from '../context/ChatContext';
+
+import type { TableDefinition, TableRow, SortState } from '../types/table';
+import { applySchemaOperations, type SchemaProposalData } from '../types/schemaProposal';
+import type { DataOperation } from '../types/dataProposal';
+
 import ChatTray from '../components/chat/ChatTray';
 import ImportModal from '../components/table/ImportModal';
 import FilterBar, { applyFilters, type FilterState } from '../components/table/FilterBar';
@@ -15,13 +23,10 @@ import DataTable from '../components/table/DataTable';
 import AddRecordModal from '../components/table/AddRecordModal';
 import TableToolbar from '../components/table/TableToolbar';
 import { Button } from '../components/ui/button';
-import { showErrorToast, showSuccessToast } from '../lib/errorToast';
-import { trackEvent } from '../lib/api/trackingApi';
-import type { DataOperation } from '../types/dataProposal';
 import ProposalActionBar from '../components/table/ProposalActionBar';
 import SchemaProposalStrip from '../components/table/SchemaProposalStrip';
-import { applySchemaOperations, type SchemaProposalData } from '../types/schemaProposal';
-import { useTableProposal } from '../hooks/useTableProposal';
+
+
 
 // =============================================================================
 // TableViewPage (Main)
@@ -149,8 +154,8 @@ export default function TableViewPage() {
       // Build selected rows data for chat context
       const selectedRows = selectedRowIds.size > 0
         ? rows
-            .filter((r) => selectedRowIds.has(r.id))
-            .map((r) => ({ id: r.id, data: r.data }))
+          .filter((r) => selectedRowIds.has(r.id))
+          .map((r) => ({ id: r.id, data: r.data }))
         : undefined;
 
       updateContext({
@@ -455,11 +460,10 @@ export default function TableViewPage() {
               </Button>
               <button
                 onClick={() => { if (!chatOpen) trackEvent('chat_open', { page: 'table_view', table_id: tableId }); setChatOpen((prev) => !prev); }}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
-                  chatOpen
-                    ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'
-                    : 'text-white bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shadow-sm shadow-violet-500/20 hover:shadow-md hover:shadow-violet-500/30'
-                }`}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${chatOpen
+                  ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'
+                  : 'text-white bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shadow-sm shadow-violet-500/20 hover:shadow-md hover:shadow-violet-500/30'
+                  }`}
               >
                 <SparklesIcon className="h-5 w-5" />
                 {chatOpen ? 'Hide AI' : 'Ask AI'}
@@ -529,7 +533,7 @@ export default function TableViewPage() {
             sort={sort}
             onSort={handleSort}
             editingCell={proposal.active ? null : editingCell}
-            onCellClick={proposal.active ? () => {} : handleCellClick}
+            onCellClick={proposal.active ? () => { } : handleCellClick}
             onCellSave={handleCellSave}
             onCellCancel={handleCellCancel}
             onColumnResearch={(columnName) => {
