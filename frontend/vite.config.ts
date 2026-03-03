@@ -14,10 +14,10 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: '0.0.0.0',
-      port: 5173,
+      port: 5174,
       strictPort: true,
       hmr: {
-        clientPort: 5173,
+        clientPort: 5174,
         protocol: 'ws'
       },
       watch: {

@@ -18,7 +18,7 @@ const productionSettings: Settings = {
 };
 
 const developmentSettings: Settings = {
-    apiUrl: isLocalhost ? 'http://localhost:8000' : `http://${currentHost}:8000`,
+    apiUrl: isLocalhost ? 'http://localhost:8001' : `http://${currentHost}:8001`,
     appName: 'table that (Dev)',
     logoUrl: '/logo.png'
 };
