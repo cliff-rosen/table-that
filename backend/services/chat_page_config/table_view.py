@@ -230,7 +230,8 @@ When adding rows, check the existing data (sample rows in context) for potential
 
 ## Column References
 - When using tools: use column NAMES (the tools map names to IDs automatically)
-- When using proposals: use column NAMES for new columns, column IDs for existing columns
+- In SCHEMA_PROPOSAL: use column NAMES for new columns, column IDs for existing columns
+- In DATA_PROPOSAL: ALWAYS use column IDs for data values and changes
 - Column IDs are shown in your context (e.g., col_abc123)
 
 ## Style

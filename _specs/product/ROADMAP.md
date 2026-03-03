@@ -59,6 +59,7 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | #29 | P1 | CORE | P | Visual impact for core operations (animations for schema creation, data population, enrichment) | open | 2026-03-01 | |
 | #34 | P2 | CORE | T,P | Assets/files document space (user-uploaded or chat-generated, global or table-scoped) | open | 2026-03-02 | |
 | #35 | P1 | CORE | T | Data checkpointing for undo and analysis (snapshot table state at each mutation) | open | 2026-03-02 | |
+| #37 | P1 | CORE | D,T,P | Compound transaction flow (schema change → enrichment as a single user intent) | open | 2026-03-03 | |
 
 ## Tasks
 
@@ -211,6 +212,28 @@ Chat cancel button needs to be properly written and tested for all cases: cancel
 
 ### #31 — Tool history renders poorly during streaming
 When a chat message is being streamed, tool history shows as a raw list ("tool one, tool two, tool three") instead of proper formatted cards. Once the message is fully streamed, tool history renders correctly as clickable inline chips with the ToolResultCard component. The issue is that during streaming, tool_history isn't available yet (it arrives in the complete event), so the inline `[[tool:N]]` markers in the streaming text don't resolve to cards. Need a better streaming-time representation — either suppress the markers during streaming or show placeholder cards.
+
+### #37 — Compound transaction flow (schema change → enrichment as a single user intent)
+
+The core enrichment loop often involves a **compound transaction**: a schema change (add column) followed immediately by a data operation (enrich that column). Today these are mechanically separate — the bot proposes a schema change, the user applies it, then in a new turn the bot either suggests enrichment, asks if the user wants it, or sometimes just stops. This creates two problems:
+
+**Problem 1 — Intent loss across turn boundaries.** When a user says "add a website column," the implied intent is "add it *and fill it in*." But the schema proposal consumes the current turn. After the user clicks Apply, the bot gets a new turn with no memory of the original compound intent. Sometimes it follows through, sometimes it asks for unnecessary confirmation, sometimes it just moves on. The system prompt says to recognize this as a single intent, but the two-step mechanic works against it.
+
+**Problem 2 — Choppiness even when it works.** Even when the bot correctly chains schema → enrich, the user experiences: propose schema → review → apply → bot responds → enrichment starts → results stream in. That's a lot of steps for what felt like one request. The intermediate states (empty column exists, waiting for enrichment to start) are visible but not useful.
+
+**Common scenarios affected:**
+- "Add a website column" → schema + enrich (2 steps, obvious intent)
+- "Add columns for website and founding year" → schema + multi-column enrich (2 steps, #32 overlap)
+- "Build me a list of Italian restaurants in Chicago" → create table + populate rows + maybe enrich additional columns (3 steps)
+- "Add a category column and tag each row" → schema (select type) + enrich/classify (2 steps)
+
+**Possible solution directions** (not prescriptive — needs design):
+- **Architectural:** Allow the bot to bundle schema + data operations in a single compound proposal that the user reviews and applies once
+- **Conversational:** Better intent tracking across turn boundaries so the bot reliably proceeds to step 2 after step 1 is applied, without re-asking
+- **UX:** A "plan" view that shows the full intended sequence upfront ("I'll add the column, then research each row") with a single approval
+- **Hybrid:** Schema proposals could carry an `on_apply` intent ("after this is applied, run enrich_column on the new column") that the system executes automatically
+
+Related: #32 (multi-column enrichment), #22 (graduated trust model), #3 (enrichment results UX).
 
 ### #36 — CHAT_MAX_TOKENS too low (4096) — long responses truncated
 `CHAT_MAX_TOKENS` is set to 4096 in `backend/services/chat_stream_service.py` line 58. This is the `max_tokens` parameter passed to the Claude API for each agent loop turn. With the model being `claude-sonnet-4-20250514`, which supports up to 64k output tokens, 4096 is unnecessarily restrictive. Long responses — especially those containing schema proposals with many columns, data proposals with many rows, or detailed enrichment explanations — will hit the limit and get truncated mid-JSON, breaking payload parsing entirely. Should increase to at least 8192 or 16384. Consider whether it should be configurable per-page or per-operation (e.g., enrichment responses need less, data proposals with 50 rows need more).

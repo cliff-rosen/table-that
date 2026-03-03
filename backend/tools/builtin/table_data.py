@@ -687,7 +687,7 @@ async def execute_enrich_column(
                 "operation": {
                     "action": "update",
                     "row_id": row_obj.id,
-                    "changes": {target_col_name: enrichment_value},
+                    "changes": {target_col_id: enrichment_value},
                 },
                 "log": found_log,
             }

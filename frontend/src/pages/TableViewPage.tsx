@@ -320,30 +320,14 @@ export default function TableViewPage() {
   // -----------------------------------------------------------------------
 
   const executeSingleDataOperation = useCallback(async (op: DataOperation) => {
-    if (!table) throw new Error('No table loaded');
-
-    const colNameToId = new Map<string, string>();
-    for (const col of table.columns) {
-      colNameToId.set(col.name.toLowerCase(), col.id);
-    }
-
-    const mapData = (data: Record<string, unknown>): Record<string, unknown> => {
-      const mapped: Record<string, unknown> = {};
-      for (const [key, val] of Object.entries(data)) {
-        const colId = colNameToId.get(key.toLowerCase()) || key;
-        mapped[colId] = val;
-      }
-      return mapped;
-    };
-
     if (op.action === 'add' && op.data) {
-      await createRow(tableId, mapData(op.data));
+      await createRow(tableId, op.data);
     } else if (op.action === 'update' && op.row_id && op.changes) {
-      await updateRow(tableId, op.row_id, mapData(op.changes));
+      await updateRow(tableId, op.row_id, op.changes);
     } else if (op.action === 'delete' && op.row_id) {
       await deleteRow(tableId, op.row_id);
     }
-  }, [table, tableId]);
+  }, [tableId]);
 
   const handleApplySchema = useCallback(async (data: SchemaProposalData) => {
     if (!table) throw new Error('No table');
@@ -358,9 +342,6 @@ export default function TableViewPage() {
 
   // Unified proposal hook — one state slot, mutual exclusion by construction
   const proposal = useTableProposal(
-    table?.columns ?? [],
-    filteredRows,
-    tableId,
     executeSingleDataOperation,
     handleApplySchema,
     fetchRows,
@@ -525,8 +506,8 @@ export default function TableViewPage() {
         {/* Data table - scrollable */}
         <div className="flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-900 pr-4">
           <DataTable
-            columns={proposal.displayColumns}
-            rows={proposal.displayRows}
+            columns={table.columns}
+            rows={filteredRows}
             selectedRowIds={selectedRowIds}
             onToggleRowSelection={handleToggleRowSelection}
             onToggleAllSelection={handleToggleAllSelection}
@@ -540,7 +521,7 @@ export default function TableViewPage() {
               setChatOpen(true);
               sendMessage(`Research and fill the "${columnName}" column for all rows.`);
             }}
-            proposalOverlay={proposal.proposalOverlay}
+            proposal={proposal.proposal}
           />
         </div>
 

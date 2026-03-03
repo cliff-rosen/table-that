@@ -1,15 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ChevronUpIcon,
   ChevronDownIcon,
   TableCellsIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
-import type { ColumnDefinition, TableRow, SortState } from '../../types/table';
+import type { ColumnDefinition, ColumnType, TableRow, SortState } from '../../types/table';
+import type { DataOperation } from '../../types/dataProposal';
+import type { SchemaOperation } from '../../types/schemaProposal';
+import { generateColumnId } from '../../types/schemaProposal';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { OpStatusIcon } from './ProposalWidgets';
-import type { ProposalOverlay } from '../../hooks/useTableProposal';
+import type { DataTableProposal } from '../../types/proposalOverlay';
+
+// =============================================================================
+// Internal display types (not exported)
+// =============================================================================
+
+interface RowProposalMeta {
+  action: 'add' | 'delete' | 'update';
+  opIndex: number;
+  oldValues?: Record<string, unknown>;
+}
+
+interface ColumnProposalMeta {
+  action: 'add' | 'remove' | 'modify' | 'reorder';
+  changes?: Partial<{ name: string; type: string; required: boolean; options: string[] }>;
+}
 
 // =============================================================================
 // Helper: format date for display
@@ -246,6 +264,161 @@ function describeChanges(changes: Partial<{ name: string; type: string; required
 }
 
 // =============================================================================
+// Internal display computation hooks
+// =============================================================================
+
+function useDataProposalDisplay(
+  operations: DataOperation[] | undefined,
+  rows: TableRow[],
+  tableId: number,
+) {
+  const phantomRows = useMemo(() => {
+    if (!operations) return [];
+    const addRows: TableRow[] = [];
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i];
+      if (op.action === 'add' && op.data) {
+        addRows.push({
+          id: -(i + 1),
+          table_id: tableId,
+          data: op.data,
+          created_at: '',
+          updated_at: '',
+        });
+      }
+    }
+    return addRows;
+  }, [operations, tableId]);
+
+  const updatePatches = useMemo(() => {
+    const patches = new Map<number, Record<string, unknown>>();
+    if (!operations) return patches;
+    for (const op of operations) {
+      if (op.action === 'update' && op.row_id && op.changes) {
+        patches.set(op.row_id, op.changes);
+      }
+    }
+    return patches;
+  }, [operations]);
+
+  const rowMeta = useMemo(() => {
+    const map = new Map<number, RowProposalMeta>();
+    if (!operations) return map;
+
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i];
+      if (op.action === 'add') {
+        map.set(-(i + 1), { action: 'add', opIndex: i });
+      } else if (op.action === 'delete' && op.row_id) {
+        map.set(op.row_id, { action: 'delete', opIndex: i });
+      } else if (op.action === 'update' && op.row_id && op.changes) {
+        const originalRow = rows.find((r) => r.id === op.row_id);
+        const oldValues: Record<string, unknown> = {};
+        for (const colId of Object.keys(op.changes)) {
+          oldValues[colId] = originalRow?.data[colId] ?? null;
+        }
+        map.set(op.row_id, { action: 'update', opIndex: i, oldValues });
+      }
+    }
+
+    return map;
+  }, [operations, rows]);
+
+  return { phantomRows, updatePatches, rowMeta };
+}
+
+function useSchemaProposalDisplay(
+  operations: SchemaOperation[] | undefined,
+  columns: ColumnDefinition[],
+) {
+  const addedColumnIds = useMemo(() => {
+    if (!operations) return new Map<number, string>();
+    const map = new Map<number, string>();
+    operations.forEach((op, i) => {
+      if (op.action === 'add') {
+        map.set(i, generateColumnId());
+      }
+    });
+    return map;
+  }, [operations]);
+
+  const { effectiveColumns, columnMeta } = useMemo(() => {
+    if (!operations) {
+      return {
+        effectiveColumns: columns,
+        columnMeta: new Map<string, ColumnProposalMeta>(),
+      };
+    }
+
+    const meta = new Map<string, ColumnProposalMeta>();
+    let cols = [...columns];
+
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i];
+
+      switch (op.action) {
+        case 'add': {
+          if (!op.column) break;
+          const newId = addedColumnIds.get(i)!;
+          const newCol: ColumnDefinition = {
+            id: newId,
+            name: op.column.name,
+            type: (op.column.type as ColumnType) || 'text',
+            required: op.column.required || false,
+            ...(op.column.options ? { options: op.column.options } : {}),
+          };
+          meta.set(newId, { action: 'add' });
+
+          if (op.after_column_id) {
+            const afterIdx = cols.findIndex((c) => c.id === op.after_column_id);
+            if (afterIdx >= 0) {
+              cols.splice(afterIdx + 1, 0, newCol);
+            } else {
+              cols.push(newCol);
+            }
+          } else {
+            cols.push(newCol);
+          }
+          break;
+        }
+
+        case 'remove': {
+          if (!op.column_id) break;
+          meta.set(op.column_id, { action: 'remove' });
+          break;
+        }
+
+        case 'modify': {
+          if (!op.column_id || !op.changes) break;
+          meta.set(op.column_id, { action: 'modify', changes: op.changes });
+          break;
+        }
+
+        case 'reorder': {
+          if (!op.column_id) break;
+          meta.set(op.column_id, { action: 'reorder' });
+          const colIdx = cols.findIndex((c) => c.id === op.column_id);
+          if (colIdx >= 0) {
+            const [col] = cols.splice(colIdx, 1);
+            if (op.after_column_id) {
+              const afterIdx = cols.findIndex((c) => c.id === op.after_column_id);
+              cols.splice(afterIdx + 1, 0, col);
+            } else {
+              cols.unshift(col);
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    return { effectiveColumns: cols, columnMeta: meta };
+  }, [operations, columns, addedColumnIds]);
+
+  return { effectiveColumns, columnMeta };
+}
+
+// =============================================================================
 // DataTable
 // =============================================================================
 
@@ -264,7 +437,7 @@ export interface DataTableProps {
   /** Called when user clicks the sparkle icon on a column header */
   onColumnResearch?: (columnName: string) => void;
   /** When present, enables inline proposal rendering (color-coded rows/columns) */
-  proposalOverlay?: ProposalOverlay;
+  proposal?: DataTableProposal;
 }
 
 export default function DataTable({
@@ -280,13 +453,39 @@ export default function DataTable({
   onCellSave,
   onCellCancel,
   onColumnResearch,
-  proposalOverlay,
+  proposal,
 }: DataTableProps) {
+  const dataProposal = proposal?.kind === 'data' ? proposal : undefined;
+  const schemaProposal = proposal?.kind === 'schema' ? proposal : undefined;
+
+  // Compute display data from raw operations
+  const { phantomRows, updatePatches, rowMeta } = useDataProposalDisplay(
+    dataProposal?.operations,
+    rows,
+    rows[0]?.table_id ?? 0,
+  );
+
+  const { effectiveColumns, columnMeta } = useSchemaProposalDisplay(
+    schemaProposal?.operations,
+    columns,
+  );
+
+  const displayColumns = schemaProposal ? effectiveColumns : columns;
+
+  const effectiveRows = useMemo(() => {
+    if (!dataProposal) return rows;
+    const patchedRows = rows.map((row) => {
+      const patch = updatePatches.get(row.id);
+      if (!patch) return row;
+      return { ...row, data: { ...row.data, ...patch } };
+    });
+    return [...phantomRows, ...patchedRows];
+  }, [rows, dataProposal, updatePatches, phantomRows]);
+
+  // allSelected uses rows.length (real rows only — phantom rows can't be selected)
   const allSelected = rows.length > 0 && selectedRowIds.size === rows.length;
   const someSelected = selectedRowIds.size > 0 && selectedRowIds.size < rows.length;
-  const hasProposal = !!proposalOverlay;
-  const dataOverlay = proposalOverlay?.kind === 'data' ? proposalOverlay : undefined;
-  const schemaOverlay = proposalOverlay?.kind === 'schema' ? proposalOverlay : undefined;
+  const hasProposal = !!proposal;
 
   return (
     <table className="w-full border-collapse">
@@ -303,9 +502,9 @@ export default function DataTable({
               />
             )}
           </th>
-          {columns.map((col) => {
+          {displayColumns.map((col) => {
             const isSorted = sort?.column_id === col.id;
-            const schemaMeta = schemaOverlay?.columnMeta.get(col.id);
+            const schemaMeta = columnMeta.get(col.id);
             const isSortDisabled = schemaMeta?.action === 'add' || schemaMeta?.action === 'remove';
 
             // Schema-proposal header classes
@@ -380,9 +579,9 @@ export default function DataTable({
 
       {/* Body */}
       <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-        {rows.length === 0 ? (
+        {effectiveRows.length === 0 ? (
           <tr>
-            <td colSpan={columns.length + 1} className="px-4 py-12 text-center">
+            <td colSpan={displayColumns.length + 1} className="px-4 py-12 text-center">
               <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
                 <TableCellsIcon className="h-8 w-8" />
                 <p className="text-sm">No rows yet</p>
@@ -390,9 +589,9 @@ export default function DataTable({
             </td>
           </tr>
         ) : (
-          rows.map((row) => {
+          effectiveRows.map((row) => {
             const isSelected = selectedRowIds.has(row.id);
-            const meta = dataOverlay?.rowMeta.get(row.id);
+            const meta = rowMeta.get(row.id);
 
             // Row background classes based on proposal meta
             let rowBg: string;
@@ -415,14 +614,14 @@ export default function DataTable({
               >
                 {/* Checkbox / Proposal status */}
                 <td className="w-12 px-3 py-2.5">
-                  {meta && dataOverlay ? (
+                  {meta && dataProposal ? (
                     // Proposal row: show op checkbox or status icon
-                    dataOverlay.phase !== 'idle' ? (
-                      <OpStatusIcon result={dataOverlay.opResults[meta.opIndex]} />
+                    dataProposal.phase !== 'idle' ? (
+                      <OpStatusIcon result={dataProposal.opResults[meta.opIndex]} />
                     ) : (
                       <Checkbox
-                        checked={dataOverlay.checkedOps[meta.opIndex]}
-                        onCheckedChange={() => dataOverlay.onToggleOp(meta.opIndex)}
+                        checked={dataProposal.checkedOps[meta.opIndex]}
+                        onCheckedChange={() => dataProposal.onToggleOp(meta.opIndex)}
                       />
                     )
                   ) : !hasProposal ? (
@@ -435,10 +634,10 @@ export default function DataTable({
                 </td>
 
                 {/* Data cells */}
-                {columns.map((col) => {
+                {displayColumns.map((col) => {
                   const isEditing = !hasProposal && editingCell?.rowId === row.id && editingCell?.columnId === col.id;
                   const cellValue = row.data[col.id];
-                  const schemaMeta = schemaOverlay?.columnMeta.get(col.id);
+                  const schemaMeta = columnMeta.get(col.id);
 
                   // Determine if this cell was changed (for update rows)
                   const isChangedCell = meta?.action === 'update' && meta.oldValues && col.id in meta.oldValues;

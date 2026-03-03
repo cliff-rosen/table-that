@@ -222,14 +222,14 @@ Format — write this as TEXT in your message (not a tool call):
 DATA_PROPOSAL: {
   "reasoning": "Brief explanation of what data changes you're proposing",
   "operations": [
-    { "action": "add", "data": { "Column Name": "value", "Another Column": 42 } },
-    { "action": "update", "row_id": 5, "changes": { "Column Name": "new value" } },
+    { "action": "add", "data": { "col_xxx": "value", "col_yyy": 42 } },
+    { "action": "update", "row_id": 5, "changes": { "col_xxx": "new value" } },
     { "action": "delete", "row_id": 12 }
   ]
 }
 
 Rules:
-- Use column NAMES (not IDs) in data values and changes.
+- Use column IDs (from context, e.g. col_xxx) in data values and changes.
 - For updates, only include the columns being changed (not all columns).
 - For adds, include values for all relevant columns.
 - The user will see proposed changes inline in the table: additions (green tint at top), updates (amber-highlighted cells with hover tooltips showing old values), and deletions (red tint with strikethrough). Each proposed row has a checkbox. An action bar above the table lets them click **Apply** to execute or **Dismiss** to cancel.
@@ -349,7 +349,7 @@ _DATA_OPERATION = {
                 "action": {"const": "add"},
                 "data": {
                     "type": "object",
-                    "description": "Column name → value pairs for the new row",
+                    "description": "Column ID → value pairs for the new row",
                     "additionalProperties": True,
                 },
             },
@@ -363,7 +363,7 @@ _DATA_OPERATION = {
                 "row_id": {"type": "integer", "description": "ID of the row to update"},
                 "changes": {
                     "type": "object",
-                    "description": "Column name → new value pairs (only changed columns)",
+                    "description": "Column ID → new value pairs (only changed columns)",
                     "additionalProperties": True,
                 },
             },
