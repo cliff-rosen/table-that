@@ -19,7 +19,7 @@ import {
   BoltIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
-import type { OpResult, ResearchLogEntry, ResearchStep } from '../../lib/utils/dataProposal';
+import type { OpResult, ResearchLogEntry, ResearchStep } from '../../types/dataProposal';
 
 // =============================================================================
 // OpStatusIcon

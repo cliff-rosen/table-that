@@ -20,8 +20,8 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import { trackEvent } from '../lib/api/trackingApi';
-import { applySchemaOperations, generateColumnId } from '../lib/utils/schemaProposal';
-import type { SchemaProposalData } from '../lib/utils/schemaProposal';
+import { applySchemaOperations, generateColumnId } from '../types/schemaProposal';
+import type { SchemaProposalData } from '../types/schemaProposal';
 
 // =============================================================================
 // Constants

@@ -5,7 +5,7 @@
  * to apply schema operations to a column list.
  */
 
-import type { ColumnDefinition, ColumnType } from '../../types/table';
+import type { ColumnDefinition, ColumnType } from './table';
 
 // =============================================================================
 // Types

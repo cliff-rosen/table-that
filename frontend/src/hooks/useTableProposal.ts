@@ -5,9 +5,9 @@ import type {
   DataOperation,
   OpStatus,
   OpResult,
-} from '../lib/utils/dataProposal';
-import type { SchemaProposalData } from '../lib/utils/schemaProposal';
-import { generateColumnId } from '../lib/utils/schemaProposal';
+} from '../types/dataProposal';
+import type { SchemaProposalData } from '../types/schemaProposal';
+import { generateColumnId } from '../types/schemaProposal';
 import { showSuccessToast } from '../lib/errorToast';
 
 // =============================================================================

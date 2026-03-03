@@ -18,8 +18,8 @@ import TableCard from '../components/table/TableCard';
 import { useChatContext } from '../context/ChatContext';
 import ChatTray from '../components/chat/ChatTray';
 import ProposedTablePreview from '../components/table/ProposedTablePreview';
-import { applySchemaOperations } from '../lib/utils/schemaProposal';
-import type { SchemaProposalData } from '../lib/utils/schemaProposal';
+import { applySchemaOperations } from '../types/schemaProposal';
+import type { SchemaProposalData } from '../types/schemaProposal';
 
 // =============================================================================
 // Empty State

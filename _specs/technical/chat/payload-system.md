@@ -184,7 +184,7 @@ The hook computes derived state for inline rendering:
 
 ### SchemaProposalData
 
-**File:** `lib/utils/schemaOperations.ts:14-37`
+**File:** `types/schemaProposal.ts`
 
 ```typescript
 interface SchemaProposalData {
@@ -207,7 +207,7 @@ interface SchemaOperation {
 
 ### DataProposalData
 
-**File:** `components/chat/DataProposalCard.tsx:10-58`
+**File:** `types/dataProposal.ts`
 
 ```typescript
 interface DataProposalData {

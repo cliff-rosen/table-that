@@ -4,7 +4,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '../ui/button';
 import { ProgressBar, ResearchLog } from './ProposalWidgets';
-import type { DataProposalData, OpResult } from '../../lib/utils/dataProposal';
+import type { DataProposalData, OpResult } from '../../types/dataProposal';
 
 // =============================================================================
 // Types

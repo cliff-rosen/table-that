@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import type { ColumnDefinition } from '../../types/table';
-import { generateColumnId } from '../../lib/utils/schemaProposal';
+import { generateColumnId } from '../../types/schemaProposal';
 import { showErrorToast } from '../../lib/errorToast';
 import SchemaEditor from './SchemaEditor';
 
