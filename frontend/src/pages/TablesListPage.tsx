@@ -187,6 +187,10 @@ export default function TablesListPage() {
 
   // Detect create-mode schema proposals from chat messages
   useEffect(() => {
+    // Reset ref when messages shrink (e.g. new conversation started)
+    if (messages.length < lastCheckedIndexRef.current) {
+      lastCheckedIndexRef.current = 0;
+    }
     if (messages.length <= lastCheckedIndexRef.current) return;
 
     for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {

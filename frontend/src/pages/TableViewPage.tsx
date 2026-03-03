@@ -176,6 +176,10 @@ export default function TableViewPage() {
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
   useEffect(() => {
+    // Reset ref when messages shrink (e.g. new conversation started)
+    if (messages.length < lastCheckedIndexRef.current) {
+      lastCheckedIndexRef.current = 0;
+    }
     if (messages.length <= lastCheckedIndexRef.current) return;
 
     let needsRefresh = false;
@@ -352,6 +356,10 @@ export default function TableViewPage() {
   // (Must be after useTableProposal so proposal.handlePayload is defined)
   const lastPayloadIndexRef = useRef(0);
   useEffect(() => {
+    // Reset ref when messages shrink (e.g. new conversation started)
+    if (messages.length < lastPayloadIndexRef.current) {
+      lastPayloadIndexRef.current = 0;
+    }
     if (messages.length <= lastPayloadIndexRef.current) return;
 
     for (let i = lastPayloadIndexRef.current; i < messages.length; i++) {
