@@ -17,10 +17,10 @@ import TableToolbar from '../components/table/TableToolbar';
 import { Button } from '../components/ui/button';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 import { trackEvent } from '../lib/api/trackingApi';
-import type { DataOperation } from '../components/chat/DataProposalCard';
+import type { DataOperation } from '../lib/utils/dataProposal';
 import ProposalActionBar from '../components/table/ProposalActionBar';
 import SchemaProposalStrip from '../components/table/SchemaProposalStrip';
-import { applySchemaOperations, type SchemaProposalData } from '../lib/utils/schemaOperations';
+import { applySchemaOperations, type SchemaProposalData } from '../lib/utils/schemaProposal';
 import { useTableProposal } from '../hooks/useTableProposal';
 
 // =============================================================================
@@ -168,8 +168,7 @@ export default function TableViewPage() {
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
 
-  // Auto-refresh rows when chat executes data-modifying tools,
-  // and detect incoming payloads for inline proposal rendering
+  // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
   useEffect(() => {
     if (messages.length <= lastCheckedIndexRef.current) return;
@@ -178,29 +177,17 @@ export default function TableViewPage() {
 
     for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg?.role !== 'assistant') continue;
-
-      // Check for data-modifying tools
-      if (msg.tool_history) {
+      if (msg?.role === 'assistant' && msg.tool_history) {
         const usedDataTool = msg.tool_history.some(
           (t) => DATA_TOOLS.includes(t.tool_name)
         );
         if (usedDataTool) needsRefresh = true;
       }
-
-      // Check for payloads (schema/data proposals)
-      if (msg.custom_payload?.type && msg.custom_payload.data) {
-        proposal.handlePayload({
-          type: msg.custom_payload.type,
-          data: msg.custom_payload.data,
-          messageIndex: i,
-        });
-      }
     }
 
     if (needsRefresh) fetchRows();
     lastCheckedIndexRef.current = messages.length;
-  }, [messages, fetchRows, proposal.handlePayload]);
+  }, [messages, fetchRows]);
 
   // -----------------------------------------------------------------------
   // Handlers
@@ -374,6 +361,26 @@ export default function TableViewPage() {
     fetchRows,
     sendMessage,
   );
+
+  // Detect incoming payloads for inline proposal rendering
+  // (Must be after useTableProposal so proposal.handlePayload is defined)
+  const lastPayloadIndexRef = useRef(0);
+  useEffect(() => {
+    if (messages.length <= lastPayloadIndexRef.current) return;
+
+    for (let i = lastPayloadIndexRef.current; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg?.role === 'assistant' && msg.custom_payload?.type && msg.custom_payload.data) {
+        proposal.handlePayload({
+          type: msg.custom_payload.type,
+          data: msg.custom_payload.data,
+          messageIndex: i,
+        });
+      }
+    }
+
+    lastPayloadIndexRef.current = messages.length;
+  }, [messages, proposal.handlePayload]);
 
   // -----------------------------------------------------------------------
   // Render: loading state

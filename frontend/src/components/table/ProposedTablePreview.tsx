@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { CellRenderer } from './DataTable';
 import { Badge } from '../ui/badge';
-import { applySchemaOperations } from '../../lib/utils/schemaOperations';
-import type { SchemaProposalData } from '../../lib/utils/schemaOperations';
+import { applySchemaOperations } from '../../lib/utils/schemaProposal';
+import type { SchemaProposalData } from '../../lib/utils/schemaProposal';
 import type { ColumnDefinition } from '../../types/table';
 
 // =============================================================================

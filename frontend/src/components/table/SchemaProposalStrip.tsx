@@ -1,6 +1,6 @@
 import { TableCellsIcon } from '@heroicons/react/24/outline';
 import { Button } from '../ui/button';
-import type { SchemaProposalData } from '../../lib/utils/schemaOperations';
+import type { SchemaProposalData } from '../../lib/utils/schemaProposal';
 
 // =============================================================================
 // Types

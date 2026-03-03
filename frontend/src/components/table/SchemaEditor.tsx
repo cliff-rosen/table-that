@@ -1,6 +1,6 @@
 import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import type { ColumnDefinition, ColumnType } from '../../types/table';
-import { generateColumnId } from '../../lib/utils/schemaOperations';
+import { generateColumnId } from '../../lib/utils/schemaProposal';
 
 const COLUMN_TYPES: { value: ColumnType; label: string }[] = [
   { value: 'text', label: 'Text' },

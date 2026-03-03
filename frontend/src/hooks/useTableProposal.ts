@@ -5,9 +5,9 @@ import type {
   DataOperation,
   OpStatus,
   OpResult,
-} from '../components/chat/DataProposalCard';
-import type { SchemaProposalData } from '../lib/utils/schemaOperations';
-import { generateColumnId } from '../lib/utils/schemaOperations';
+} from '../lib/utils/dataProposal';
+import type { SchemaProposalData } from '../lib/utils/schemaProposal';
+import { generateColumnId } from '../lib/utils/schemaProposal';
 import { showSuccessToast } from '../lib/errorToast';
 
 // =============================================================================

@@ -3,12 +3,8 @@ import {
   CheckIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '../ui/button';
-import {
-  ProgressBar,
-  ResearchLog,
-  type DataProposalData,
-} from '../chat/DataProposalCard';
-import type { OpResult } from '../chat/DataProposalCard';
+import { ProgressBar, ResearchLog } from './ProposalWidgets';
+import type { DataProposalData, OpResult } from '../../lib/utils/dataProposal';
 
 // =============================================================================
 // Types

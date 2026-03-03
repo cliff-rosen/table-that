@@ -8,7 +8,7 @@ import {
 import type { ColumnDefinition, TableRow, SortState } from '../../types/table';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
-import { OpStatusIcon } from '../chat/DataProposalCard';
+import { OpStatusIcon } from './ProposalWidgets';
 import type { ProposalOverlay } from '../../hooks/useTableProposal';
 
 // =============================================================================
