@@ -191,7 +191,7 @@ export default function TablesListPage() {
 
     for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg?.role === 'assistant' && msg.custom_payload?.type === 'schema_proposal' && msg.custom_payload.data?.mode === 'create') {
+      if (msg?.role === 'assistant' && msg.custom_payload?.type === 'schema_proposal' && (msg.custom_payload.data as SchemaProposalData)?.mode === 'create') {
         setActiveProposal(msg.custom_payload.data as SchemaProposalData);
       }
     }
