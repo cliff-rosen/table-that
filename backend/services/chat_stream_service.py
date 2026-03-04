@@ -103,17 +103,15 @@ class ChatStreamService:
         # Emit chat_id immediately so the frontend knows it even on cancel
         yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
 
-        # Check guest turn limit
+        # Check guest turn limit — process this message but signal limit after
+        guest_limit_hit = False
         from services.user_service import UserService
         user_service = UserService(self.db)
         user = await user_service.get_user_by_id(self.user_id)
         if user and user.is_guest:
             msg_count = await self.chat_service.count_user_messages(self.user_id)
             if msg_count >= GUEST_TURN_LIMIT:
-                yield GuestLimitEvent(
-                    message="You've used all your free messages. Register to keep going."
-                ).model_dump_json()
-                return
+                guest_limit_hit = True
 
         # State accumulated during streaming — declared outside try so
         # the finally block can always persist whatever was collected.
@@ -334,6 +332,14 @@ class ChatStreamService:
                 diagnostics=trace,  # AgentTrace is aliased as ChatDiagnostics for backwards compat
             )
             yield CompleteEvent(payload=final_payload).model_dump_json()
+
+            # Signal guest limit AFTER the response completes so the AI
+            # response is fully delivered before the frontend shows the
+            # registration prompt.
+            if guest_limit_hit:
+                yield GuestLimitEvent(
+                    message="You've used all your free messages. Register to keep going."
+                ).model_dump_json()
 
         except Exception as e:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
