@@ -2,9 +2,6 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
-  ChatBubbleLeftRightIcon,
-  ArrowUpTrayIcon,
-  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -21,7 +18,7 @@ export interface TableToolbarProps {
   selectedCount: number;
   onAddRecord: () => void;
   onDeleteSelected: () => void;
-  onToggleChat?: () => void;
+  onEditSchema?: () => void;
   onImport?: () => void;
   onExport?: () => void;
 }
@@ -34,7 +31,7 @@ export default function TableToolbar({
   selectedCount,
   onAddRecord,
   onDeleteSelected,
-  onToggleChat,
+  onEditSchema,
   onImport,
   onExport,
 }: TableToolbarProps) {
@@ -61,7 +58,7 @@ export default function TableToolbar({
       </div>
 
       {/* Right side: actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {selectedCount > 0 && (
           <Button
             variant="destructive"
@@ -70,7 +67,7 @@ export default function TableToolbar({
             className="gap-1.5"
           >
             <TrashIcon className="h-4 w-4" />
-            Delete {selectedCount} selected
+            Delete {selectedCount}
           </Button>
         )}
 
@@ -79,25 +76,22 @@ export default function TableToolbar({
           Add Record
         </Button>
 
+        {/* Secondary actions — subtle text links */}
+        <span className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {onEditSchema && (
+          <button onClick={onEditSchema} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors whitespace-nowrap">
+            Edit Schema
+          </button>
+        )}
         {onImport && (
-          <Button size="sm" variant="outline" onClick={onImport} className="gap-1.5">
-            <ArrowUpTrayIcon className="h-4 w-4" />
+          <button onClick={onImport} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors whitespace-nowrap">
             Import
-          </Button>
+          </button>
         )}
-
         {onExport && (
-          <Button size="sm" variant="outline" onClick={onExport} className="gap-1.5">
-            <ArrowDownTrayIcon className="h-4 w-4" />
+          <button onClick={onExport} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors whitespace-nowrap">
             Export
-          </Button>
-        )}
-
-        {onToggleChat && (
-          <Button size="sm" variant="outline" onClick={onToggleChat} className="gap-1.5">
-            <ChatBubbleLeftRightIcon className="h-4 w-4" />
-            Chat
-          </Button>
+          </button>
         )}
       </div>
     </div>

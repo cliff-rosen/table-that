@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   TableCellsIcon,
-  PencilSquareIcon,
-  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 
@@ -23,7 +21,6 @@ import FilterBar, { applyFilters, type FilterState } from '../components/table/F
 import DataTable from '../components/table/DataTable';
 import AddRecordModal from '../components/table/AddRecordModal';
 import TableToolbar from '../components/table/TableToolbar';
-import { Button } from '../components/ui/button';
 import ProposalActionBar from '../components/table/ProposalActionBar';
 import SchemaProposalStrip from '../components/table/SchemaProposalStrip';
 
@@ -441,37 +438,13 @@ export default function TableViewPage() {
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         {/* Page title */}
         <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <TableCellsIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{table.name}</h1>
-                {table.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{table.description}</p>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!isGuest && (
-                <Button
-                  variant="outline"
-                  onClick={() => { trackEvent('edit_schema', { table_id: tableId }); navigate(`/tables/${tableId}/edit`); }}
-                  className="gap-2"
-                >
-                  <PencilSquareIcon className="h-5 w-5" />
-                  Edit Schema
-                </Button>
+          <div className="flex items-center gap-3">
+            <TableCellsIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{table.name}</h1>
+              {table.description && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{table.description}</p>
               )}
-              <button
-                onClick={() => { if (!chatOpen) trackEvent('chat_open', { page: 'table_view', table_id: tableId }); setChatOpen((prev) => !prev); }}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${chatOpen
-                  ? 'text-white bg-gradient-to-r from-violet-600 to-blue-600 shadow-md shadow-violet-500/25'
-                  : 'text-white bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shadow-sm shadow-violet-500/20 hover:shadow-md hover:shadow-violet-500/30'
-                  }`}
-              >
-                <SparklesIcon className="h-5 w-5" />
-                {chatOpen ? 'Hide AI' : 'Ask AI'}
-              </button>
             </div>
           </div>
         </div>
@@ -486,6 +459,7 @@ export default function TableViewPage() {
             selectedCount={selectedRowIds.size}
             onAddRecord={() => setShowAddModal(true)}
             onDeleteSelected={handleDeleteSelected}
+            onEditSchema={!isGuest ? () => { trackEvent('edit_schema', { table_id: tableId }); navigate(`/tables/${tableId}/edit`); } : undefined}
             onImport={() => setShowImportModal(true)}
             onExport={handleExport}
           />
