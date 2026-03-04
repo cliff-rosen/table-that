@@ -263,7 +263,8 @@ class ChatStreamService:
             suggested_values = None
             if parsed.get("suggested_values"):
                 suggested_values = [
-                    SuggestedValue(**sv) for sv in parsed["suggested_values"]
+                    SuggestedValue(text=sv) if isinstance(sv, str) else SuggestedValue(**sv)
+                    for sv in parsed["suggested_values"]
                 ]
 
             suggested_actions = None
@@ -913,9 +914,9 @@ Users can be on different pages in the app, each with its own context and capabi
 
     # Fixed format instructions (always appended, not configurable)
     FORMAT_INSTRUCTIONS = """SUGGESTED VALUES (recommended):
-Offer clickable chips the user can tap to send as their next message. These reduce friction and guide the user forward — use them generously whenever there are clear next steps.
+Offer clickable chips the user can tap to send as their next message. The text shown on the chip is exactly what gets sent — what you see is what you get.
 SUGGESTED_VALUES:
-[{"label": "Display Text", "value": "text to send"}]
+["Add some sample rows", "Import a CSV", "Research and populate data"]
 
 Good times to suggest:
 - After creating a table: "Import a CSV", "Add some sample rows", "Research and populate data"
@@ -925,7 +926,7 @@ Good times to suggest:
 - When the user seems unsure: 2-3 concrete next steps they can take
 - After any significant action: what they'd naturally want to do next
 
-Keep suggestions short (2-6 words per label). Offer 2-4 at a time. Make the most likely next step the first option.
+Keep suggestions short (2-6 words). Offer 2-4 at a time. Make the most likely next step the first option.
 
 SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
 To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.

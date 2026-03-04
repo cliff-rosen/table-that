@@ -65,9 +65,8 @@ class ConversationWithMessages(Conversation):
 # ============================================================================
 
 class SuggestedValue(BaseModel):
-    """A suggested value that the user can select"""
-    label: str
-    value: str
+    """A suggested value pill — displayed and sent as-is when clicked"""
+    text: str
 
 
 class SuggestedAction(BaseModel):

@@ -498,11 +498,11 @@ export default function ChatTray({
                                             <button
                                                 type="button"
                                                 key={sIdx}
-                                                onClick={() => handleValueSelect(suggestion.value)}
+                                                onClick={() => handleValueSelect(suggestion.text)}
                                                 disabled={isLoading || (guestLimitReached && isGuest)}
                                                 className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                {suggestion.label}
+                                                {suggestion.text}
                                             </button>
                                         ))}
                                     </div>

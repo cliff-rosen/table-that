@@ -82,8 +82,7 @@ export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardP
                                 <div className="flex flex-wrap gap-2">
                                     {response.suggested_values.map((sv, i) => (
                                         <div key={i} className="px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded">
-                                            <div className="text-xs font-medium text-blue-800 dark:text-blue-200">{sv.label}</div>
-                                            <div className="text-xs text-blue-600 dark:text-blue-400 font-mono">{sv.value}</div>
+                                            <div className="text-xs font-medium text-blue-800 dark:text-blue-200">{sv.text}</div>
                                         </div>
                                     ))}
                                 </div>

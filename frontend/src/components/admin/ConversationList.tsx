@@ -14,8 +14,7 @@ import { ToolCallCard } from '@/components/chat/diagnostics/ToolCallCard';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
 interface SuggestedValue {
-    label: string;
-    value: string;
+    text: string;
 }
 
 interface SuggestedAction {
@@ -738,8 +737,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         <div className="flex flex-wrap gap-2">
                             {extras.suggested_values.map((val, idx) => (
                                 <div key={idx} className="px-3 py-2 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-lg">
-                                    <div className="text-xs font-medium text-cyan-800 dark:text-cyan-200">{val.label}</div>
-                                    <div className="text-sm font-mono text-cyan-600 dark:text-cyan-400">{val.value}</div>
+                                    <div className="text-sm font-medium text-cyan-800 dark:text-cyan-200">{val.text}</div>
                                 </div>
                             ))}
                         </div>

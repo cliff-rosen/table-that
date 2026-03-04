@@ -36,8 +36,7 @@ export enum InteractionType {
 }
 
 export interface SuggestedValue {
-    label: string;
-    value: string;
+    text: string;
 }
 
 export interface SuggestedAction {
