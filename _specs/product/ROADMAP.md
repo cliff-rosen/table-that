@@ -59,7 +59,8 @@ Each item is tagged with the quality layer(s) it addresses. See `pmf-criteria.md
 | #29 | P1 | CORE | P | Visual impact for core operations (animations for schema creation, data population, enrichment) | open | 2026-03-01 | |
 | #34 | P2 | CORE | T,P | Assets/files document space (user-uploaded or chat-generated, global or table-scoped) | open | 2026-03-02 | |
 | #35 | P1 | CORE | T | Data checkpointing for undo and analysis (snapshot table state at each mutation) | open | 2026-03-02 | |
-| #37 | P1 | CORE | D,T,P | Compound transaction flow (schema change → enrichment as a single user intent) | open | 2026-03-03 | |
+| #37 | P1 | CORE | D,T,P | Compound transaction flow (schema change → enrichment as a single user intent) | open | 2026-03-03 |
+| #38 | P2 | AI | D | Chat mode switch: Fast vs Deep | open | 2026-03-03 | |
 
 ## Tasks
 
@@ -234,6 +235,9 @@ The core enrichment loop often involves a **compound transaction**: a schema cha
 - **Hybrid:** Schema proposals could carry an `on_apply` intent ("after this is applied, run enrich_column on the new column") that the system executes automatically
 
 Related: #32 (multi-column enrichment), #22 (graduated trust model), #3 (enrichment results UX).
+
+### #38 — Chat mode switch: Fast vs Deep
+User-facing toggle that switches the chat system between two modes: **Fast** (quick, efficient responses — favor lookup strategy, shorter answers, skip unnecessary follow-up questions) and **Deep** (thorough, thoughtful responses — favor research/comprehensive strategies, richer commentary, proactive suggestions). Affects: (1) persona/prompting sent to the LLM (tone, verbosity, proactivity), and (2) potentially the available tool set or default strategy parameters (e.g., deep mode defaults enrich_column to comprehensive thoroughness, fast mode defaults to lookup). Could also influence whether the AI asks clarifying questions vs just making a reasonable choice and proceeding.
 
 ### #36 — CHAT_MAX_TOKENS too low (4096) — long responses truncated
 `CHAT_MAX_TOKENS` is set to 4096 in `backend/services/chat_stream_service.py` line 58. This is the `max_tokens` parameter passed to the Claude API for each agent loop turn. With the model being `claude-sonnet-4-20250514`, which supports up to 64k output tokens, 4096 is unnecessarily restrictive. Long responses — especially those containing schema proposals with many columns, data proposals with many rows, or detailed enrichment explanations — will hit the limit and get truncated mid-JSON, breaking payload parsing entirely. Should increase to at least 8192 or 16384. Consider whether it should be configurable per-page or per-operation (e.g., enrichment responses need less, data proposals with 50 rows need more).
