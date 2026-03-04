@@ -35,12 +35,12 @@ The primary entry path — user tries before registering.
   We could explain how we fix this. Or you could just try it.
 
   ┌──────────────────────────────────────────┐
-  │ Describe the table you want to build...  │
+  │ Describe your table...                   │
   │                                          │
   └──────────────────────────────────────────┘
               [ Create Table ]
-  [Competitor Analysis] [Product Comparison]
-  [Favorite Restaurants] [Job Application Tracker]
+  [Find a Dentist] [Compare Laptops]
+  [Track Job Applications] [Research Competitors]
 ```
 
 **Header** (PublicTopBar): App name, dark mode toggle, "Log in" link, "Get Started" button (links to /register)
@@ -67,12 +67,21 @@ On mount, `TablesListPage` picks up `guestInitialPrompt` from `sessionStorage`:
 | Create Table button (header) | Hidden | Visible |
 | StarterGrid | Hidden | Visible |
 | PromptHero (empty state) | Hidden (sees "Your table will appear here") | Visible |
+| Edit Schema button | Hidden | Visible |
+| Suggestion pills (after guest limit) | Disabled | Always enabled |
 | Profile / Logout | Hidden | Visible |
-| Header CTA | "Register to save your work" link | Profile icon + Logout |
+| Header CTA | "Log in" + "Register to save your work" | Profile icon + Logout |
 
 ### Guest limit
 
-After N messages, chat shows a limit message prompting registration.
+The backend enforces a configurable message limit (`GUEST_TURN_LIMIT` constant in `chat_stream_service.py`). When a guest's total message count reaches the limit:
+
+1. The current message is still processed normally (AI responds)
+2. A `GuestLimitEvent` is yielded after the `CompleteEvent`
+3. Frontend hides the chat input and shows "Register to continue"
+4. Suggestion pills are disabled
+
+See [guest-limit-flow.md](../technical/guest-limit-flow.md) for the full end-to-end trace.
 
 ### Conversion
 
@@ -154,18 +163,18 @@ Shown when: no tables AND chat closed AND not a guest AND no active proposal.
          What do you want to track?
   Describe a table and AI will build it for you...
   ┌──────────────────────────────────────────┐
-  │ Describe the table you want to build...  │
+  │ Describe your table...                   │
   │                                          │
   └──────────────────────────────────────────┘
               [ Create Table ]
-  [Competitor Analysis] [Product Comparison]
-  [Favorite Restaurants] [Job Application Tracker]
+  [Find a Dentist] [Compare Laptops]
+  [Track Job Applications] [Research Competitors]
            or create a table manually
 ```
 
 - Heading: "What do you want to track?"
 - Subtext: "Describe a table and AI will build it for you — schema, data, and all."
-- Textarea with placeholder "Describe the table you want to build..."
+- Textarea with placeholder "Describe your table..."
 - "Create Table" submit button
 - 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
 - "or create a table manually" link → opens CreateTableModal
@@ -220,15 +229,16 @@ See [core-flow.md](./core-flow.md) for the full specification of each step.
 ### Guest Try-It Flow
 
 - [ ] Landing page shows pain-statement hero: "Here's your updated table." / "You check. It's not updated."
-- [ ] Textarea with placeholder "Describe the table you want to build..."
+- [ ] Textarea with placeholder "Describe your table..."
 - [ ] "Create Table" submit button
 - [ ] 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
 - [ ] Header shows "Log in" and "Get Started" links
 - [ ] Submitting prompt: creates guest session, navigates to /tables, chat opens, prompt sent
 - [ ] Clicking starter pill: same behavior with preset prompt
-- [ ] Guest restrictions: no Import CSV, no Create Table, no StarterGrid, no PromptHero
-- [ ] Guest header: "Register to save your work" link instead of profile/logout
-- [ ] GuestRegistrationModal: email + password, converts anonymous account
+- [ ] Guest restrictions: no Import CSV, no Create Table, no StarterGrid, no PromptHero, no Edit Schema
+- [ ] Guest header: "Log in" + "Register to save your work" (not profile/logout)
+- [ ] After guest limit: input hidden, "Register to continue" shown, suggestion pills disabled
+- [ ] GuestRegistrationModal: email + password, converts anonymous account, resets guest limit
 
 ### Registration
 

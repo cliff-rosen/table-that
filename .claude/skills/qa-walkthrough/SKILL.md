@@ -69,9 +69,9 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
 4. **Verify (NUF checklist items):**
    - [ ] Page loads without errors
    - [ ] Pain-statement hero: "Here's your updated table." / "You check. It's not updated."
-   - [ ] Textarea with placeholder "Describe the table you want to build..."
+   - [ ] Textarea with placeholder "Describe your table..."
    - [ ] "Create Table" submit button
-   - [ ] 4 starter pills: Competitor Analysis, Product Comparison, Favorite Restaurants, Job Application Tracker
+   - [ ] 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
    - [ ] Header: "Log in" and "Get Started" links
    - [ ] No "session expired" message visible
 
@@ -89,7 +89,8 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
    - [ ] No Import CSV button in header
    - [ ] No Create Table button in header
    - [ ] No StarterGrid visible
-   - [ ] "Register to save your work" shown in header (not profile/logout)
+   - [ ] No Edit Schema button on table view
+   - [ ] "Log in" and "Register to save your work" shown in header (not profile/logout)
 5. [SCREENSHOT] `qa-1b-alt-guest.png`
 
 > Note: If testing guest flow, skip 1b (explicit registration) and proceed to 1c. You can test registration later via the "Register to save your work" link.
@@ -405,8 +406,8 @@ Write the full report to `_specs/signal/qa-latest.md`, overwriting the previous 
 | Pain-statement hero visible | PASS/FAIL | 1a | |
 | Textarea + Create Table button + 4 starters | PASS/FAIL | 1a | |
 | Guest flow: prompt → guest session → /tables + chat | PASS/FAIL | 1b-alt | |
-| Guest restrictions (no Import/Create/StarterGrid) | PASS/FAIL | 1b-alt | |
-| "Register to save your work" in header (guest) | PASS/FAIL | 1b-alt | |
+| Guest restrictions (no Import/Create/StarterGrid/Edit Schema) | PASS/FAIL | 1b-alt | |
+| "Log in" + "Register to save your work" in header (guest) | PASS/FAIL | 1b-alt | |
 | Registration form shows: email, password, confirm password | PASS/FAIL | 1b | |
 | Successful registration auto-logs in | PASS/FAIL | 1b | |
 | Redirects to /tables after registration | PASS/FAIL | 1b | |

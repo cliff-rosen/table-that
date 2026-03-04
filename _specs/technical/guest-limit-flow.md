@@ -5,15 +5,16 @@
 ```
 User sends message
   → Backend saves message to DB (count increments)
-  → Backend checks: is user a guest? Is count >= 10?
+  → Backend checks: is user a guest? Is count >= GUEST_TURN_LIMIT?
   → If yes: sets flag, but STILL PROCESSES the message
   → AI responds normally → yields CompleteEvent
   → THEN yields GuestLimitEvent
   → Frontend receives guest_limit event
   → Frontend sets guestLimitReached = true
   → Chat input is replaced with "Register to continue" button
+  → Suggestion pills are disabled
   → User clicks Register → convertGuest() → resetGuestLimit()
-  → Input reappears, chat continues
+  → Input reappears, pills re-enabled, chat continues
 ```
 
 ---
@@ -30,9 +31,11 @@ guest_limit_hit = False
 user = await user_service.get_user_by_id(self.user_id)
 if user and user.is_guest:
     msg_count = await self.chat_service.count_user_messages(self.user_id)
-    if msg_count >= GUEST_TURN_LIMIT:   # GUEST_TURN_LIMIT = 10
+    if msg_count >= GUEST_TURN_LIMIT:
         guest_limit_hit = True
 ```
+
+`GUEST_TURN_LIMIT` is a configurable constant defined at the top of `chat_stream_service.py`.
 
 This sets a flag — it does NOT block processing. The AI processes the message normally. After the AI response is fully streamed:
 
@@ -147,14 +150,16 @@ sendMessage('[User accepted the schema proposal and applied changes.]');
 
 ## 7. Where is the ACTUAL block?
 
-There are only **two** places `guestLimitReached` is used:
+The `guestLimitReached` state is used in several places:
 
 | Location | What it does |
 |----------|-------------|
-| `ChatContext.tsx:183` | Sets it to `true` when `guest_limit` event received |
-| `ChatTray.tsx:655` | Hides the input form when `true && isGuest` |
+| `ChatContext.tsx` | Sets it to `true` when `guest_limit` event received |
+| `ChatTray.tsx` (input area) | Hides the input form when `true && isGuest` |
+| `ChatTray.tsx` (suggestion pills) | Disables pills when `isLoading \|\| (guestLimitReached && isGuest)` |
+| `TableViewPage.tsx` | Disables suggestion pills (same condition) |
 
-There is **no** guard preventing `sendMessage()` from being called programmatically. The block is purely UI — the input is hidden so the user can't type.
+There is **no** guard preventing `sendMessage()` from being called programmatically (e.g., from `applyData()`). The block is purely UI — the input is hidden and pills are disabled so the user can't trigger messages.
 
 ---
 
@@ -188,5 +193,12 @@ Guests should not see:
 4. User clicks "Apply All" → `sendMessage()` fires
 5. Backend: user is no longer a guest → no limit check → processes normally ✓
 
-### Scenario C: ???
-What exact sequence caused the bug you saw?
+### Scenario C: Suggestion pill bypass (fixed)
+1. Guest sends message N (hitting the limit)
+2. Backend processes, yields `CompleteEvent` then `GuestLimitEvent`
+3. Frontend: hides input, but suggestion pills were NOT disabled (bug)
+4. User clicks a suggestion pill → `sendMessage()` fires
+5. Backend processes, yields another `GuestLimitEvent`
+6. This created a confusing loop — input already hidden, but AI kept responding
+
+**Fix:** Suggestion pills now check `disabled={isLoading || (guestLimitReached && isGuest)}`
