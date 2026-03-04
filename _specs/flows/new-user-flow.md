@@ -6,11 +6,80 @@
 
 ## Overview
 
-A new user arrives at table.that, creates an account, and lands on an empty Tables List. The first-use experience guides them into the [Core Flow](./core-flow.md) (create table → populate → enrich).
+A new user arrives at table.that and can either **try it immediately as a guest** or **register first**. Both paths lead to the Tables List, where the first-use experience guides them into the [Core Flow](./core-flow.md) (create table → populate → enrich).
 
 ```
-Register → Login → Tables List (empty state) → Core Flow
+Landing Page → type prompt → guest session → /tables (chat open) → Core Flow
+                   — or —
+Landing Page → Get Started → Register → /tables (PromptHero) → Core Flow
 ```
+
+---
+
+## Step 0: Guest Try-It Flow
+
+The primary entry path — user tries before registering.
+
+### What the user sees
+
+**Landing page** with pain-statement hero:
+
+```
+         "Here's your updated table."
+         You check. It's not updated.
+
+  You ask AI to build a table. It says "Done!"
+  It's never done. Rows are missing. Values changed.
+  You're doing QA, not work.
+
+  We could explain how we fix this. Or you could just try it.
+
+  ┌──────────────────────────────────────────┐
+  │ Describe the table you want to build...  │
+  │                                          │
+  └──────────────────────────────────────────┘
+              [ Create Table ]
+  [Competitor Analysis] [Product Comparison]
+  [Favorite Restaurants] [Job Application Tracker]
+```
+
+**Header** (PublicTopBar): App name, dark mode toggle, "Log in" link, "Get Started" button (links to /register)
+
+### What happens on submit
+
+1. User types a prompt (or clicks a starter pill)
+2. `guestLogin()` creates an anonymous session via `POST /api/auth/guest`
+3. Prompt stored in `sessionStorage` as `guestInitialPrompt`
+4. Navigate to `/tables`
+
+### Tables List bridge
+
+On mount, `TablesListPage` picks up `guestInitialPrompt` from `sessionStorage`:
+- Opens chat panel
+- Sends the prompt as a new conversation
+- Clears the sessionStorage key
+
+### Guest restrictions
+
+| Feature | Guest | Registered |
+|---------|-------|-----------|
+| Import CSV button | Hidden | Visible |
+| Create Table button (header) | Hidden | Visible |
+| StarterGrid | Hidden | Visible |
+| PromptHero (empty state) | Hidden (sees "Your table will appear here") | Visible |
+| Profile / Logout | Hidden | Visible |
+| Header CTA | "Register to save your work" link | Profile icon + Logout |
+
+### Guest limit
+
+After N messages, chat shows a limit message prompting registration.
+
+### Conversion
+
+Clicking "Register to save your work" in the header opens `GuestRegistrationModal`:
+- Email + password fields
+- Converts the anonymous account to a real account
+- All tables and data preserved
 
 ---
 
@@ -75,69 +144,67 @@ Login form with two modes (togglable):
 
 ## Step 3: Tables List (Empty State)
 
-### What the user sees
+The Tables List has two empty states depending on context:
 
-When the user has no tables:
+### State A — PromptHero
+
+Shown when: no tables AND chat closed AND not a guest AND no active proposal.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  Header                                                          │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│                     [Table Icon]                                 │
-│                   No tables yet                                  │
-│                                                                  │
-│   Create your first table to start organizing and managing       │
-│   your data. Tables let you define custom columns and store      │
-│   structured information.                                        │
-│                                                                  │
-│              [ ✨ Build a Table with AI ]                        │
-│                or create one manually                            │
-│                                                                  │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   Starter Prompts (3-column grid)                               │
-│                                                                  │
-│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│   │  Template 1  │  │  Template 2  │  │  Template 3  │            │
-│   │  title +     │  │  title +     │  │  title +     │            │
-│   │  description │  │  description │  │  description │            │
-│   └─────────────┘  └─────────────┘  └─────────────┘            │
-│   ...more starters...                                           │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+         What do you want to track?
+  Describe a table and AI will build it for you...
+  ┌──────────────────────────────────────────┐
+  │ Describe the table you want to build...  │
+  │                                          │
+  └──────────────────────────────────────────┘
+              [ Create Table ]
+  [Competitor Analysis] [Product Comparison]
+  [Favorite Restaurants] [Job Application Tracker]
+           or create a table manually
 ```
 
-### Three entry points
+- Heading: "What do you want to track?"
+- Subtext: "Describe a table and AI will build it for you — schema, data, and all."
+- Textarea with placeholder "Describe the table you want to build..."
+- "Create Table" submit button
+- 4 starter pills: Competitor Analysis, Product Comparison, Favorite Restaurants, Job Application Tracker
+- "or create a table manually" link → opens CreateTableModal
+
+### State B — Waiting state
+
+Shown when: no tables AND (chat is open OR user is a guest with chat open).
+
+```
+           [Table Icon - faded]
+      Your table will appear here
+  Describe what you need in the chat...
+```
+
+Faded table icon, "Your table will appear here" heading, and subtext directing user to the chat panel.
+
+### Entry points
 
 | Action | What it does |
 |--------|-------------|
-| **Build a Table with AI** (primary CTA) | Opens chat panel, user describes what they want → enters Core Flow Step 1 |
-| **Create one manually** | Opens table builder modal with manual column definition |
-| **Click a starter prompt** | Opens chat panel pre-filled with that prompt → enters Core Flow Step 1 |
+| **Type prompt + Create Table** (primary) | Opens chat, sends prompt → Core Flow Step 1 |
+| **Click a starter pill** | Same as above with preset prompt |
+| **or create a table manually** | Opens CreateTableModal |
+| **Import CSV** (header, hidden for guests) | Creates table from CSV upload |
+| **Create Table** (header, hidden for guests) | Opens CreateTableModal |
 
-### Header actions (also available)
+### Header actions
 
-- **Ask AI** button — opens chat panel (same as "Build a Table with AI")
-- **Import CSV** button — creates table from CSV file upload
-- **Create Table** button — manual table builder modal
-
-### Starter prompts
-
-Pre-configured table templates shown as clickable cards. Each has:
-- Icon
-- Title (e.g., "Bug Tracker", "Product Comparison")
-- Short description
-
-Clicking a starter opens the AI chat with that prompt pre-filled, immediately entering Core Flow Step 1.
-
-The starter prompts grid is always visible — it becomes compact when the user already has tables.
+- **Import CSV** button — creates table from CSV file upload (hidden for guests)
+- **Create Table** button — manual table builder modal (hidden for guests)
+- **Dark mode toggle** — always visible
+- **Profile icon + Logout** — registered users only
+- **"Register to save your work"** — guests only
 
 ---
 
 ## Step 4: Enter Core Flow
 
-Once the user has chosen how to create their first table (AI, manual, CSV, or starter), they enter the [Core Flow](./core-flow.md):
+Once the user has chosen how to create their first table (AI prompt, starter pill, manual, or CSV), they enter the [Core Flow](./core-flow.md):
 
 1. **Create Table** — define columns via AI or manual
 2. **Populate** — add data via AI research, CSV import, or manual entry
@@ -149,6 +216,19 @@ See [core-flow.md](./core-flow.md) for the full specification of each step.
 ---
 
 ## Verification Checklist
+
+### Guest Try-It Flow
+
+- [ ] Landing page shows pain-statement hero: "Here's your updated table." / "You check. It's not updated."
+- [ ] Textarea with placeholder "Describe the table you want to build..."
+- [ ] "Create Table" submit button
+- [ ] 4 starter pills: Competitor Analysis, Product Comparison, Favorite Restaurants, Job Application Tracker
+- [ ] Header shows "Log in" and "Get Started" links
+- [ ] Submitting prompt: creates guest session, navigates to /tables, chat opens, prompt sent
+- [ ] Clicking starter pill: same behavior with preset prompt
+- [ ] Guest restrictions: no Import CSV, no Create Table, no StarterGrid, no PromptHero
+- [ ] Guest header: "Register to save your work" link instead of profile/logout
+- [ ] GuestRegistrationModal: email + password, converts anonymous account
 
 ### Registration
 
@@ -171,13 +251,12 @@ See [core-flow.md](./core-flow.md) for the full specification of each step.
 
 ### Tables List (Empty State)
 
-- [ ] Empty state shows: table icon, "No tables yet" heading, description text
-- [ ] "Build a Table with AI" button (primary, gradient with sparkles icon)
-- [ ] "or create one manually" link visible
-- [ ] Starter prompts grid visible (3 columns on desktop)
-- [ ] Clicking starter opens chat panel with prompt pre-filled
-- [ ] Clicking "Build a Table with AI" opens chat panel
-- [ ] Header shows: Ask AI, Import CSV, Create Table buttons
+- [ ] PromptHero visible when no tables and chat closed: heading, textarea, button, 4 starter pills, manual link
+- [ ] Submitting prompt or clicking starter opens chat and sends message
+- [ ] After chat opens with no tables: shows "Your table will appear here" placeholder
+- [ ] Header shows Import CSV and Create Table buttons (hidden for guests)
+- [ ] Guest users see "Register to save your work" in header instead of profile/logout
+- [ ] Dark mode toggle visible
 
 ### Transition to Core Flow
 

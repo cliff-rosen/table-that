@@ -104,7 +104,7 @@ Users cycle between steps 3 and 4 repeatedly — adding columns and enriching th
 1. **User asks AI to add data** (e.g., "Add 10 sample bugs" or "Research SaaS competitors and add them")
 2. **AI gathers data** — either from its knowledge or using web tools (`search_web`, `fetch_webpage`, `research_web`)
 3. **AI emits `DATA_PROPOSAL`** with:
-   - `operations`: array of `"add"` actions, each with `data` mapping column names to values
+   - `operations`: array of `"add"` actions, each with `data` mapping column IDs to values
    - `reasoning`: brief explanation
 4. **ProposalActionBar appears** above the table (violet/blue gradient bar)
    - Shows: "AI Proposed Changes — N additions"
@@ -281,9 +281,10 @@ The backend suppresses suggestion chips while a proposal is active — the user'
 | Multi-row enrichment | `enrich_column` → `DATA_PROPOSAL` |
 
 ### Column name vs. ID
-- **Proposals use column names** (not IDs) — frontend resolves names to IDs
-- **Tools use column names** in `values`/`changes` parameters
-- **Schema modify/remove/reorder use column IDs** (since they reference existing columns)
+- **DATA_PROPOSAL**: operations use column IDs in `data` and `changes` fields
+- **Tools**: use column names in parameters (tools map names to IDs internally)
+- **SCHEMA_PROPOSAL**: column names for new columns, column IDs for existing (modify/remove/reorder)
+- Column IDs are shown in AI context (e.g., col_abc123)
 
 ### Limits
 - Max 100 rows per table

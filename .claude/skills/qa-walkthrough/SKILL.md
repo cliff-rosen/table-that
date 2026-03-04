@@ -68,17 +68,35 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
 3. Check console errors (filter out expected 401s on `/api/tracking/events`)
 4. **Verify (NUF checklist items):**
    - [ ] Page loads without errors
-   - [ ] Hero text is visible: "Tell AI what you're tracking"
-   - [ ] "Get Started Free" CTA link exists and points to /register
-   - [ ] "Already have an account?" link exists and points to /login
-   - [ ] Three-step section is visible (Describe it, Populate it, Put AI to work)
-   - [ ] Feature cards section is visible
+   - [ ] Pain-statement hero: "Here's your updated table." / "You check. It's not updated."
+   - [ ] Textarea with placeholder "Describe the table you want to build..."
+   - [ ] "Create Table" submit button
+   - [ ] 4 starter pills: Competitor Analysis, Product Comparison, Favorite Restaurants, Job Application Tracker
+   - [ ] Header: "Log in" and "Get Started" links
    - [ ] No "session expired" message visible
-   - [ ] Header shows "Log in" and "Get Started" links
+
+#### 1b-alt. Guest Try-It Flow
+
+> Test the primary entry path (guest tries before registering). Run this before or instead of 1b.
+
+1. On the landing page, type a prompt in the textarea (e.g., "Track my favorite restaurants with name, cuisine, rating") or click a starter pill
+2. Click "Create Table" (or press Enter)
+3. **Verify:**
+   - [ ] Redirects to `/tables`
+   - [ ] Chat panel opens automatically
+   - [ ] Prompt is sent as a chat message
+4. **Verify guest restrictions:**
+   - [ ] No Import CSV button in header
+   - [ ] No Create Table button in header
+   - [ ] No StarterGrid visible
+   - [ ] "Register to save your work" shown in header (not profile/logout)
+5. [SCREENSHOT] `qa-1b-alt-guest.png`
+
+> Note: If testing guest flow, skip 1b (explicit registration) and proceed to 1c. You can test registration later via the "Register to save your work" link.
 
 #### 1b. Registration
 
-1. Click "Get Started Free"
+1. Click "Get Started" (or navigate to /register)
 2. **Verify (NUF Registration checklist):**
    - [ ] Registration form shows: email, password, confirm password
    - [ ] No "session expired" or error message visible to first-time visitors
@@ -93,14 +111,14 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
 #### 1c. Tables List (Empty State)
 
 1. **Verify (NUF Tables List checklist):**
-   - [ ] Empty state shows: table icon, "No tables yet" heading, description text
-   - [ ] "Build a Table with AI" button (primary, gradient with sparkles icon)
-   - [ ] "or create one manually" link visible
-   - [ ] Starter prompts grid visible (3 columns on desktop)
-   - [ ] Header shows: Ask AI, Import CSV, Create Table buttons
-   - [ ] Dark mode toggle visible in header
-   - [ ] Profile link and Logout button visible
+   - [ ] PromptHero: heading "What do you want to track?", textarea, Create Table button, 4 starters, "or create a table manually" link
+   - [ ] Submitting prompt opens chat and sends message
+   - [ ] With chat open + no tables: "Your table will appear here" shown
+   - [ ] Import CSV + Create Table in header (hidden for guests)
+   - [ ] Dark mode toggle visible
 2. [SCREENSHOT] `qa-1c-empty-state.png`
+
+> Note: If testing via guest flow (1b-alt), the PromptHero will NOT be visible — guests see the waiting state ("Your table will appear here") with chat open. Verify guest restrictions instead.
 
 ---
 
@@ -108,7 +126,7 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
 
 **Flow spec:** `_specs/flows/core-flow.md` — Step 1
 
-1. Click "Build a Table with AI" (or "Ask AI" button)
+1. Type a table description in the PromptHero textarea and click Create Table, or click a starter pill (if coming from guest flow, the prompt was already sent — skip to step 3)
 2. **Verify chat panel opens with:**
    - [ ] Welcome message with action paths
    - [ ] Suggested action buttons visible
@@ -384,14 +402,17 @@ Write the full report to `_specs/signal/qa-latest.md`, overwriting the previous 
 
 | Checklist Item | Result | Phase | Notes |
 |---------------|--------|-------|-------|
+| Pain-statement hero visible | PASS/FAIL | 1a | |
+| Textarea + Create Table button + 4 starters | PASS/FAIL | 1a | |
+| Guest flow: prompt → guest session → /tables + chat | PASS/FAIL | 1b-alt | |
+| Guest restrictions (no Import/Create/StarterGrid) | PASS/FAIL | 1b-alt | |
+| "Register to save your work" in header (guest) | PASS/FAIL | 1b-alt | |
 | Registration form shows: email, password, confirm password | PASS/FAIL | 1b | |
-| Password validation: minimum 5 characters | NOT TESTED | — | API test covers this |
 | Successful registration auto-logs in | PASS/FAIL | 1b | |
 | Redirects to /tables after registration | PASS/FAIL | 1b | |
-| Empty state shows: table icon, "No tables yet" | PASS/FAIL | 1c | |
-| "Build a Table with AI" button | PASS/FAIL | 1c | |
-| Starter prompts grid visible | PASS/FAIL | 1c | |
-| Header shows: Ask AI, Import CSV, Create Table | PASS/FAIL | 1c | |
+| PromptHero visible (no tables, chat closed) | PASS/FAIL | 1c | |
+| "Your table will appear here" (chat open, no tables) | PASS/FAIL | 1c | |
+| Import CSV + Create Table in header (hidden for guests) | PASS/FAIL | 1c | |
 
 ### Core Flow (`_specs/flows/core-flow.md`)
 
