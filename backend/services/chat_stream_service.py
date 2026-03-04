@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 8000
 DEFAULT_MAX_TOOL_ITERATIONS = 5
-GUEST_TURN_LIMIT = 10
+GUEST_TURN_LIMIT = 2
 # Context window for the chat model. Warning fires at 70% usage.
 CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
@@ -113,8 +113,15 @@ class ChatStreamService:
         user = await user_service.get_user_by_id(self.user_id)
         if user and user.is_guest:
             msg_count = await self.chat_service.count_user_messages(self.user_id)
+            logger.info(
+                f"Guest limit check: user={self.user_id} msg_count={msg_count} limit={GUEST_TURN_LIMIT} over={'YES' if msg_count >= GUEST_TURN_LIMIT else 'no'}"
+            )
             if msg_count >= GUEST_TURN_LIMIT:
                 guest_limit_hit = True
+        else:
+            logger.info(
+                f"Guest limit check: user={self.user_id} is_guest={user.is_guest if user else 'no user'} — skipping"
+            )
 
         # State accumulated during streaming — declared outside try so
         # the finally block can always persist whatever was collected.
@@ -342,6 +349,9 @@ class ChatStreamService:
             # response is fully delivered before the frontend shows the
             # registration prompt.
             if guest_limit_hit:
+                logger.info(
+                    f"Guest limit: yielding guest_limit event AFTER complete for user={self.user_id}"
+                )
                 yield GuestLimitEvent(
                     message="You've used all your free messages. Register to keep going."
                 ).model_dump_json()

@@ -493,7 +493,7 @@ export default function ChatTray({
                                                 type="button"
                                                 key={sIdx}
                                                 onClick={() => handleValueSelect(suggestion.value)}
-                                                disabled={isLoading}
+                                                disabled={isLoading || (guestLimitReached && isGuest)}
                                                 className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {suggestion.label}
@@ -510,7 +510,7 @@ export default function ChatTray({
                                                 type="button"
                                                 key={aIdx}
                                                 onClick={() => handleActionClick(action)}
-                                                disabled={isLoading}
+                                                disabled={isLoading || (guestLimitReached && isGuest)}
                                                 className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${action.style === 'primary'
                                                     ? 'bg-green-600 hover:bg-green-700 text-white'
                                                     : action.style === 'warning'

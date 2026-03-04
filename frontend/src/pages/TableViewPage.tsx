@@ -11,6 +11,7 @@ import { getTable, updateTable, listRows, createRow, updateRow, deleteRow, bulkD
 import { trackEvent } from '../lib/api/trackingApi';
 import { useTableProposal } from '../hooks/useTableProposal';
 import { useChatContext } from '../context/ChatContext';
+import { useAuth } from '../context/AuthContext';
 
 import type { TableDefinition, TableRow, SortState } from '../types/table';
 import { applySchemaOperations, type SchemaProposalData } from '../types/schemaProposal';
@@ -45,6 +46,7 @@ export default function TableViewPage() {
 
   // Chat context
   const { updateContext, sendMessage, messages } = useChatContext();
+  const { isGuest } = useAuth();
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -450,14 +452,16 @@ export default function TableViewPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => { trackEvent('edit_schema', { table_id: tableId }); navigate(`/tables/${tableId}/edit`); }}
-                className="gap-2"
-              >
-                <PencilSquareIcon className="h-5 w-5" />
-                Edit Schema
-              </Button>
+              {!isGuest && (
+                <Button
+                  variant="outline"
+                  onClick={() => { trackEvent('edit_schema', { table_id: tableId }); navigate(`/tables/${tableId}/edit`); }}
+                  className="gap-2"
+                >
+                  <PencilSquareIcon className="h-5 w-5" />
+                  Edit Schema
+                </Button>
+              )}
               <button
                 onClick={() => { if (!chatOpen) trackEvent('chat_open', { page: 'table_view', table_id: tableId }); setChatOpen((prev) => !prev); }}
                 className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${chatOpen
