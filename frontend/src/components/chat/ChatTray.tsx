@@ -334,9 +334,25 @@ export default function ChatTray({
     }
 
     // Inline-only mode: always renders as a flex child in a flex container
-    // Width collapses to 0 when closed, expands when open
-    const trayClasses = `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out relative ${isOpen ? 'shadow-lg' : ''}`;
-    const trayStyle = { width: isOpen ? `${width}px` : '0px', minWidth: isOpen ? `${minWidth}px` : '0px' };
+    if (!isOpen) {
+        // Collapsed state: show a vertical tab to re-open
+        return (
+            <div className="h-full flex-shrink-0 flex items-start pt-4">
+                <button
+                    onClick={() => onOpenChange(true)}
+                    className="flex items-center gap-1.5 px-2 py-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-r-lg border border-l-0 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 transition-colors"
+                    title="Open chat"
+                >
+                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                    <span className="text-xs font-medium">AI</span>
+                </button>
+            </div>
+        );
+    }
+
+    // Open state
+    const trayClasses = 'h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden relative shadow-lg';
+    const trayStyle = { width: `${width}px`, minWidth: `${minWidth}px` };
 
     return (
         <>

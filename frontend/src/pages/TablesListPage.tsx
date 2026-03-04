@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  SparklesIcon,
   TableCellsIcon,
 } from '@heroicons/react/24/outline';
 import { STARTERS } from '../config/starters';
@@ -369,16 +368,6 @@ export default function TablesListPage() {
           {/* Page header */}
           <div className="flex-shrink-0 flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              {/* Chat toggle — only when chat is closed and there are tables */}
-              {!chatOpen && tables.length > 0 && (
-                <button
-                  onClick={() => { trackEvent('chat_open', { page: 'tables_list' }); setChatOpen(true); }}
-                  className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
-                  title="Open chat"
-                >
-                  <SparklesIcon className="h-5 w-5" />
-                </button>
-              )}
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                   Tables
@@ -425,15 +414,6 @@ export default function TablesListPage() {
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                 Describe what you need in the chat and we&rsquo;ll build it.
               </p>
-              {!chatOpen && (
-                <button
-                  onClick={() => setChatOpen(true)}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
-                >
-                  <SparklesIcon className="h-4 w-4" />
-                  Open chat
-                </button>
-              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
