@@ -102,6 +102,7 @@ api.interceptors.response.use(
     // Check for authentication/authorization errors
     if ((error.response?.status === 401 || error.response?.status === 403) &&
       !error.config.url?.includes('/login') &&
+      !error.config.url?.includes('/tracking/') &&
       !isRedirectingToLogin) {
 
       clearAuthData();

@@ -4,6 +4,7 @@ import {
   PlusIcon,
   ArrowUpTrayIcon,
   SparklesIcon,
+  TableCellsIcon,
 } from '@heroicons/react/24/outline';
 import { STARTERS } from '../config/starters';
 import { listTables, createTable, deleteTable, createRow } from '../lib/api/tableApi';
@@ -15,6 +16,7 @@ import CreateTableModal from '../components/table/CreateTableModal';
 import DeleteConfirmModal from '../components/table/DeleteConfirmModal';
 import TableCard from '../components/table/TableCard';
 import { useChatContext } from '../context/ChatContext';
+import { useAuth } from '../context/AuthContext';
 import ChatTray from '../components/chat/ChatTray';
 import ProposedTablePreview from '../components/table/ProposedTablePreview';
 import { applySchemaOperations } from '../types/schemaProposal';
@@ -145,6 +147,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 export default function TablesListPage() {
   const navigate = useNavigate();
   const { updateContext, sendMessage, chatId, messages } = useChatContext();
+  const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -330,8 +333,8 @@ export default function TablesListPage() {
     );
   }
 
-  // Show centered prompt hero when no tables, chat closed, and no active proposal
-  const showPromptHero = tables.length === 0 && !chatOpen && !activeProposal;
+  // Show centered prompt hero when no tables, chat closed, no active proposal, and not a guest
+  const showPromptHero = tables.length === 0 && !chatOpen && !activeProposal && !isGuest;
 
   return (
     <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
@@ -348,9 +351,10 @@ export default function TablesListPage() {
           onManualCreate={() => setShowCreateModal(true)}
         />
       ) : (
-      <div className="flex-1 min-w-0 min-h-0 overflow-auto">
-        <div className="max-w-6xl mx-auto w-full px-6 py-8">
-          {/* Page header */}
+      <div className="flex-1 min-w-0 min-h-0 overflow-auto flex flex-col">
+        <div className="max-w-6xl mx-auto w-full px-6 py-8 flex-1 flex flex-col">
+          {/* Page header — hidden for guests */}
+          {!isGuest && (
           <div className="flex-shrink-0 flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -390,6 +394,7 @@ export default function TablesListPage() {
               </button>
             </div>
           </div>
+          )}
 
           {/* Content */}
           {activeProposal ? (
@@ -398,6 +403,17 @@ export default function TablesListPage() {
               onAccept={handleProposalAcceptFromPreview}
               onDismiss={() => setActiveProposal(null)}
             />
+          ) : tables.length === 0 ? (
+            /* Empty state — "your table will appear here" */
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <TableCellsIcon className="h-16 w-16 text-gray-200 dark:text-gray-700 mb-4" />
+              <h2 className="text-xl font-semibold text-gray-400 dark:text-gray-500">
+                Your table will appear here
+              </h2>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                Describe what you need in the chat and we&rsquo;ll build it.
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {tables.map((table) => (
@@ -412,11 +428,13 @@ export default function TablesListPage() {
             </div>
           )}
 
-          {/* Starter prompts — always visible */}
+          {/* Starter prompts — hidden for guests */}
+          {!isGuest && (
           <StarterGrid
             onStarterClick={handleStarterClick}
             compact={tables.length > 0}
           />
+          )}
         </div>
       </div>
       )}
