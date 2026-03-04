@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { MoonIcon, SunIcon, UserCircleIcon, TableCellsIcon, ShieldCheckIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import settings from '../../config/settings';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +15,7 @@ export default function TopBar({ newVersionAvailable }: TopBarProps) {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
     const { logout, isPlatformAdmin, isGuest } = useAuth();
+    const navigate = useNavigate();
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
 
     const getLinkClass = (path: string, matchPrefix = false) => {
@@ -43,7 +44,18 @@ export default function TopBar({ newVersionAvailable }: TopBarProps) {
         <header className={`fixed left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 flex items-center justify-between px-6 ${newVersionAvailable ? 'top-9' : 'top-0'}`}>
             <div className="flex items-center gap-6">
                 <div className="flex items-center">
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">{settings.appName}</span>
+                    {isGuest ? (
+                        <button
+                            onClick={() => { logout(); navigate('/'); }}
+                            className="text-lg font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                            {settings.appName}
+                        </button>
+                    ) : (
+                        <NavLink to="/tables" className="text-lg font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            {settings.appName}
+                        </NavLink>
+                    )}
                 </div>
 
                 <nav className="flex items-center gap-2">
@@ -65,12 +77,20 @@ export default function TopBar({ newVersionAvailable }: TopBarProps) {
                     {isDarkMode ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
                 </button>
                 {isGuest ? (
-                    <button
-                        onClick={() => setShowRegistrationModal(true)}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                    >
-                        Register to save your work
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => { logout(); navigate('/login'); }}
+                            className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                        >
+                            Log in
+                        </button>
+                        <button
+                            onClick={() => setShowRegistrationModal(true)}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                            Register to save your work
+                        </button>
+                    </div>
                 ) : (
                     <>
                         <NavLink to="/profile" className={getLinkClass('/profile')} onClick={() => trackEvent('nav_click', { destination: 'profile' })}>
