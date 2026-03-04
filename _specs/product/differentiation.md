@@ -219,6 +219,170 @@ The chatbot saves time on step 1 (generating the initial list). table.that saves
 
 ---
 
+## Part 2: The Analytical Enrichment Angle
+
+The use cases above focus on *research* — discovering new facts about entities from the web. But there's a whole second mode where the table is an **analytical workspace** for data the user already has or is accumulating over time. Here, enrichment isn't "look up the website" — it's "categorize this," "score this," "tag this," "flag this for follow-up." The columns you're adding exist for **sorting, filtering, and decision-making**, not for capturing external facts.
+
+This is the vendor list, the candidate pipeline, the deal tracker, the content calendar. Data that lives and evolves. You're constantly asking: "which of these need attention?" "how do these break down by category?" "which ones meet my criteria?" The table is a persistent analytical lens on an evolving set of entities.
+
+### Why This Angle Matters Separately
+
+In the research angle, the chatbot's main failure is **it can't access live data**. In the analytical angle, the chatbot's main failure is different: **it can't maintain and evolve a structured dataset that you filter and act on repeatedly.** Even if the chatbot had perfect knowledge, the workflow still breaks because the *interaction pattern* is wrong — you need persistent state, typed filters, incremental updates, and the ability to revisit and re-analyze.
+
+---
+
+### Use Case 6: "Evaluate our vendor shortlist"
+
+A procurement manager has 30 vendors to evaluate for a software purchase. They already have names and basic info. They need to systematically assess each one.
+
+**What table.that does:**
+1. User creates a table (or imports CSV) with: Vendor Name, Product, Annual Cost, Contract Length.
+2. User says "add a column for Security Compliance — SOC2, ISO 27001, or Neither." AI proposes a select column. Applied.
+3. User says "research each vendor's security certifications." AI enriches per row from live web data. Results are select values (SOC2 / ISO 27001 / Both / Neither), not free text.
+4. User says "add a Priority column — High, Medium, Low — based on whether they meet our budget under $50K and have SOC2." AI enriches using computation strategy — reads each row's cost and compliance, applies the rule, sets the select value.
+5. User filters: Priority = High, Security = SOC2 or Both. Seven vendors remain. User exports for the review committee.
+6. Two weeks later, user updates: "mark DataCo as eliminated — they failed the demo." Changes one row's Status. Filters still work. Table is current.
+7. A month later, new vendors are added. User re-enriches the Priority column. New rows get scored automatically.
+
+**What happens in ChatGPT/Claude:**
+
+User pastes the 30 vendor names and asks for analysis. The chatbot generates a wall of text — maybe a markdown table — with its assessment of each vendor from training data.
+
+**Failure modes:**
+
+| Failure | Category | Why it happens |
+|---------|----------|----------------|
+| **Can't apply rules consistently across 30 rows** | Consistency | User says "if cost < $50K and SOC2, mark as High priority." In a chatbot, this is a single generation where the LLM applies the rule to all 30 rows at once. It will make mistakes — misread a number, skip a row, apply the logic inconsistently. There's no mechanical guarantee that the rule was applied the same way to row 1 and row 30. |
+| **Can't re-apply after changes** | Persistence | User eliminates 5 vendors and adds 3 new ones. "Re-score the priorities." The chatbot has to regenerate everything. In table.that, re-enriching the Priority column only processes rows that need updating. |
+| **Can't filter the result** | Structure | "Show me only the High priority vendors with SOC2." In a chatbot, this means asking it to regenerate a filtered sublist. The user can't toggle filters interactively, combine filter criteria, or quickly switch between views. |
+| **Status tracking doesn't work** | Persistence | Vendor evaluations evolve over weeks. Statuses change (Evaluating → Demo Scheduled → Approved → Eliminated). In a chatbot, there's no persistent Status column to update — every change requires restating the entire context. |
+| **Exported snapshots go stale immediately** | Workflow | User copies the chatbot's table to a spreadsheet. Next week, three vendors updated their pricing. The spreadsheet is stale. There's no connection between the chatbot's output and the user's working data. |
+
+---
+
+### Use Case 7: "Manage my content calendar"
+
+A marketing manager tracks blog posts, social media, and email campaigns. Needs to plan, schedule, tag by theme, track status, and spot gaps.
+
+**What table.that does:**
+1. Schema: Title, Channel (select: Blog, Twitter, LinkedIn, Email, Newsletter), Status (select: Idea, Drafting, Review, Scheduled, Published), Theme (select: Product, Culture, Tutorial, Case Study), Author, Publish Date (date), Performance (select: High, Medium, Low, Not Measured)
+2. User adds 40 content items over several weeks via chat and manual entry.
+3. User says "tag the Performance column based on engagement — use High if it was shared more than 50 times." AI enriches using web research (checks share counts on published items) + computation (applies the threshold).
+4. User filters: Theme = Tutorial, Status = Published, Performance = Low. "These are the tutorials that didn't land. What themes did well?"
+5. AI can see the filtered data and answer analytically: "Your Case Study posts consistently perform High. Your Tutorial posts average Low except when paired with the Product theme."
+6. User says "flag everything from January that doesn't have a Performance rating yet." AI adds a Needs Review (boolean) column and enriches based on date + Performance.
+
+**What happens in ChatGPT/Claude:**
+
+User describes their content calendar and asks for help organizing it. The chatbot can brainstorm content ideas or suggest a structure — but it can't *be* the calendar.
+
+**Failure modes:**
+
+| Failure | Category | Why it happens |
+|---------|----------|----------------|
+| **Can't accumulate data over time** | Persistence | A content calendar grows week by week. Each new item is a row. In a chatbot, you'd need to paste the entire calendar every time you want to add an item or ask a question about it. After 40 items, you're hitting context limits. |
+| **Can't answer analytical questions about the data** | Structure | "What percentage of my Blog posts are in Drafting status?" requires counting across a structured dataset. The chatbot would need the full dataset in context, and even then it's doing arithmetic on markdown text — error-prone. table.that has the data in a database with typed columns; the AI sees distributions in its context. |
+| **Can't derive columns from existing data** | Workflow | "Flag everything from January without a Performance rating" is a computation across two columns (date + performance). In a chatbot, this is a one-shot LLM generation applied to a text blob. In table.that, it's a per-row computation with type-aware coercion to boolean. |
+| **Filters don't exist** | Structure | Switching between views — "show me just the Scheduled items" vs "show me just the Low performers" — is instantaneous with filter chips. In a chatbot, each view is a new request that regenerates a filtered list. |
+| **No visual density** | Presentation | 40 items across 8 columns is a spreadsheet-density problem. A chatbot presents this as a long markdown table or a list — neither supports the information density needed for editorial planning. |
+
+---
+
+### Use Case 8: "Score and prioritize inbound leads"
+
+A sales rep gets 50 inbound leads per week. Needs to score them and prioritize follow-up.
+
+**What table.that does:**
+1. Import CSV from CRM export: Company, Contact Name, Email, Title, Company Size, Source.
+2. User says "add a Lead Score column — Hot, Warm, Cold — based on company size over 100, title contains VP or Director, and source is Referral or Demo Request." AI proposes select column, then enriches using computation. Each row is scored by rule.
+3. User says "research the company website and industry for each lead." AI enriches two columns (Website, Industry) via live web research.
+4. User says "add a Follow-Up Action column — schedule demo, send deck, nurture email — and recommend one for each lead based on their score and industry." AI enriches using a combination of the existing data: Hot leads get "schedule demo," Warm leads in Tech get "send deck," Cold leads get "nurture email."
+5. User filters: Lead Score = Hot. Sorts by Company Size descending. Calls the first five today.
+6. Next week: imports a new batch. Re-enriches Lead Score. Existing scored leads keep their values. New leads get scored.
+
+**What happens in ChatGPT/Claude:**
+
+User pastes 50 leads and asks "score these." Chatbot generates scores — but:
+
+**Failure modes:**
+
+| Failure | Category | Why it happens |
+|---------|----------|----------------|
+| **Can't ingest 50 rows reliably** | Scale | Pasting 50 rows of CSV into a chatbot stretches context. The chatbot may truncate, lose rows, or misparse the data. And next week, you're pasting 50 more — the chatbot has no memory of last week's batch. |
+| **Scoring rules applied inconsistently** | Consistency | The chatbot applies "company size > 100 + VP title + referral source → Hot" to 50 rows in a single generation. By row 35, it's pattern-matching rather than faithfully applying the rule. It might score a 90-person company as Hot because the title looked senior enough. No mechanical enforcement. |
+| **Can't combine computed + researched columns** | Workflow | "Score based on size and title (from the data), plus industry (which needs to be researched first)" is a two-pass operation: research Industry, then compute Score using Industry as an input. Chatbots have no concept of column dependencies or multi-pass enrichment. |
+| **Can't re-score on new batches** | Persistence | New leads arrive. The scoring logic needs to run again on just the new rows, preserving previous scores. In a chatbot, there's no concept of "run this on the new rows." You regenerate everything. |
+| **Can't act on the scored data** | Workflow | "Show me the Hot leads, sorted by company size" is a filter + sort. In a chatbot, it's a new prompt. The scored list exists only as text. |
+
+---
+
+### Use Case 9: "Track and triage customer support issues"
+
+A support lead tracks recurring issues to identify patterns and advocate for fixes.
+
+**What table.that does:**
+1. Schema: Issue Description, Customer, Severity (select: Critical, High, Medium, Low), Product Area (select: Auth, Billing, API, Dashboard, Mobile), Status (select: New, Investigating, Escalated, Fixed), First Reported (date), Occurrences (number), Engineering Ticket (text)
+2. User adds issues over time via chat ("add a new issue: customers can't reset passwords, critical, Auth area, 12 reports this week").
+3. User says "re-categorize severity based on occurrences — anything with 10+ is Critical, 5-9 is High." AI enriches Severity using computation against the Occurrences column.
+4. User filters: Status = New or Investigating, Severity = Critical. Five issues need immediate attention.
+5. User says "which Product Area has the most Critical issues?" AI reads the table context (value distributions are in the system prompt) and answers: "Auth has 3 Critical, Billing has 2."
+6. Monthly: user says "show me the trend — how many new issues per Product Area this month vs last?" The data is in the table; AI can compute from the date and product area columns.
+
+**What happens in ChatGPT/Claude:**
+
+The support lead tries to use a chatbot as an issue tracker. They describe issues conversationally.
+
+**Failure modes:**
+
+| Failure | Category | Why it happens |
+|---------|----------|----------------|
+| **Can't accumulate over time** | Persistence | Issues trickle in over weeks. A chatbot conversation that spans weeks is unworkable — context limits, drift, loss. A new conversation means re-entering everything. |
+| **Can't reclassify in bulk** | Workflow | "Re-score severity based on occurrences" requires reading a number column and writing to a select column across all rows. This is an enrichment operation. The chatbot would need the full dataset, apply the rule in one shot, and regenerate the whole table. |
+| **Can't answer aggregate questions** | Structure | "Which Product Area has the most Critical issues?" is a group-by + count query. table.that's context builder sends value distributions to the AI as structured data. A chatbot has to count from a text blob. |
+| **No ongoing canonical state** | Persistence | The "table" in a chatbot is whichever markdown block was generated most recently. Is issue #7 still "Investigating"? Did someone update it? The chatbot doesn't know. table.that has a row that persists and gets updated in place. |
+| **Can't cross-reference with a filter** | Structure | "Show me Critical Auth issues that are still New" is a two-column filter. Instant in table.that. In a chatbot, it's a re-prompt that regenerates a filtered list — and the next question requires a different filter, another re-prompt. |
+
+---
+
+## Analytical Enrichment Failure Modes
+
+The analytical use cases reveal failure categories that are distinct from the research-focused ones:
+
+### 6. No Rule-Based Computation Across Rows
+
+When enrichment means "apply this rule to every row" (scoring, categorizing, flagging), chatbots apply the rule via a single generation — essentially asking the LLM to be a for-loop. This is inherently unreliable:
+- Rules are applied with decreasing fidelity as the row count increases
+- No guarantee of consistency between row 1 and row 50
+- No ability to re-apply after data changes without regenerating everything
+
+**table.that advantage:** The computation strategy applies the rule per row, mechanically. Each row is an independent operation. Re-enrichment runs only on rows that need it. The result is coerced to the column type (select option, boolean, number), not free text.
+
+### 7. No Persistent Analytical State
+
+Analytical workflows are inherently temporal — data accumulates, statuses change, new items arrive. The user needs a stable workspace they return to daily or weekly. Chatbots are session-scoped. Even with memory features, they store preferences, not datasets.
+
+**table.that advantage:** Database-backed persistence. The table exists between sessions. The user opens it, sees current state, filters to their view, makes updates, closes it. Next week, it's still there with all their changes.
+
+### 8. No Interactive Filtering
+
+The core act of analysis is filtering: show me X where Y. In a spreadsheet or table.that, this is instantaneous and combinable — filter by status AND priority AND date range, then switch to a different combination. In a chatbot, every filter combination is a new prompt that regenerates the view.
+
+**table.that advantage:** Typed filter bar with boolean toggles and select dropdowns. Filters compose (AND). Active filters persist across interactions. The AI sees the active filter state and can reason about the filtered subset.
+
+### 9. No Column Dependencies
+
+Real analytical workflows have column dependencies: Score depends on Size + Title. Priority depends on Score + Deadline. Status depends on Priority + Last Contact. Chatbots have no concept of these dependencies. table.that doesn't model them explicitly yet either — but the enrichment system allows multi-pass enrichment where later columns can read earlier columns' values.
+
+**table.that advantage:** Enrichment can reference any existing column via `{Column Name}` interpolation. A second enrichment pass can use the output of the first. This enables chained analytical logic: research → categorize → score → prioritize.
+
+### 10. No Aggregate Awareness
+
+Analytical questions are often about the *distribution* — "how many in each category?" "what's the trend?" "which segment is underperforming?" Chatbots working from text blobs can attempt these but are error-prone. table.that's context builder sends structured value distributions (e.g., `Status: {New: 12, Investigating: 8, Fixed: 23}`) to the AI every turn.
+
+**table.that advantage:** The AI receives pre-computed aggregate statistics as structured context. It doesn't need to count rows — it reads the distribution and reasons about it. This makes analytical questions reliable, not approximations.
+
+---
+
 ## Where Generic Chatbots Are Actually Fine
 
 To be honest about where the advantage is thin or nonexistent:
