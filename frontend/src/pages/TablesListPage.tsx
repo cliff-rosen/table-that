@@ -161,6 +161,8 @@ export default function TablesListPage() {
   const lastCheckedIndexRef = useRef(messages.length);
 
   const handleStarterClick = useCallback((prompt: string) => {
+    // Mark as new conversation so ChatTray doesn't load old history over our message
+    sessionStorage.setItem('chatCurrentConversationId', 'new');
     setChatOpen(true);
     sendMessage(prompt, undefined, undefined, { newConversation: true });
   }, [sendMessage]);
