@@ -11,6 +11,8 @@ import type { ComponentType } from 'react';
 export interface Starter {
   title: string;
   description: string;
+  /** Short first-person sentence shown on landing page so users know what to type */
+  example: string;
   icon: ComponentType<{ className?: string }>;
   prompt: string;
 }
@@ -20,6 +22,7 @@ export const STARTERS: Starter[] = [
     title: 'Competitor Analysis',
     icon: ChartBarIcon,
     description: 'Map out your competitive landscape with AI research',
+    example: "I want to map out competitors in my industry — pricing, features, target audience",
     prompt:
       "I want to build a competitor analysis table. Interview me first — ask what industry or product category I'm in, what I'd want to track about competitors (pricing, features, audience, etc.), and how many competitors I'm looking at. Then propose a table structure based on my answers.",
   },
@@ -27,6 +30,7 @@ export const STARTERS: Starter[] = [
     title: 'Product Comparison',
     icon: ShoppingCartIcon,
     description: 'Compare options side-by-side to make a purchase decision',
+    example: "I'm buying a laptop and want to compare my options side by side",
     prompt:
       "I need to compare products to make a buying decision. Before building anything, ask me what kind of product I'm shopping for, what factors matter most to me (price, specs, reviews, etc.), and my budget range. Then propose a table and help me populate it with real options.",
   },
@@ -34,6 +38,7 @@ export const STARTERS: Starter[] = [
     title: 'Favorite Restaurants',
     icon: MapPinIcon,
     description: 'Build a personal restaurant tracker for your city',
+    example: "I want to track my favorite restaurants — cuisine, price range, what I ordered",
     prompt:
       "I want to build a personal restaurant tracker. Ask me what city I'm in, what kind of dining info I'd want to remember (cuisine, price, ratings, favorite dishes, etc.), and whether I want to start with places I already know or discover new ones. Then set it up for me.",
   },
@@ -41,6 +46,7 @@ export const STARTERS: Starter[] = [
     title: 'Job Application Tracker',
     icon: BriefcaseIcon,
     description: 'Stay organized during your job search',
+    example: "I need to track my job applications — company, role, status, interview dates",
     prompt:
       "I want to track my job applications. Ask me about my job search — what field, whether I care about tracking salary ranges, remote vs. on-site, interview stages, or other details. Then build me a tracker table that fits how I actually job hunt.",
   },
@@ -48,6 +54,7 @@ export const STARTERS: Starter[] = [
     title: 'Wedding Planning',
     icon: HeartIcon,
     description: 'Research and compare venues, vendors, or guest lists',
+    example: "I'm planning a wedding and need to compare venues and track vendors",
     prompt:
       "I'm planning a wedding and need to organize my research. Ask me what I need to track — is it venues, vendors, guest list, budget, or something else? Ask about my priorities (budget, location, capacity, style) so you can propose the right table structure.",
   },
@@ -55,6 +62,7 @@ export const STARTERS: Starter[] = [
     title: 'Home Renovation',
     icon: WrenchScrewdriverIcon,
     description: 'Track projects, contractors, costs, and timelines',
+    example: "I'm renovating my kitchen and need to track contractors, costs, and timelines",
     prompt:
       "I need to track a home renovation project. Ask me what I'm renovating, whether I'm hiring contractors or DIY, and what I need to track (costs, timelines, materials, permits, etc.). Then build me a tracker that matches my actual project.",
   },

@@ -54,6 +54,7 @@ function PromptHero({ onSubmit, onManualCreate }: PromptHeroProps) {
           </p>
         </div>
 
+        {/* Describe your table */}
         <div className="space-y-3">
           <textarea
             value={prompt}
@@ -64,7 +65,7 @@ function PromptHero({ onSubmit, onManualCreate }: PromptHeroProps) {
                 handleSubmit(prompt);
               }
             }}
-            placeholder="Describe the table you want to build..."
+            placeholder="Describe your table..."
             rows={3}
             className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
@@ -77,16 +78,20 @@ function PromptHero({ onSubmit, onManualCreate }: PromptHeroProps) {
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2 justify-center">
-          {HERO_STARTERS.map((starter) => (
-            <button
-              key={starter.title}
-              onClick={() => handleSubmit(starter.prompt)}
-              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all"
-            >
-              {starter.title}
-            </button>
-          ))}
+        {/* Or choose one of these */}
+        <div className="space-y-2">
+          <p className="text-sm text-gray-400 dark:text-gray-500">or choose one of these</p>
+          <div className="space-y-2 text-left">
+            {HERO_STARTERS.map((starter) => (
+              <button
+                key={starter.title}
+                onClick={() => handleSubmit(starter.prompt)}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all"
+              >
+                {starter.example}
+              </button>
+            ))}
+          </div>
         </div>
 
         <button

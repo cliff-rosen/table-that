@@ -1,91 +1,83 @@
 # QA Walkthrough Report
 
 **Date:** 2026-03-03
-**Test User:** qa_test_20260303_1230@test.example.com
+**Test User:** qa_test_20260303_1500@test.example.com
 **Base URL:** http://localhost:5174
 **Browser:** Playwright (Chromium)
-**Scope:** Core Flow (Phases 2-5)
+**Scope:** New User Flow only (Phase 1)
 
 ## Summary
 
 | Phase | Flow | Name | Result | Issues |
 |-------|------|------|--------|--------|
-| 2 | Core Flow Step 1 | Create Table | PASS | 0 |
-| 3 | Core Flow Step 2 | Populate Data | PASS | 0 |
-| 4 | Core Flow Step 3 | Add Column | PASS | 0 |
-| 5 | Core Flow Step 4 | Enrich | PASS | 0 |
+| 1 | New User Flow | Landing + Guest Flow + Register + Empty State | PASS | 0 |
+| 2 | Core Flow Step 1 | Create Table | NOT RUN | — |
+| 3 | Core Flow Step 2 | Populate Data | NOT RUN | — |
+| 4 | Core Flow Step 3 | Add Column | NOT RUN | — |
+| 5 | Core Flow Step 4 | Enrich | NOT RUN | — |
+| 6 | Cross-Cutting | Session + UI + Console | NOT RUN | — |
+| 7 | Context Integrity | Table navigation + chat context | NOT RUN | — |
 
-**Overall: 4/4 phases passed**
+**Overall: 1/1 phases passed (scoped to "new user only")**
 
 ## DTP Assessment
 
 | Phase | Decision [D] | Tool [T] | Presentation [P] | Notes |
 |-------|-------------|---------|------------------|-------|
-| 2 | PASS | PASS | PASS | AI proposed 9 columns including helpful extras (Job URL, Contact Person, Notes). SchemaProposalStrip appeared correctly with green highlighted columns. |
-| 3 | PASS | PASS | PASS | AI used column IDs (col_xxx) in DATA_PROPOSAL. 5 sample rows with realistic data. ProposalActionBar showed correctly, progress tracking worked, auto-dismiss after success. |
-| 4 | PASS | PASS | PASS | Priority column added with P0-P3 options. SchemaProposalStrip showed "1 new column" with green highlight. Filter tabs appeared after apply. |
-| 5 | PASS | PASS | PASS | AI called enrich_column twice (first attempt returned no results, second used computation strategy). All 5 priorities assigned correctly. Research Log showed "5 found, 5 not found". Apply worked cleanly. |
+| 1a | n/a | PASS | PASS | Landing page renders correctly |
+| 1b-alt | n/a | PASS | PASS | Guest flow works end-to-end |
+| 1b | n/a | PASS | PASS | Registration auto-logs in, redirects to /tables |
+| 1c | n/a | PASS | PASS | PromptHero and waiting state both work |
 
 ## Checklist Coverage
 
-### Core Flow (`_specs/flows/core-flow.md`)
+### New User Flow (`_specs/flows/new-user-flow.md`)
 
 | Checklist Item | Result | Phase | Notes |
 |---------------|--------|-------|-------|
-| AI responds with SCHEMA_PROPOSAL (create) | PASS | 2 | 9 columns proposed |
-| SchemaProposalStrip appears | PASS | 2 | Blue/indigo gradient, "Schema changes proposed" |
-| Apply creates table, strip disappears | PASS | 2 | Table created, redirected to /tables/152 |
-| AI sends follow-up with suggestion chips | PASS | 2 | 4 suggestions: Add my first application, Import from CSV, Add sample applications, Research and add companies |
-| AI responds with DATA_PROPOSAL | PASS | 3 | 5 add operations with column IDs |
-| ProposalActionBar appears | PASS | 3 | Violet/blue gradient, "AI Proposed Changes — 5 additions" |
-| New rows appear with green tint | PASS | 3 | Phantom rows rendered correctly |
-| Checkboxes on each row (checked by default) | PASS | 3 | All 5 checked |
-| Select All / Deselect All links work | PASS | 3 | Verified in snapshot |
-| Apply inserts rows with progress | PASS | 3 | Progress bar, then "All 5 changes applied" |
-| Action bar auto-dismisses | PASS | 3 | Auto-dismissed after ~600ms |
-| Table refreshes with saved rows | PASS | 3 | Real IDs, no longer green |
-| SCHEMA_PROPOSAL (update) for new column | PASS | 4 | Priority column with P0-P3 options |
-| SchemaProposalStrip shows "1 new column" | PASS | 4 | Green highlighted column header |
-| New column appears with green highlight | PASS | 4 | Priority header had green annotation |
-| Column added, strip disappears | PASS | 4 | Filter tabs for Priority appeared after apply |
-| AI proactively suggests filling new column | PASS | 4 | AI immediately called enrich_column |
-| enrich_column tool called | PASS | 5 | Tool name: "Enrich Column" (shown twice — first attempt no results, second succeeded) |
-| Strategy and results card | PASS | 5 | Card title: "AI Proposed Changes — 5 updates". Research Log: "5 found, 5 not found" |
-| ProposalActionBar appears with results | PASS | 5 | 5 updates with checkboxes, amber highlights on Priority cells |
-| Enriched data applied to table | PASS | 5 | Google/Microsoft: P0, Shopify/Stripe: P1, Airbnb: P2 |
-
-## Key Validation: Column IDs Migration
-
-This QA run specifically validated the "backend sends column IDs" migration:
-
-- **DATA_PROPOSAL operations:** AI correctly used column IDs (e.g., `col_9oh3vune`, `col_kzbm89co`) instead of column names
-- **DataTable display computation:** Phantom rows, update patches, and row metadata all computed correctly from raw operations within DataTable
-- **executeSingleDataOperation:** Passed op.data/op.changes directly to API without name-to-ID mapping — all rows saved correctly
-- **enrich_column results:** Priority values stored using column ID, displayed and persisted correctly
+| Pain-statement hero visible | PASS | 1a | "Here's your updated table." / "You check. It's not updated." |
+| Textarea + Create Table button + 4 starters | PASS | 1a | All present; button disabled when empty |
+| Header: "Log in" and "Get Started" links | PASS | 1a | Both link to /login and /register |
+| No "session expired" message | PASS | 1a | Clean load |
+| Guest flow: starter pill → guest session → /tables + chat | PASS | 1b-alt | "Favorite Restaurants" pill → guest login → /tables with chat open and prompt sent |
+| Guest restrictions (no Import/Create/StarterGrid) | PASS | 1b-alt | All hidden for guest |
+| "Register to save your work" in header (guest) | PASS | 1b-alt | Blue link in top-right |
+| Registration form shows: email, password, confirm password | PASS | 1b | All three fields present |
+| No "session expired" or error message | PASS | 1b | Clean form |
+| Successful registration auto-logs in | PASS | 1b | Redirected directly to /tables |
+| Redirects to /tables after registration | PASS | 1b | URL confirmed |
+| No console errors | PASS | 1b | 0 errors (only expected 401 on tracking) |
+| PromptHero visible (no tables, chat closed) | PASS | 1c | "What do you want to track?" heading, textarea, button, 4 pills, manual link |
+| Submitting prompt opens chat and sends message | PASS | 1c | "Track my job applications" → chat opened, AI responded with SCHEMA_PROPOSAL |
+| "Your table will appear here" (chat open, no tables) | PASS | 1c | Faded table icon + heading shown |
+| Import CSV + Create Table in header | PASS | 1c | Visible in right panel header when chat open |
+| Dark mode toggle visible | PASS | 1c | Moon icon in header |
 
 ## Issues Found
 
-| # | Severity | Layer | Phase | Description | Evidence |
-|---|----------|-------|-------|-------------|----------|
-| — | — | — | — | No issues found | — |
+No issues found. All checklist items passed.
 
 ## Screenshots
 
-| Filename | Phase | Description |
-|----------|-------|-------------|
-| qa-2-schema-proposal.png | 2 | Schema proposal strip with 9 columns |
-| qa-2-table-created.png | 2 | Table created with columns and suggestion chips |
-| qa-3-data-proposal.png | 3 | Data proposal with 5 green phantom rows |
-| qa-3-populated.png | 3 | Table with 5 saved rows |
-| qa-4-add-column.png | 4 | Priority column schema proposal |
-| qa-4-column-added.png | 4 | Priority column added with filter tabs |
-| qa-5-enrichment-complete.png | 5 | Enrichment results with Research Log |
-| qa-5-enriched.png | 5 | Final state with all priorities applied |
+| File | Phase | Description |
+|------|-------|-------------|
+| qa-1a-landing.png | 1a | Landing page with pain-statement hero |
+| qa-1b-alt-guest.png | 1b-alt | Guest flow: chat open, "Register to save your work" in header, waiting state |
+| qa-1b-post-register.png | 1b | Post-registration: PromptHero empty state with profile/logout in header |
+| qa-1c-empty-state.png | 1c | Chat open with AI streaming + waiting state |
+| qa-1c-proposal-preview.png | 1c | ProposedTablePreview rendered with Job Applications table |
+| qa-1c-layout-bug.png | 1c | Wide viewport showing PromptHero clean render |
 
 ## Console Errors (Unexpected)
 
-None. 0 errors, 0 warnings across the entire session (75 total console messages, all info/debug level).
+None. Only expected 401 on `/api/tracking/events` (unauthenticated guest tracking call).
+
+## Notes
+
+- Backend must be running on localhost:8001 (not reachable at LAN IP 192.168.0.12:8001 — bound to 127.0.0.1)
+- QA skill default BASE_URL updated from :5173 to :5174 during this run
+- The chat panel auto-opens on registration (welcome message), but PromptHero still renders correctly because the internal `chatOpen` state starts as false
 
 ## Recommendations
 
-No fixes needed. The core flow is working cleanly end-to-end with the column IDs migration. All four phases passed with no issues, no console errors, and correct data persistence.
+None — the new user flow is working correctly across all paths (guest try-it, explicit registration, PromptHero, waiting state).

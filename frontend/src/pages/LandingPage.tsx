@@ -53,7 +53,7 @@ export default function LandingPage() {
                         We could explain how we fix this. Or you could just try it.
                     </p>
 
-                    {/* Input area */}
+                    {/* Describe your table */}
                     <div className="space-y-3">
                         <textarea
                             value={prompt}
@@ -64,7 +64,7 @@ export default function LandingPage() {
                                     handleSubmit(prompt);
                                 }
                             }}
-                            placeholder="Describe the table you want to build..."
+                            placeholder="Describe your table..."
                             rows={3}
                             disabled={isSubmitting}
                             className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50"
@@ -78,18 +78,21 @@ export default function LandingPage() {
                         </button>
                     </div>
 
-                    {/* Sample prompts */}
-                    <div className="flex flex-wrap gap-2 justify-center">
-                        {LANDING_STARTERS.map((starter) => (
-                            <button
-                                key={starter.title}
-                                onClick={() => handleSubmit(starter.prompt)}
-                                disabled={isSubmitting}
-                                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {starter.title}
-                            </button>
-                        ))}
+                    {/* Or choose one of these */}
+                    <div className="space-y-2">
+                        <p className="text-sm text-gray-400 dark:text-gray-500">or choose one of these</p>
+                        <div className="space-y-2 text-left">
+                            {LANDING_STARTERS.map((starter) => (
+                                <button
+                                    key={starter.title}
+                                    onClick={() => handleSubmit(starter.prompt)}
+                                    disabled={isSubmitting}
+                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {starter.example}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </main>
