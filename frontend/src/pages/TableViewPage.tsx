@@ -67,7 +67,8 @@ export default function TableViewPage() {
   const hasLoadedRef = useRef(false);
 
   // Track which messages we've already checked for data-tool usage
-  const lastCheckedIndexRef = useRef(0);
+  // Start from current length so we only react to NEW messages, not history
+  const lastCheckedIndexRef = useRef(messages.length);
 
   // -----------------------------------------------------------------------
   // Fetch table definition
@@ -169,9 +170,12 @@ export default function TableViewPage() {
         active_sort: sort,
         active_filters: Object.keys(filters).length > 0 ? filters : undefined,
         selected_rows: selectedRows,
+        pending_proposal: proposal.active
+          ? { kind: proposal.kind }
+          : undefined,
       });
     }
-  }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
+  }, [table, rows, totalRows, sort, filters, selectedRowIds, proposal.active, proposal.kind, updateContext]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
@@ -354,7 +358,8 @@ export default function TableViewPage() {
 
   // Detect incoming payloads for inline proposal rendering
   // (Must be after useTableProposal so proposal.handlePayload is defined)
-  const lastPayloadIndexRef = useRef(0);
+  // Start from current length so we only react to NEW messages, not history
+  const lastPayloadIndexRef = useRef(messages.length);
   useEffect(() => {
     // Reset ref when messages shrink (e.g. new conversation started)
     if (messages.length < lastPayloadIndexRef.current) {

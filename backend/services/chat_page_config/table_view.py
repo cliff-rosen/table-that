@@ -97,6 +97,11 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
     if active_sort:
         parts.append(f"Sort: {active_sort.get('column_id', '?')} {active_sort.get('direction', 'asc')}")
 
+    pending = context.get("pending_proposal")
+    if pending:
+        kind = pending.get("kind", "unknown")
+        parts.append(f"\n⚠ PENDING PROPOSAL: A {kind} proposal is currently displayed to the user and awaiting their decision (Apply or Dismiss).")
+
     return "\n".join(parts)
 
 
@@ -233,6 +238,12 @@ When adding rows, check the existing data (sample rows in context) for potential
 - In SCHEMA_PROPOSAL: use column NAMES for new columns, column IDs for existing columns
 - In DATA_PROPOSAL: ALWAYS use column IDs for data values and changes
 - Column IDs are shown in your context (e.g., col_abc123)
+
+## Pending Proposals
+If the context shows a PENDING PROPOSAL, the user is currently reviewing a proposal you already sent (either schema or data changes). Do NOT send another SCHEMA_PROPOSAL or DATA_PROPOSAL until they accept or dismiss the current one. Instead:
+- Answer their questions about the proposed changes
+- If they want modifications, tell them to dismiss the current proposal and you'll send a revised one
+- If they ask to proceed, remind them to click Apply in the strip/action bar above the table
 
 ## Style
 Be concise and helpful. When proposing changes, briefly explain what you're doing and why."""

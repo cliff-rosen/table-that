@@ -114,7 +114,8 @@ export default function TablesListPage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
   const prevChatIdRef = useRef<number | null>(null);
-  const lastCheckedIndexRef = useRef(0);
+  // Start from current length so we only react to NEW messages, not history
+  const lastCheckedIndexRef = useRef(messages.length);
 
   const handleStarterClick = useCallback((prompt: string) => {
     setChatOpen(true);
@@ -144,7 +145,7 @@ export default function TablesListPage() {
     prevChatIdRef.current = chatId;
   }, [chatId]);
 
-  // Push context to chat whenever tables list changes
+  // Push context to chat whenever tables list or active proposal changes
   useEffect(() => {
     updateContext({
       current_page: 'tables_list',
@@ -154,8 +155,11 @@ export default function TablesListPage() {
         column_count: t.column_count,
         row_count: t.row_count,
       })),
+      pending_proposal: activeProposal
+        ? { kind: 'schema_create', table_name: activeProposal.table_name }
+        : undefined,
     });
-  }, [tables, updateContext]);
+  }, [tables, activeProposal, updateContext]);
 
   async function handleCreate(data: {
     name: string;
@@ -185,9 +189,8 @@ export default function TablesListPage() {
     }
   }
 
-  // Detect create-mode schema proposals from chat messages
+  // Detect create-mode schema proposals from chat messages (new messages only, not history)
   useEffect(() => {
-    // Reset ref when messages shrink (e.g. new conversation started)
     if (messages.length < lastCheckedIndexRef.current) {
       lastCheckedIndexRef.current = 0;
     }
