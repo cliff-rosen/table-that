@@ -352,7 +352,7 @@ export default function ChatTray({
             <div className="h-full flex-shrink-0 flex items-start pt-4">
                 <button
                     onClick={() => onOpenChange(true)}
-                    className="flex items-center gap-1.5 px-2 py-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-r-lg border border-l-0 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 transition-colors"
+                    className="flex items-center gap-1.5 px-2 py-2 text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-r-lg shadow-sm transition-colors"
                     title="Open chat"
                 >
                     <ChatBubbleLeftRightIcon className="h-4 w-4" />
