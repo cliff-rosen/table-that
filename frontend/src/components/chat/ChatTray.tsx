@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
+import { BugAntIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
@@ -174,7 +174,7 @@ export default function ChatTray({
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-    const [showDebug, setShowDebug] = useState(false);
+    const [showDebugModal, setShowDebugModal] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
@@ -285,6 +285,18 @@ export default function ChatTray({
         }
     }, [isOpen]);
 
+    // Ctrl+Shift+D to toggle debug modal
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                e.preventDefault();
+                setShowDebugModal(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -361,23 +373,12 @@ export default function ChatTray({
                 {/* Inner container with fixed width to prevent content collapse during transition */}
                 <div className="flex flex-col h-full" style={{ width: `${width}px` }}>
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                         <div className="flex items-center gap-2">
-                            <ChatBubbleLeftRightIcon className="h-5 w-5 text-blue-600" />
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Chat Assistant
-                            </h3>
+                            <ChatBubbleLeftRightIcon className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">AI</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setShowDebug(!showDebug)}
-                                className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors ${showDebug ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
-                                aria-label="Toggle debug info"
-                                title="Toggle debug info"
-                            >
-                                <BugAntIcon className={`h-5 w-5 ${showDebug ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`} />
-                            </button>
                             <button
                                 type="button"
                                 onClick={handleReset}
@@ -385,30 +386,19 @@ export default function ChatTray({
                                 aria-label="New conversation"
                                 title="New conversation"
                             >
-                                <PlusIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                <PlusIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => onOpenChange(false)}
                                 className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                 aria-label="Close chat"
+                                title="Close chat"
                             >
-                                <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                <XMarkIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                             </button>
                         </div>
                     </div>
-
-                    {/* Debug Context Panel */}
-                    {showDebug && (
-                        <div className="border-b border-gray-200 dark:border-gray-700 bg-orange-50 dark:bg-orange-900/20 p-3 max-h-48 overflow-y-auto">
-                            <div className="text-xs font-mono">
-                                <div className="font-semibold text-orange-800 dark:text-orange-200 mb-1">Current Context:</div>
-                                <pre className="text-orange-700 dark:text-orange-300 whitespace-pre-wrap break-all">
-                                    {JSON.stringify(context, null, 2)}
-                                </pre>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
@@ -752,6 +742,59 @@ export default function ChatTray({
                 <GuestRegistrationModal
                     onClose={() => setShowRegistrationModal(false)}
                 />
+            )}
+
+            {/* Debug Modal (Ctrl+Shift+D) */}
+            {showDebugModal && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowDebugModal(false)}>
+                    <div
+                        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1200px] h-[calc(100vh-4rem)] flex flex-col"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Chat Debug</h2>
+                            <button
+                                onClick={() => setShowDebugModal(false)}
+                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                            >
+                                <XMarkIcon className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Current Context</h3>
+                                    <pre className="text-xs font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all text-gray-700 dark:text-gray-300">
+                                        {JSON.stringify(context, null, 2)}
+                                    </pre>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Chat State</h3>
+                                    <pre className="text-xs font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all text-gray-700 dark:text-gray-300">
+                                        {JSON.stringify({ chatId, messageCount: messages.length, isLoading, isGuest, guestLimitReached }, null, 2)}
+                                    </pre>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Messages ({messages.length})</h3>
+                                    <div className="space-y-2">
+                                        {messages.map((msg, i) => (
+                                            <div key={i} className="text-xs font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                                <div className="font-semibold text-gray-500 dark:text-gray-400 mb-1">{msg.role} — {msg.timestamp}</div>
+                                                <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{msg.content.slice(0, 500)}{msg.content.length > 500 ? '...' : ''}</div>
+                                                {msg.custom_payload && (
+                                                    <div className="mt-2 text-gray-500">payload: {msg.custom_payload.type}</div>
+                                                )}
+                                                {msg.tool_history && msg.tool_history.length > 0 && (
+                                                    <div className="mt-2 text-gray-500">tools: {msg.tool_history.map(t => t.tool_name).join(', ')}</div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );
