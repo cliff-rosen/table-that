@@ -167,7 +167,7 @@ Shown when: no tables AND chat closed AND not a guest AND no active proposal.
 - Subtext: "Describe a table and AI will build it for you — schema, data, and all."
 - Textarea with placeholder "Describe the table you want to build..."
 - "Create Table" submit button
-- 4 starter pills: Competitor Analysis, Product Comparison, Favorite Restaurants, Job Application Tracker
+- 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
 - "or create a table manually" link → opens CreateTableModal
 
 ### State B — Waiting state
@@ -222,7 +222,7 @@ See [core-flow.md](./core-flow.md) for the full specification of each step.
 - [ ] Landing page shows pain-statement hero: "Here's your updated table." / "You check. It's not updated."
 - [ ] Textarea with placeholder "Describe the table you want to build..."
 - [ ] "Create Table" submit button
-- [ ] 4 starter pills: Competitor Analysis, Product Comparison, Favorite Restaurants, Job Application Tracker
+- [ ] 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
 - [ ] Header shows "Log in" and "Get Started" links
 - [ ] Submitting prompt: creates guest session, navigates to /tables, chat opens, prompt sent
 - [ ] Clicking starter pill: same behavior with preset prompt

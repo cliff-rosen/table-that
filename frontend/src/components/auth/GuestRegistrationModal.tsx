@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useChatContext } from '../../context/ChatContext';
 
 interface GuestRegistrationModalProps {
     onClose: () => void;
@@ -7,6 +8,7 @@ interface GuestRegistrationModalProps {
 
 export default function GuestRegistrationModal({ onClose }: GuestRegistrationModalProps) {
     const { convertGuest, error } = useAuth();
+    const { resetGuestLimit } = useChatContext();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,6 +22,7 @@ export default function GuestRegistrationModal({ onClose }: GuestRegistrationMod
         setLocalError(null);
         try {
             await convertGuest(email, password);
+            resetGuestLimit();
             onClose();
         } catch (err: any) {
             setLocalError(

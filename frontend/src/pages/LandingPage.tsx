@@ -6,7 +6,7 @@ import { STARTERS } from '../config/starters';
 
 // Pick 4 relatable starters by title
 const LANDING_STARTERS = STARTERS.filter(s =>
-    ['Competitor Analysis', 'Product Comparison', 'Favorite Restaurants', 'Job Application Tracker'].includes(s.title)
+    ['Find a Dentist', 'Compare Laptops', 'Track Job Applications', 'Research Competitors'].includes(s.title)
 );
 
 export default function LandingPage() {

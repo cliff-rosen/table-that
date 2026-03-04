@@ -25,7 +25,7 @@ import type { SchemaProposalData } from '../types/schemaProposal';
 // =============================================================================
 
 const HERO_STARTERS = STARTERS.filter(s =>
-  ['Competitor Analysis', 'Product Comparison', 'Favorite Restaurants', 'Job Application Tracker'].includes(s.title)
+  ['Find a Dentist', 'Compare Laptops', 'Track Job Applications', 'Research Competitors'].includes(s.title)
 );
 
 interface PromptHeroProps {

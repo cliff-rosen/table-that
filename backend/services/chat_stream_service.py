@@ -58,9 +58,9 @@ logger = logging.getLogger(__name__)
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 8000
 DEFAULT_MAX_TOOL_ITERATIONS = 5
-GUEST_TURN_LIMIT = 5
+GUEST_TURN_LIMIT = 10
 # Context window for the chat model. Warning fires at 70% usage.
-CONTEXT_WINDOW_TOKENS = 200_000 
+CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
 
 
@@ -97,7 +97,9 @@ class ChatStreamService:
         # Setup chat persistence
         chat_id = await self._setup_chat(request)
         if not chat_id:
-            yield ErrorEvent(message="Failed to initialize chat session.").model_dump_json()
+            yield ErrorEvent(
+                message="Failed to initialize chat session."
+            ).model_dump_json()
             return
 
         # Emit chat_id immediately so the frontend knows it even on cancel
@@ -106,6 +108,7 @@ class ChatStreamService:
         # Check guest turn limit — process this message but signal limit after
         guest_limit_hit = False
         from services.user_service import UserService
+
         user_service = UserService(self.db)
         user = await user_service.get_user_by_id(self.user_id)
         if user and user.is_guest:
@@ -128,9 +131,7 @@ class ChatStreamService:
             context_with_chat["conversation_id"] = chat_id
 
             # Fetch conversation history once (used by both system prompt and message building)
-            db_messages = await self.chat_service.get_messages(
-                chat_id, self.user_id
-            )
+            db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
 
             # Build prompts (pass pre-fetched messages to avoid redundant DB calls)
             system_prompt = await self._build_system_prompt(
@@ -313,7 +314,11 @@ class ChatStreamService:
 
             # Check for conversation length warning using peak context window usage
             context_warning = None
-            if trace and trace.peak_input_tokens and trace.peak_input_tokens >= CONTEXT_WARNING_THRESHOLD:
+            if (
+                trace
+                and trace.peak_input_tokens
+                and trace.peak_input_tokens >= CONTEXT_WARNING_THRESHOLD
+            ):
                 pct = int(trace.peak_input_tokens / CONTEXT_WINDOW_TOKENS * 100)
                 context_warning = (
                     f"This conversation is using {pct}% of the available context window. "
@@ -393,7 +398,9 @@ class ChatStreamService:
     # =========================================================================
 
     @staticmethod
-    def _merge_same_type_payloads(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _merge_same_type_payloads(
+        payloads: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         """Merge multiple payloads of the same type into one.
 
         Currently handles data_proposal and schema_proposal by concatenating
@@ -429,14 +436,18 @@ class ChatStreamService:
                     combined_log.extend(data.get("research_log", []))
                     if data.get("reasoning"):
                         reasoning_parts.append(data["reasoning"])
-                merged.append({
-                    "type": "data_proposal",
-                    "data": {
-                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
-                        "operations": combined_ops,
-                        "research_log": combined_log if combined_log else None,
-                    },
-                })
+                merged.append(
+                    {
+                        "type": "data_proposal",
+                        "data": {
+                            "reasoning": (
+                                " | ".join(reasoning_parts) if reasoning_parts else None
+                            ),
+                            "operations": combined_ops,
+                            "research_log": combined_log if combined_log else None,
+                        },
+                    }
+                )
             elif t == "schema_proposal":
                 combined_ops = []
                 reasoning_parts = []
@@ -445,13 +456,17 @@ class ChatStreamService:
                     combined_ops.extend(data.get("operations", []))
                     if data.get("reasoning"):
                         reasoning_parts.append(data["reasoning"])
-                merged.append({
-                    "type": "schema_proposal",
-                    "data": {
-                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
-                        "operations": combined_ops,
-                    },
-                })
+                merged.append(
+                    {
+                        "type": "schema_proposal",
+                        "data": {
+                            "reasoning": (
+                                " | ".join(reasoning_parts) if reasoning_parts else None
+                            ),
+                            "operations": combined_ops,
+                        },
+                    }
+                )
             else:
                 # Unknown type — keep last one (original behavior)
                 merged.append(items[-1])
@@ -781,7 +796,7 @@ Note: Tables are currently limited to 100 rows each.
 ## User Journey — Four Phases
 Every table goes through four phases. Users don't think in these terms — you do. Read the signals and guide them forward.
 
-1. **Define** — Design the right table schema. Help them nail down what columns they need, what types and options make sense, and what the table should track. Think ahead: include columns they'll want for categorization and enrichment later.
+1. **Define** — Design a simple starting schema. Propose 3-6 columns that cover the basics — don't over-engineer it. Adding columns later is easy and free, so start lean and let the user build incrementally. Do NOT interview the user or ask clarifying questions unless you truly cannot guess what they need.
 2. **Populate** — Fill the table with data. This could mean importing a CSV, adding records manually, using chat to generate sample data, or researching and adding entries via web search. During this phase, don't suggest restructuring unless the schema is clearly broken for the data being entered.
 3. **Organize & Enrich** — Make the data more useful. This is where you shine. Common patterns:
    - *Add a categorization column*: User says "tag these by priority" → propose a select column (SCHEMA_PROPOSAL), then after it's applied, offer to populate it (enrich_column or DATA_PROPOSAL).
@@ -814,7 +829,7 @@ Users interact with you through the chat panel while working with their tables. 
 - For these, use the appropriate data tools
 
 ## Style
-Be conversational and helpful. Keep responses concise and factual. Don't over-explain.
+Be fast and helpful. Keep responses concise and factual. Don't over-explain or over-engineer. Default to action — build something quick rather than asking questions. Users can always refine later.
 
 ## Suggestions — Guide the User Forward
 After every response, think: "What would the user naturally want to do next?" Then offer it as SUGGESTED_VALUES. This is one of your most important UX behaviors — suggestions turn a blank text box into a clear set of next steps.
@@ -1146,7 +1161,7 @@ SUGGESTED_ACTIONS:
                         json_start_in_raw = after_marker_raw.find(json_content)
                         # Calculate full payload text: from marker start through end of JSON
                         end_pos = match.end() + json_start_in_raw + len(json_content)
-                        payload_text = message[marker_pos : end_pos]
+                        payload_text = message[marker_pos:end_pos]
                         message = message.replace(payload_text, "").strip()
                         result["message"] = message
                         break

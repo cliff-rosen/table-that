@@ -256,7 +256,7 @@ export default function ChatTray({
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, streamingText]);
+    }, [messages, streamingText, activeToolProgress, isLoading]);
 
     // Clear all conversation-scoped state when conversation resets (chatId goes to null)
     const prevChatIdRef = useRef(chatId);

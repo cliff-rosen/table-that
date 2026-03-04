@@ -25,6 +25,7 @@ interface ChatContextType {
     guestLimitReached: boolean;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
+    resetGuestLimit: () => void;
     cancelRequest: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
@@ -230,6 +231,10 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         }
     }, []);
 
+    const resetGuestLimit = useCallback(() => {
+        setGuestLimitReached(false);
+    }, []);
+
     const updateContext = useCallback((updates: Record<string, unknown>) => {
         const merged = { ...contextRef.current, ...updates };
         contextRef.current = merged;
@@ -301,6 +306,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             chatId,
             guestLimitReached,
             sendMessage,
+            resetGuestLimit,
             cancelRequest,
             updateContext,
             setContext: replaceContext,
