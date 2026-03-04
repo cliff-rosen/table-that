@@ -75,6 +75,19 @@ class ChatService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def count_user_messages(self, user_id: int) -> int:
+        """Count total user-role messages across all conversations for a user."""
+        stmt = (
+            select(func.count(Message.id))
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(
+                Conversation.user_id == user_id,
+                Message.role == "user"
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
     async def get_all_chats(
         self,
         limit: int = 100,

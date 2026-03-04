@@ -87,6 +87,7 @@ class User(Base):
     full_name = Column(String(255), nullable=True)  # User's full name from onboarding
     job_title = Column(String(255), nullable=True)  # User's job title
     is_active = Column(Boolean, default=True)
+    is_guest = Column(Boolean, default=False, nullable=False)
     role = Column(Enum(UserRole, values_callable=lambda x: [e.value for e in x], name='userrole'), default=UserRole.MEMBER, nullable=False)
     login_token = Column(String(255), nullable=True, index=True)  # One-time login token
     login_token_expires = Column(DateTime, nullable=True)  # Token expiration time

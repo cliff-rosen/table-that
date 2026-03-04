@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MoonIcon, SunIcon, UserCircleIcon, TableCellsIcon, ShieldCheckIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import settings from '../../config/settings';
 import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../lib/api/trackingApi';
+import GuestRegistrationModal from '../auth/GuestRegistrationModal';
+
 interface TopBarProps {
     newVersionAvailable?: boolean;
 }
@@ -11,7 +14,8 @@ interface TopBarProps {
 export default function TopBar({ newVersionAvailable }: TopBarProps) {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
-    const { logout, isPlatformAdmin } = useAuth();
+    const { logout, isPlatformAdmin, isGuest } = useAuth();
+    const [showRegistrationModal, setShowRegistrationModal] = useState(false);
 
     const getLinkClass = (path: string, matchPrefix = false) => {
         const isActive = matchPrefix ? location.pathname.startsWith(path) : location.pathname === path;
@@ -60,17 +64,34 @@ export default function TopBar({ newVersionAvailable }: TopBarProps) {
                 <button onClick={toggleTheme} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
                     {isDarkMode ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
                 </button>
-                <NavLink to="/profile" className={getLinkClass('/profile')} onClick={() => trackEvent('nav_click', { destination: 'profile' })}>
-                    <UserCircleIcon className="h-6 w-6" />
-                </NavLink>
-                <button
-                    onClick={logout}
-                    className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
-                >
-                    Logout
-                </button>
+                {isGuest ? (
+                    <button
+                        onClick={() => setShowRegistrationModal(true)}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                        Register to save your work
+                    </button>
+                ) : (
+                    <>
+                        <NavLink to="/profile" className={getLinkClass('/profile')} onClick={() => trackEvent('nav_click', { destination: 'profile' })}>
+                            <UserCircleIcon className="h-6 w-6" />
+                        </NavLink>
+                        <button
+                            onClick={logout}
+                            className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                        >
+                            Logout
+                        </button>
+                    </>
+                )}
             </div>
         </header>
+
+        {showRegistrationModal && (
+            <GuestRegistrationModal
+                onClose={() => setShowRegistrationModal(false)}
+            />
+        )}
         </>
     );
 }

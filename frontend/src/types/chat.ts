@@ -249,6 +249,11 @@ export interface ChatIdEvent {
     conversation_id: number;
 }
 
+export interface GuestLimitEvent {
+    type: 'guest_limit';
+    message: string;
+}
+
 export type StreamEvent =
     | TextDeltaEvent
     | StatusEvent
@@ -258,7 +263,8 @@ export type StreamEvent =
     | CompleteEvent
     | ErrorEvent
     | CancelledEvent
-    | ChatIdEvent;
+    | ChatIdEvent
+    | GuestLimitEvent;
 
 
 // ============================================================================

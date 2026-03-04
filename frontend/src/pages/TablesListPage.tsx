@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
-  TableCellsIcon,
   ArrowUpTrayIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
@@ -22,38 +21,79 @@ import { applySchemaOperations } from '../types/schemaProposal';
 import type { SchemaProposalData } from '../types/schemaProposal';
 
 // =============================================================================
-// Empty State
+// Prompt Hero (centered prompt input for empty state, mirrors landing page)
 // =============================================================================
 
-interface EmptyStateProps {
-  onCreateClick: () => void;
-  onChatClick: () => void;
+const HERO_STARTERS = STARTERS.filter(s =>
+  ['Competitor Analysis', 'Product Comparison', 'Favorite Restaurants', 'Job Application Tracker'].includes(s.title)
+);
+
+interface PromptHeroProps {
+  onSubmit: (prompt: string) => void;
+  onManualCreate: () => void;
 }
 
-function EmptyState({ onCreateClick, onChatClick }: EmptyStateProps) {
+function PromptHero({ onSubmit, onManualCreate }: PromptHeroProps) {
+  const [prompt, setPrompt] = useState('');
+
+  const handleSubmit = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <TableCellsIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-        No tables yet
-      </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center max-w-md">
-        Create your first table to start organizing and managing your data.
-        Tables let you define custom columns and store structured information.
-      </p>
-      <div className="flex flex-col items-center gap-3">
+    <div className="flex-1 flex flex-col items-center justify-center px-6">
+      <div className="max-w-2xl w-full text-center space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+            What do you want to track?
+          </h1>
+          <p className="text-base text-gray-500 dark:text-gray-400">
+            Describe a table and AI will build it for you — schema, data, and all.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(prompt);
+              }
+            }}
+            placeholder="Describe the table you want to build..."
+            rows={3}
+            className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          />
+          <button
+            onClick={() => handleSubmit(prompt)}
+            disabled={!prompt.trim()}
+            className="w-full sm:w-auto px-8 py-3 text-base font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Create Table
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 justify-center">
+          {HERO_STARTERS.map((starter) => (
+            <button
+              key={starter.title}
+              onClick={() => handleSubmit(starter.prompt)}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all"
+            >
+              {starter.title}
+            </button>
+          ))}
+        </div>
+
         <button
-          onClick={onChatClick}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-md hover:from-violet-500 hover:to-blue-500 shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/30 transition-all"
-        >
-          <SparklesIcon className="h-5 w-5" />
-          Build a Table with AI
-        </button>
-        <button
-          onClick={onCreateClick}
+          onClick={onManualCreate}
           className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
         >
-          or create one manually
+          or create a table manually
         </button>
       </div>
     </div>
@@ -120,6 +160,22 @@ export default function TablesListPage() {
   const handleStarterClick = useCallback((prompt: string) => {
     setChatOpen(true);
     sendMessage(prompt, undefined, undefined, { newConversation: true });
+  }, [sendMessage]);
+
+  // Bridge: pick up initial prompt from landing page guest flow
+  const guestPromptHandled = useRef(false);
+  useEffect(() => {
+    if (guestPromptHandled.current) return;
+    const initialPrompt = sessionStorage.getItem('guestInitialPrompt');
+    if (initialPrompt) {
+      guestPromptHandled.current = true;
+      sessionStorage.removeItem('guestInitialPrompt');
+      setChatOpen(true);
+      // Small delay to let ChatProvider initialize
+      setTimeout(() => {
+        sendMessage(initialPrompt, undefined, undefined, { newConversation: true });
+      }, 100);
+    }
   }, [sendMessage]);
 
   const fetchTables = useCallback(async () => {
@@ -274,6 +330,9 @@ export default function TablesListPage() {
     );
   }
 
+  // Show centered prompt hero when no tables, chat closed, and no active proposal
+  const showPromptHero = tables.length === 0 && !chatOpen && !activeProposal;
+
   return (
     <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
       <ChatTray
@@ -283,6 +342,12 @@ export default function TablesListPage() {
           current_page: 'tables_list',
         }}
       />
+      {showPromptHero ? (
+        <PromptHero
+          onSubmit={handleStarterClick}
+          onManualCreate={() => setShowCreateModal(true)}
+        />
+      ) : (
       <div className="flex-1 min-w-0 min-h-0 overflow-auto">
         <div className="max-w-6xl mx-auto w-full px-6 py-8">
           {/* Page header */}
@@ -333,11 +398,6 @@ export default function TablesListPage() {
               onAccept={handleProposalAcceptFromPreview}
               onDismiss={() => setActiveProposal(null)}
             />
-          ) : tables.length === 0 ? (
-            <EmptyState
-              onCreateClick={() => setShowCreateModal(true)}
-              onChatClick={() => setChatOpen(true)}
-            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {tables.map((table) => (
@@ -359,6 +419,7 @@ export default function TablesListPage() {
           />
         </div>
       </div>
+      )}
 
       {/* Create modal */}
       {showCreateModal && (

@@ -119,6 +119,77 @@ def _create_token_for_user(user: User) -> Token:
     )
 
 
+async def create_guest_session(db: AsyncSession) -> Token:
+    """
+    Create an anonymous guest user and return a JWT token.
+    The guest can later be converted to a real user via convert_guest_to_user.
+    """
+    import uuid
+    import secrets
+    from sqlalchemy import select
+    from models import Organization
+    from schemas.user import UserRole
+
+    guest_email = f"guest-{uuid.uuid4()}@guest.tablethat.ai"
+    guest_password = secrets.token_urlsafe(32)
+
+    # Find default org (same as register_and_login_user)
+    result = await db.execute(
+        select(Organization).where(Organization.name == "Default Organization")
+    )
+    default_org = result.scalars().first()
+    org_id = default_org.org_id if default_org else None
+
+    user_service = UserService(db)
+    user = await user_service.create_user(
+        email=guest_email,
+        password=guest_password,
+        role=UserRole.MEMBER,
+        org_id=org_id,
+        is_guest=True
+    )
+
+    logger.info(f"Created guest session: user_id={user.user_id}")
+    return _create_token_for_user(user)
+
+
+async def convert_guest_to_user(
+    db: AsyncSession, user: User, email: str, password: str
+) -> Token:
+    """
+    Convert a guest user to a real user by setting their email and password.
+    The user_id stays the same — all data (tables, conversations) persists.
+    """
+    from sqlalchemy import select
+
+    if not user.is_guest:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not a guest account"
+        )
+
+    # Check email not already taken
+    existing = await db.execute(
+        select(User).where(User.email == email, User.user_id != user.user_id)
+    )
+    if existing.scalars().first():
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    user.email = email
+    user.password = get_password_hash(password)
+    user.is_guest = False
+    await db.commit()
+    await db.refresh(user)
+
+    logger.info(f"Converted guest user_id={user.user_id} to {email}")
+    return _create_token_for_user(user)
+
+
 async def login_user(db: AsyncSession, email: str, password: str) -> Token:
     """
     Authenticate user and return JWT token (async).

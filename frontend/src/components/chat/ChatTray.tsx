@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
+import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../lib/api/trackingApi';
+import GuestRegistrationModal from '../auth/GuestRegistrationModal';
 
 import { InteractionType, ToolHistoryEntry, AgentTrace } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
@@ -168,8 +170,10 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, loadChat, chatId, context } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, loadChat, chatId, context, guestLimitReached } = useChatContext();
+    const { isGuest } = useAuth();
     const [input, setInput] = useState('');
+    const [showRegistrationModal, setShowRegistrationModal] = useState(false);
     const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -648,35 +652,50 @@ export default function ChatTray({
 
                     {/* Input */}
                     <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                        <form onSubmit={handleSubmit} className="flex items-end gap-2">
-                            <textarea
-                                ref={inputRef}
-                                value={input}
-                                onChange={(e) => {
-                                    setInput(e.target.value);
-                                    // Auto-resize
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSubmit(e);
-                                    }
-                                }}
-                                placeholder="Type your message..."
-                                rows={1}
-                                className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
-                                style={{ minHeight: '36px', maxHeight: '150px' }}
-                            />
-                            <button
-                                type="submit"
-                                disabled={!input.trim() || isLoading}
-                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                            >
-                                <PaperAirplaneIcon className="h-4 w-4" />
-                            </button>
-                        </form>
+                        {guestLimitReached && isGuest ? (
+                            <div className="text-center space-y-2">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    You&rsquo;ve used all your free messages.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowRegistrationModal(true)}
+                                    className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                                >
+                                    Register to continue
+                                </button>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmit} className="flex items-end gap-2">
+                                <textarea
+                                    ref={inputRef}
+                                    value={input}
+                                    onChange={(e) => {
+                                        setInput(e.target.value);
+                                        // Auto-resize
+                                        e.target.style.height = 'auto';
+                                        e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSubmit(e);
+                                        }
+                                    }}
+                                    placeholder="Type your message..."
+                                    rows={1}
+                                    className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
+                                    style={{ minHeight: '36px', maxHeight: '150px' }}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!input.trim() || isLoading}
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                >
+                                    <PaperAirplaneIcon className="h-4 w-4" />
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
 
@@ -709,6 +728,13 @@ export default function ChatTray({
                 <DiagnosticsPanel
                     diagnostics={diagnosticsToShow}
                     onClose={() => setDiagnosticsToShow(null)}
+                />
+            )}
+
+            {/* Guest Registration Modal */}
+            {showRegistrationModal && (
+                <GuestRegistrationModal
+                    onClose={() => setShowRegistrationModal(false)}
                 />
             )}
         </>

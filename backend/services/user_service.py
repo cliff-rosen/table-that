@@ -208,7 +208,8 @@ class UserService:
         password: str,
         full_name: Optional[str] = None,
         role: UserRole = UserRole.MEMBER,
-        org_id: Optional[int] = None
+        org_id: Optional[int] = None,
+        is_guest: bool = False
     ) -> UserModel:
         """Create a new user (async)."""
         # Check for existing email
@@ -238,7 +239,8 @@ class UserService:
             password=hashed_password,
             full_name=full_name,
             role=UserRoleModel(role.value),
-            org_id=org_id
+            org_id=org_id,
+            is_guest=is_guest
         )
 
         self.db.add(user)

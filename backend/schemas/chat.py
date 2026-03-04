@@ -298,6 +298,12 @@ class ChatIdEvent(BaseModel):
     conversation_id: int
 
 
+class GuestLimitEvent(BaseModel):
+    """Guest user has reached the turn limit and must register to continue"""
+    type: Literal["guest_limit"] = "guest_limit"
+    message: str
+
+
 # Discriminated union of all stream event types
 StreamEvent = Union[
     TextDeltaEvent,
@@ -309,6 +315,7 @@ StreamEvent = Union[
     ErrorEvent,
     CancelledEvent,
     ChatIdEvent,
+    GuestLimitEvent,
 ]
 
 

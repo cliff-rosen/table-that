@@ -49,6 +49,46 @@ router = APIRouter()
 
 
 @router.post(
+    "/guest",
+    response_model=Token,
+    summary="Create an anonymous guest session"
+)
+async def create_guest(db: AsyncSession = Depends(get_async_db)):
+    """
+    Create an anonymous guest user and return a JWT token.
+    No credentials required. The guest session can later be converted
+    to a real account via /convert-guest.
+    """
+    return await auth_service.create_guest_session(db)
+
+
+class GuestConversion(BaseModel):
+    """Request schema for converting a guest account to a real account."""
+    email: EmailStr = Field(description="Email address for the new account")
+    password: str = Field(min_length=5, description="Password for the new account")
+
+
+@router.post(
+    "/convert-guest",
+    response_model=Token,
+    summary="Convert guest account to a real account"
+)
+async def convert_guest(
+    body: GuestConversion,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Convert an existing guest user to a permanent account.
+    Requires authentication with the guest's JWT token.
+    All data (tables, conversations) persists under the same user_id.
+    """
+    return await auth_service.convert_guest_to_user(
+        db, current_user, body.email, body.password
+    )
+
+
+@router.post(
     "/register",
     response_model=Token,
     summary="Register a new user and automatically log them in"

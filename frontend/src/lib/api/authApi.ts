@@ -81,6 +81,22 @@ export const authApi = {
     },
 
     /**
+     * Create an anonymous guest session (no credentials needed)
+     */
+    async createGuestSession(): Promise<AuthResponse> {
+        const response = await api.post('/api/auth/guest');
+        return response.data;
+    },
+
+    /**
+     * Convert a guest account to a real account
+     */
+    async convertGuest(email: string, password: string): Promise<AuthResponse> {
+        const response = await api.post('/api/auth/convert-guest', { email, password });
+        return response.data;
+    },
+
+    /**
      * Register a new user and automatically log them in
      */
     async register(credentials: RegisterCredentials): Promise<AuthResponse> {

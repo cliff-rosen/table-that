@@ -9,6 +9,7 @@ import type { AuthUser, UserRole } from '../types/user'
 interface AuthContextType {
     isAuthenticated: boolean
     user: AuthUser | null
+    isGuest: boolean
 
     // Role helpers
     isPlatformAdmin: boolean
@@ -19,6 +20,8 @@ interface AuthContextType {
     loginWithToken: (token: string) => Promise<void>
     requestLoginToken: (email: string) => Promise<void>
     register: (credentials: RegisterCredentials) => Promise<void>
+    guestLogin: () => Promise<void>
+    convertGuest: (email: string, password: string) => Promise<void>
     logout: () => void
 
     // Loading states
@@ -42,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Role helper computed values
     const isPlatformAdmin = user?.role === 'platform_admin'
     const isOrgAdmin = user?.role === 'org_admin' || user?.role === 'platform_admin'
+    const isGuest = user?.email?.endsWith('@guest.tablethat.ai') ?? false
 
     // Loading states
     const [isLoginLoading, setIsLoginLoading] = useState(false)
@@ -172,6 +176,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }
 
+    const guestLogin = async (): Promise<void> => {
+        try {
+            setError(null)
+            const authResponse = await authApi.createGuestSession()
+            handleAuthSuccess(authResponse)
+            trackEvent('guest_login')
+        } catch (error: any) {
+            const errorMessage = extractErrorMessage(error, 'Failed to create guest session.')
+            setError(errorMessage)
+            throw error
+        }
+    }
+
+    const convertGuest = async (email: string, password: string): Promise<void> => {
+        try {
+            setError(null)
+            const authResponse = await authApi.convertGuest(email, password)
+            handleAuthSuccess(authResponse)
+            trackEvent('guest_conversion')
+        } catch (error: any) {
+            const errorMessage = extractErrorMessage(error, 'Failed to create account.')
+            setError(errorMessage)
+            throw error
+        }
+    }
+
     const logout = () => {
         // Track logout before clearing credentials
         trackEvent('logout')
@@ -231,6 +261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         <AuthContext.Provider value={{
             isAuthenticated,
             user,
+            isGuest,
 
             // Role helpers
             isPlatformAdmin,
@@ -241,6 +272,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             loginWithToken,
             requestLoginToken,
             register,
+            guestLogin,
+            convertGuest,
             logout,
 
             // Loading states

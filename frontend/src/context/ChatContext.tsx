@@ -22,6 +22,7 @@ interface ChatContextType {
     statusText: string | null;
     activeToolProgress: ActiveToolProgress | null;
     chatId: number | null;
+    guestLimitReached: boolean;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
     cancelRequest: () => void;
@@ -51,6 +52,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const [chatId, setChatIdState] = useState<number | null>(null);
     const chatIdRef = useRef<number | null>(null);
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
+    const [guestLimitReached, setGuestLimitReached] = useState(false);
 
     const setChatId = useCallback((id: number | null) => {
         chatIdRef.current = id;
@@ -176,6 +178,13 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         }
                         break;
 
+                    case 'guest_limit':
+                        setGuestLimitReached(true);
+                        setIsLoading(false);
+                        setStreamingText('');
+                        setStatusText(null);
+                        break;
+
                     case 'cancelled':
                         setStatusText('Cancelled');
                         break;
@@ -290,6 +299,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             statusText,
             activeToolProgress,
             chatId,
+            guestLimitReached,
             sendMessage,
             cancelRequest,
             updateContext,
