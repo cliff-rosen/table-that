@@ -170,12 +170,9 @@ export default function TableViewPage() {
         active_sort: sort,
         active_filters: Object.keys(filters).length > 0 ? filters : undefined,
         selected_rows: selectedRows,
-        pending_proposal: proposal.active
-          ? { kind: proposal.kind }
-          : undefined,
       });
     }
-  }, [table, rows, totalRows, sort, filters, selectedRowIds, proposal.active, proposal.kind, updateContext]);
+  }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
@@ -380,6 +377,15 @@ export default function TableViewPage() {
 
     lastPayloadIndexRef.current = messages.length;
   }, [messages, proposal.handlePayload]);
+
+  // Push pending proposal state to chat context
+  useEffect(() => {
+    updateContext({
+      pending_proposal: proposal.active
+        ? { kind: proposal.kind }
+        : undefined,
+    });
+  }, [proposal.active, proposal.kind, updateContext]);
 
   // -----------------------------------------------------------------------
   // Render: loading state
