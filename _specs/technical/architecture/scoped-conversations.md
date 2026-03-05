@@ -108,11 +108,11 @@ The frontend never constructs scope strings. It provides `current_page` + `table
 - ChatTray does NOT trigger loads — it only renders the loaded conversation
 - `loadForContext()` (in ChatContext) calls `getChatByContext()` which hits the backend
 
-**Context updates are separate from loading:**
+**Context is page-owned (not ChatTray-owned):**
 
-- Pages call `updateContext({ current_page, table_id, columns, rows, ... })` to push AI context
-- ChatTray passes `initialContext` to set base context on mount
-- These do NOT trigger conversation loading — they only enrich the context sent with messages
+- Pages call `setContext({ current_page, table_id })` on mount to wipe stale context from the previous page
+- Pages call `updateContext({ columns, rows, ... })` to enrich context when data loads
+- ChatTray has no role in context management — it is purely a UI component
 
 After reset (new conversation), the chat stays empty until the user sends a message, which creates a new conversation via `_setup_chat`.
 

@@ -148,7 +148,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage, chatId, messages, loadForContext } = useChatContext();
+  const { setContext, updateContext, sendMessage, chatId, messages, loadForContext } = useChatContext();
   const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
@@ -160,6 +160,11 @@ export default function TablesListPage() {
   const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
+
+  // Set base context for this page (wipes stale context from previous page)
+  useEffect(() => {
+    setContext({ current_page: 'tables_list' });
+  }, [setContext]);
 
   // Load conversation for this page context
   useEffect(() => {
@@ -347,9 +352,6 @@ export default function TablesListPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
-        initialContext={{
-          current_page: 'tables_list',
-        }}
       />
       {showPromptHero ? (
         <PromptHero

@@ -42,7 +42,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, sendMessage, messages, loadForContext, chatId } = useChatContext();
+  const { setContext, updateContext, sendMessage, messages, loadForContext, chatId } = useChatContext();
   const { isGuest } = useAuth();
 
   // UI state
@@ -133,6 +133,11 @@ export default function TableViewPage() {
       hasLoadedRef.current = true;
     });
   }, [fetchTable, fetchRows]);
+
+  // Set base context for this page (wipes stale context from previous page)
+  useEffect(() => {
+    setContext({ current_page: 'table_view', table_id: tableId });
+  }, [tableId, setContext]);
 
   // Load conversation for this table
   useEffect(() => {
@@ -439,11 +444,6 @@ export default function TableViewPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
-        initialContext={{
-          current_page: 'table_view',
-          table_id: table.id,
-          table_name: table.name,
-        }}
       />
 
       {/* Main content */}

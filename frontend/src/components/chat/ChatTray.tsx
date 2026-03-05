@@ -14,7 +14,6 @@ import { DiagnosticsPanel } from './DiagnosticsPanel';
 const STORAGE_KEY = 'chatTrayWidth';
 
 interface ChatTrayProps {
-    initialContext?: Record<string, any>;
     /** Hide the chat tray completely (used when modal takes over) */
     hidden?: boolean;
     /** Whether the chat tray is open */
@@ -108,7 +107,6 @@ function MessageContent({
 }
 
 export default function ChatTray({
-    initialContext,
     hidden = false,
     isOpen,
     onOpenChange,
@@ -169,7 +167,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, chatId, context, guestLimitReached } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, reset, chatId, context, guestLimitReached } = useChatContext();
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -179,34 +177,6 @@ export default function ChatTray({
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
     const [toolsTrace, setToolsTrace] = useState<AgentTrace | undefined>(undefined);
     const [diagnosticsToShow, setDiagnosticsToShow] = useState<AgentTrace | null>(null);
-
-    // Track previous values to detect changes (start with undefined to trigger initial set)
-    const prevHiddenRef = useRef<boolean | undefined>(undefined);
-    const prevInitialContextRef = useRef<Record<string, any> | undefined>(undefined);
-
-    // Replace context when initialContext changes OR when tray becomes visible again
-    useEffect(() => {
-        const wasHidden = prevHiddenRef.current;
-        const prevContext = prevInitialContextRef.current;
-
-        // Update refs for next comparison
-        prevHiddenRef.current = hidden;
-        prevInitialContextRef.current = initialContext;
-
-        if (!initialContext) return;
-
-        // Update context when:
-        // 1. First render (prevContext is undefined)
-        // 2. Becoming visible after being hidden (e.g., modal closed)
-        // 3. initialContext actually changed (deep compare by JSON)
-        const isFirstRender = prevContext === undefined;
-        const becameVisible = !hidden && wasHidden === true;
-        const contextChanged = JSON.stringify(initialContext) !== JSON.stringify(prevContext);
-
-        if (isFirstRender || becameVisible || contextChanged) {
-            setContext(initialContext);
-        }
-    }, [hidden, initialContext, setContext]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -252,7 +222,7 @@ export default function ChatTray({
         e.preventDefault();
         e.stopPropagation();
         if (input.trim() && !isLoading) {
-            trackEvent('chat_message_send', { page: initialContext?.current_page });
+            trackEvent('chat_message_send', { page: context.current_page as string });
             sendMessage(input.trim(), InteractionType.TEXT_INPUT);
             setInput('');
             // Reset textarea height

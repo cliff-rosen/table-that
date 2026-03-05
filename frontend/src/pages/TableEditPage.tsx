@@ -239,7 +239,7 @@ export default function TableEditPage() {
   const [hasChanges, setHasChanges] = useState(false);
 
   // Chat
-  const { updateContext, messages, loadForContext } = useChatContext();
+  const { setContext, updateContext, messages, loadForContext } = useChatContext();
   const [chatOpen, setChatOpen] = useState(true);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
@@ -267,6 +267,11 @@ export default function TableEditPage() {
   useEffect(() => {
     fetchTable();
   }, [fetchTable]);
+
+  // Set base context for this page (wipes stale context from previous page)
+  useEffect(() => {
+    setContext({ current_page: 'table_edit', table_id: tableId });
+  }, [tableId, setContext]);
 
   // Load conversation for this table
   useEffect(() => {
@@ -442,11 +447,6 @@ export default function TableEditPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
-        initialContext={{
-          current_page: 'table_edit',
-          table_id: table.id,
-          table_name: name,
-        }}
       />
 
       {/* Main content */}
