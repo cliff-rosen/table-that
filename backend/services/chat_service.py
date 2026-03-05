@@ -435,11 +435,65 @@ class ChatService:
         logger.info(f"Updated global_preamble by user {user_id}")
         return content
 
+    DEFAULT_GUEST_TURN_LIMIT = 8
+
+    async def get_guest_turn_limit(self) -> int:
+        """Get the guest turn limit setting, or default."""
+        from models import ChatConfig
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "guest_turn_limit"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                value = int(config.content.strip())
+                return max(1, min(value, 100))
+        except Exception as e:
+            logger.warning(f"Failed to load guest_turn_limit config: {e}")
+
+        return self.DEFAULT_GUEST_TURN_LIMIT
+
+    async def set_guest_turn_limit(self, value: int, user_id: int) -> int:
+        """Set the guest turn limit setting. Returns the saved value."""
+        from models import ChatConfig
+
+        value = max(1, min(value, 100))
+
+        result = await self.db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "system",
+                ChatConfig.scope_key == "guest_turn_limit"
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            existing.content = str(value)
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = user_id
+        else:
+            new_config = ChatConfig(
+                scope="system",
+                scope_key="guest_turn_limit",
+                content=str(value),
+                updated_by=user_id
+            )
+            self.db.add(new_config)
+
+        await self.db.commit()
+        logger.info(f"Updated guest_turn_limit to {value} by user {user_id}")
+        return value
+
     async def get_system_config(self) -> dict:
         """Get all system configuration values."""
         return {
             "max_tool_iterations": await self.get_max_tool_iterations(),
             "max_research_steps": await self.get_max_research_steps(),
+            "guest_turn_limit": await self.get_guest_turn_limit(),
             "global_preamble": await self.get_global_preamble()
         }
 
@@ -448,6 +502,7 @@ class ChatService:
         user_id: int,
         max_tool_iterations: Optional[int] = None,
         max_research_steps: Optional[int] = None,
+        guest_turn_limit: Optional[int] = None,
         global_preamble: Optional[str] = None,
         clear_global_preamble: bool = False
     ) -> dict:
@@ -456,6 +511,8 @@ class ChatService:
             await self.set_max_tool_iterations(max_tool_iterations, user_id)
         if max_research_steps is not None:
             await self.set_max_research_steps(max_research_steps, user_id)
+        if guest_turn_limit is not None:
+            await self.set_guest_turn_limit(guest_turn_limit, user_id)
         if clear_global_preamble:
             await self.set_global_preamble(None, user_id)
         elif global_preamble is not None:

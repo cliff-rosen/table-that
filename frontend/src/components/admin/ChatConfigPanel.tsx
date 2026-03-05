@@ -66,6 +66,7 @@ export function ChatConfigPanel() {
     const [systemError, setSystemError] = useState<string | null>(null);
     const [editingMaxIterations, setEditingMaxIterations] = useState<number>(5);
     const [editingMaxResearchSteps, setEditingMaxResearchSteps] = useState<number>(5);
+    const [editingGuestTurnLimit, setEditingGuestTurnLimit] = useState<number>(8);
     const [editingPreamble, setEditingPreamble] = useState<string>('');
     const [isPreambleMaximized, setIsPreambleMaximized] = useState(false);
 
@@ -186,6 +187,7 @@ export function ChatConfigPanel() {
             setSystemConfig(config);
             setEditingMaxIterations(config.max_tool_iterations);
             setEditingMaxResearchSteps(config.max_research_steps);
+            setEditingGuestTurnLimit(config.guest_turn_limit);
             // Only show the override in the editor, not the effective value
             setEditingPreamble(config.global_preamble || '');
         } catch (err) {
@@ -1721,6 +1723,51 @@ export function ChatConfigPanel() {
                                                             });
                                                             setSystemConfig(updated);
                                                             setEditingMaxResearchSteps(updated.max_research_steps);
+                                                        } catch (err) {
+                                                            setSystemError(handleApiError(err));
+                                                        } finally {
+                                                            setIsSavingSystem(false);
+                                                        }
+                                                    }}
+                                                    disabled={isSavingSystem}
+                                                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                                >
+                                                    {isSavingSystem ? 'Saving...' : 'Save'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Guest Turn Limit
+                                        </label>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                            Maximum messages a guest user can send before being prompted to register. Applies across all conversations for that guest.
+                                        </p>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={100}
+                                                value={editingGuestTurnLimit}
+                                                onChange={(e) => setEditingGuestTurnLimit(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                                                className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                            />
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                (1-100, default: 8)
+                                            </span>
+                                            {editingGuestTurnLimit !== systemConfig.guest_turn_limit && (
+                                                <button
+                                                    onClick={async () => {
+                                                        setIsSavingSystem(true);
+                                                        setSystemError(null);
+                                                        try {
+                                                            const updated = await adminApi.updateSystemConfig({
+                                                                guest_turn_limit: editingGuestTurnLimit
+                                                            });
+                                                            setSystemConfig(updated);
+                                                            setEditingGuestTurnLimit(updated.guest_turn_limit);
                                                         } catch (err) {
                                                             setSystemError(handleApiError(err));
                                                         } finally {

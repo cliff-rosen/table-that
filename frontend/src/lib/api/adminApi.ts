@@ -660,6 +660,7 @@ export interface ChatConfigUpdate {
 export interface SystemConfig {
   max_tool_iterations: number;
   max_research_steps: number;
+  guest_turn_limit: number;
   global_preamble: string | null;
   default_global_preamble: string;
 }
@@ -667,6 +668,7 @@ export interface SystemConfig {
 export interface SystemConfigUpdate {
   max_tool_iterations?: number;
   max_research_steps?: number;
+  guest_turn_limit?: number;
   global_preamble?: string | null;
   clear_global_preamble?: boolean;
 }
