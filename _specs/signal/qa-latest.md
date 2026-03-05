@@ -1,37 +1,35 @@
 # QA Walkthrough Report
 
-**Date:** 2026-03-04
-**Test User:** qa_test_20260304_1900@test.example.com (converted from guest)
-**Base URL:** http://localhost:5174
+**Date:** 2026-03-04 (23:29 – 23:41)
+**Test User:** qa_test_20260304_2329@test.example.com
+**Base URL:** http://192.168.0.12:5174
 **Browser:** Playwright (Chromium)
-**Scope:** Phases 1-5 (New User Flow + Core Flow)
 
 ## Summary
 
 | Phase | Flow | Name | Result | Issues |
 |-------|------|------|--------|--------|
-| 1 | New User Flow | Landing + Guest + Register + Tables List | PASS | 0 |
-| 2 | Core Flow Step 1 | Create Table | PASS | 0 |
-| 3 | Core Flow Step 2 | Populate Data | PASS | 0 |
+| 1 | New User Flow | Landing + Guest + Register + Empty State | PASS | 0 |
+| 2 | Core Flow Step 1 | Create Table | PASS | 1 |
+| 3 | Core Flow Step 2 | Populate Data | PASS | 1 |
 | 4 | Core Flow Step 3 | Add Column | PASS | 0 |
-| 5 | Core Flow Step 4 | Enrich | PASS | 0 |
-| 6 | Cross-Cutting | Session + UI + Console | SKIP | — |
-| 7 | Context Integrity | Table navigation + chat context | SKIP | — |
+| 5 | Core Flow Step 4 | Enrich | FAIL | 1 |
+| 6 | Cross-Cutting | Session + UI + Console | PASS | 0 |
+| 7 | Context Integrity | Table navigation + chat context | PASS | 1 |
 
-**Overall: 5/5 tested phases passed**
+**Overall: 6/7 phases passed**
 
 ## DTP Assessment
 
 | Phase | Decision [D] | Tool [T] | Presentation [P] | Notes |
 |-------|-------------|---------|------------------|-------|
-| 1a | n/a | PASS | PASS | Landing page renders correctly |
-| 1b-alt | n/a | PASS | PASS | Guest flow, guest limit, pill disabling all working |
-| 1b | n/a | PASS | PASS | Guest conversion resets limit, restores UI |
-| 1c | n/a | PASS | PASS | Registered user sees correct header + StarterGrid |
-| 2 | PASS | PASS | PASS | AI proposed correct schema, preview with sample data |
-| 3 | PASS | PASS | PASS | AI proposed 5 realistic rows, all applied successfully |
-| 4 | PASS | PASS | PASS | AI added Website column in correct position |
-| 5 | PASS | PASS | PASS | AI researched all 5 career URLs, 100% found rate |
+| 1 | n/a | PASS | PASS | Landing, guest flow, registration all clean |
+| 2 | PASS | PASS | PASS | Minor: AI says "empty table" after including sample data |
+| 3 | PASS | PASS | PASS | SUGGESTED_VALUES raw JSON visible in chat (pre-existing) |
+| 4 | PASS | PASS | PASS | Column added cleanly |
+| 5 | FAIL | PASS | PASS | Inner LLM didn't call submit_answer for ambiguous companies; "Could not determine an answer..." leaked into cell values |
+| 6 | n/a | PASS | PASS | Session persistence, dark mode, profile all work |
+| 7 | PASS | PASS | FAIL | AI context switches correctly, but chat panel doesn't reset conversation history on table navigation |
 
 ## Checklist Coverage
 
@@ -39,87 +37,78 @@
 
 | Checklist Item | Result | Phase | Notes |
 |---------------|--------|-------|-------|
-| Pain-statement hero visible | PASS | 1a | "Here's your updated table." / "You check. It's not updated." |
-| Textarea with placeholder "Describe your table..." | PASS | 1a | Correct placeholder |
-| "Create Table" submit button | PASS | 1a | Disabled when empty |
-| 4 starter pills (full prompt text) | PASS | 1a | All 4 present with full prompt as label |
-| Header: "Log in" and "Get Started" links | PASS | 1a | Both present |
-| No "session expired" message | PASS | 1a | Clean load |
-| Guest flow: pill → guest session → /tables + chat | PASS | 1b-alt | "Track Job Applications" → guest login → /tables, chat open, prompt sent |
-| Guest restrictions (no Import/Create/StarterGrid/Edit Schema) | PASS | 1b-alt | All hidden for guest |
-| "Log in" + "Register to save your work" in header (guest) | PASS | 1b-alt | Both present |
-| Guest limit: input hidden, pills disabled | PASS | 1b-alt | After 2 messages: "Register to continue" shown, 4 suggestion pills all [disabled] |
-| GuestRegistrationModal: 2 fields | PASS | 1b | "Save your work" heading, email + password, "Create Account" button |
-| Registration resets guest limit | PASS | 1b | Input restored, pills re-enabled, Edit Schema appeared |
-| Header switches to profile + logout | PASS | 1b | Profile icon + Logout after conversion |
-| Import CSV + Create Table in header (registered) | PASS | 1c | Both visible |
-| StarterGrid visible (registered) | PASS | 1c | 6 starter cards (title + description format) |
-| Dark mode toggle visible | PASS | 1c | Moon icon in header |
-| PromptHero (no tables, chat closed) | NOT TESTED | 1c | User had 1 table from guest flow |
-| "Your table will appear here" (chat open, no tables) | PASS | 1b-alt | Shown before table was created |
+| Pain-statement hero visible | PASS | 1a | "Here's your updated table." hero displayed |
+| Textarea + Create Table button + 4 starters | PASS | 1a | All present and functional |
+| Guest flow: prompt → guest session → /tables + chat | PASS | 1b-alt | Clicked starter pill, redirected correctly |
+| Guest restrictions (no Import/Create/StarterGrid/Edit Schema) | PASS | 1b-alt | All restricted elements hidden |
+| "Log in" + "Register to save your work" in header (guest) | PASS | 1b-alt | Both links visible |
+| Registration form shows: email, password, confirm password | PASS | 1b | Form loaded correctly |
+| Successful registration auto-logs in | PASS | 1b | Auto-login after registration |
+| Redirects to /tables after registration | PASS | 1b | Correct redirect |
+| PromptHero visible (no tables, chat closed) | PASS | 1c | Heading, textarea, starters, manual link all visible |
+| "Your table will appear here" (chat open, no tables) | PASS | 1c | Shown during guest flow with chat open |
+| Import CSV + Create Table in header (hidden for guests) | PASS | 1c | Visible for registered users, hidden for guests |
 
 ### Core Flow (`_specs/flows/core-flow.md`)
 
 | Checklist Item | Result | Phase | Notes |
 |---------------|--------|-------|-------|
-| AI responds with SCHEMA_PROPOSAL (create) | PASS | 2 | 5 columns: Company, Role, Salary, Status, Interview Date |
-| Schema preview appears with sample data | PASS | 2 | 3 sample rows in preview, "Include sample data" checkbox |
-| Apply creates table, preview disappears | PASS | 2 | Table created, navigated to /tables/172 |
-| AI sends follow-up with suggestion chips | PASS | 2 | 4 chips: Add my first application, Import CSV, Add sample applications, Research companies |
-| AI responds with DATA_PROPOSAL | PASS | 3 | 5 additions: Google, Stripe, Airbnb, Netflix, Shopify |
-| ProposalActionBar appears | PASS | 3 | "AI Proposed Changes — 5 additions", Select All/Deselect All, Apply All 5 |
-| Each row has checkbox (checked by default) | PASS | 3 | All 5 checked |
-| Apply inserts rows with progress | PASS | 3 | Success: "All 5 changes applied" |
-| AI follow-up with enrichment suggestions | PASS | 3 | "Add a priority column", "Research company details", etc. |
-| SCHEMA_PROPOSAL (update) for new column | PASS | 4 | "Schema changes proposed — 1 new column" (Website) |
-| New column header visible with green highlight | PASS | 4 | Website column between Company and Role |
-| Existing rows show empty cells | PASS | 4 | All 5 rows show "—" in Website |
-| Column added, strip disappears | PASS | 4 | 6 columns now |
-| AI suggests filling the new column | PASS | 4 | "Research career page URLs for all companies" chip |
-| enrich_column tool called | PASS | 5 | Tool name: "Enrich Column" (chip in chat) |
-| Research log summary | PASS | 5 | 5 found, 0 not found |
-| Enriched data applied to table | PASS | 5 | All 5 career URLs populated correctly |
-| Tools used | PASS | 5 | Get Rows + Enrich Column (2 tools visible) |
-
-## Enrichment Details (Phase 5)
-
-| Company | URL Found | Value |
-|---------|-----------|-------|
-| Netflix | Yes | https://jobs.netflix.com/ |
-| Shopify | Yes | https://www.shopify.com/careers |
-| Google | Yes | https://www.google.com/about/careers/applications/ |
-| Stripe | Yes | https://stripe.com/jobs |
-| Airbnb | Yes | https://careers.airbnb.com/ |
+| AI responds with SCHEMA_PROPOSAL (create) | PASS | 2 | Correct proposal generated |
+| SchemaProposalStrip appears | PASS | 2 | Preview table shown with proposed columns |
+| Apply creates table, strip disappears | PASS | 2 | Table created at /tables/190, 6 columns |
+| AI responds with DATA_PROPOSAL | PASS | 3 | 5 rows proposed with realistic data |
+| ProposalActionBar appears | PASS | 3 | "AI Proposed Changes — 5 additions" with checkboxes |
+| Apply inserts rows with progress | PASS | 3 | All 5 rows applied, success banner shown |
+| SCHEMA_PROPOSAL (update) for new column | PASS | 4 | Website column proposed |
+| New column appears with green highlight | PASS | 4 | Column added after Company |
+| enrich_column tool called | PASS | 5 | Tool name: "Enrich Column" |
+| Strategy and results card | FAIL | 5 | Card title: "AI Enrichment Results". Strategy: Lookup. Research log: "8 found, 0 not found" — incorrect, 2 entries had "Could not determine..." text |
+| Progress bar during enrichment | PASS | 5 | Progress bar advanced during processing |
+| Enriched data applied to table | FAIL | 5 | Dismissed — 2 of 8 values were failure text, not real URLs |
 
 ## Issues Found
 
-No issues found. All checklist items passed.
+| # | Severity | Layer | Phase | Description | Evidence |
+|---|----------|-------|-------|-------------|----------|
+| 1 | Critical | D | 5 | **submit_answer not called by inner LLM**: For ambiguous companies (Global Solutions, Acme Corp), the inner Haiku model produced free text ("Could not determine an answer. The search results show multiple companies with...") instead of calling the `submit_answer` tool. The text fallback path's `is_not_found()` regex didn't catch this phrasing, so the failure text leaked into proposed cell values. Research log incorrectly shows "8 found, 0 not found". | qa-5-enrichment-complete.png |
+| 2 | Low | D | 2 | AI says "empty table ready to go" in follow-up message, but table was created with sample data (3 rows) | qa-2-table-created.png |
+| 3 | Low | P | 3,7b | SUGGESTED_VALUES raw JSON visible in chat messages — the payload tag isn't being stripped from the rendered text | qa-3-populated.png, qa-7b-context-after-create.png |
+| 4 | Medium | P | 7c | **Chat doesn't reset conversation on table navigation**: When navigating from QA Pets to Job Applications table, the chat panel still shows the QA Pets conversation history. The AI's backend context correctly switches (it reports the right table), but the UI shows a confusing mix of conversations from different tables. | qa-7c-context-switch.png |
 
 ## Screenshots
 
-All in `_specs/signal/qa-runs/20260304-1900/`:
-
 | File | Phase | Description |
 |------|-------|-------------|
-| qa-1a-landing.png | 1a | Landing page: hero, textarea, 4 starter pills, header |
-| qa-1b-alt-guest.png | 1b-alt | Guest: chat open, schema proposal preview, guest header |
-| qa-1b-alt-guest-limit.png | 1b-alt | Guest limit hit: pills disabled, "Register to continue" shown |
-| qa-1b-post-register.png | 1b | After conversion: Edit Schema visible, chat input restored |
-| qa-1c-tables-list.png | 1c | Tables list: 1 table, Import CSV, Create Table, 6 StarterGrid cards |
-| qa-2-table-created.png | 2 | Table created: 5 columns, 0 rows, chat with follow-up |
-| qa-3-data-proposal.png | 3 | Data proposal: 5 rows with green tint, checkboxes, Apply All 5 |
-| qa-3-populated.png | 3 | After apply: 5 rows saved, AI follow-up with suggestions |
-| qa-4-add-column.png | 4 | Schema proposal: Website column with green highlight |
-| qa-4-column-added.png | 4 | Column added: 6 columns, empty Website cells |
-| qa-5-enrichment-complete.png | 5 | Enrichment results: 5 URLs found, research log, Apply All 5 |
-| qa-5-enriched.png | 5 | After apply: all 5 career URLs populated in table |
+| qa-1a-landing.png | 1a | Landing page |
+| qa-1b-alt-guest.png | 1b-alt | Guest try-it flow |
+| qa-2-table-created.png | 2 | Table created with schema |
+| qa-3-data-proposal.png | 3 | Data proposal with 5 rows |
+| qa-3-populated.png | 3 | Table populated with 8 rows |
+| qa-4-add-column.png | 4 | Website column proposed |
+| qa-4-column-added.png | 4 | Website column added |
+| qa-5-enrichment-complete.png | 5 | Enrichment results (critical bug visible) |
+| qa-6a-after-relogin.png | 6a | Tables list after logout/login |
+| qa-6b-theme-toggle.png | 6b | Dark mode toggle |
+| qa-7a-second-table.png | 7a | QA Pets table created |
+| qa-7b-context-after-create.png | 7b | AI correctly identifies QA Pets |
+| qa-7c-context-switch.png | 7c | Context switch — mixed chat history |
+| qa-7d-context-return.png | 7d | Return to QA Pets — AI context correct |
+| qa-7e-data-after-nav.png | 7e | Data proposal targets correct table |
 
 ## Console Errors (Unexpected)
 
-None. Only expected 401 on `/api/tracking/events` (unauthenticated guest tracking call).
+None. Only expected 401 on `/api/tracking/events` (unauthenticated tracking endpoint during logout).
 
 ## Recommendations
 
-1. **GUEST_TURN_LIMIT is set to 2** — fires after just the initial prompt + "[User accepted...]" system message. Consider increasing to allow guests to explore more before hitting the limit.
-2. **PromptHero empty state not testable via guest flow** — guest always creates a table, so PromptHero (no tables + chat closed) requires a separate fresh registration test.
-3. **Schema preview sample data checkbox unchecked by default** — the "Include sample data (3 rows)" checkbox was unchecked, so the table was created empty. This is fine behavior but worth noting — the sample data from the preview was not carried over.
+1. **Critical — Fix submit_answer adoption**: The inner LLM (Haiku) doesn't consistently call `submit_answer` for ambiguous lookups. Options:
+   - Strengthen the system prompt to make submit_answer mandatory
+   - Use `tool_choice: {"type": "any"}` to force tool use on the final turn
+   - Improve `_text_fallback_answer()` to catch more "Could not determine..." phrasings
+   - Add `is_not_found()` sentinel for "Could not determine an answer"
+
+2. **Medium — Fix chat conversation persistence across table navigation**: The chat panel should either (a) switch to a table-specific conversation when navigating to a different table, or (b) start a new conversation. Currently it shows a confusing mix of messages from different table contexts.
+
+3. **Low — Strip SUGGESTED_VALUES from rendered chat text**: The `SUGGESTED_VALUES: [{...}]` JSON appears raw in chat messages. This payload tag should be parsed and stripped before rendering, similar to how SCHEMA_PROPOSAL and DATA_PROPOSAL are handled.
+
+4. **Low — Fix "empty table" wording**: When table is created with sample data, AI should acknowledge the sample rows exist rather than saying "empty table ready to go."

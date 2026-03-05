@@ -6,7 +6,7 @@ description: Run a flow-aligned QA walkthrough of the table.that app. Tests the 
 # QA Walkthrough
 
 ## Arguments
-$ARGUMENTS — optional: BASE_URL (default: http://192.168.0.12:5174) or specific phases to run (e.g., "phase 1-3", "core only"), or "prod" to run against https://tablethat.ai
+$ARGUMENTS — optional: BASE_URL (default: http://localhost:5174) or specific phases to run (e.g., "phase 1-3", "core only"), or "prod" to run against https://tablethat.ai
 
 ## Instructions
 
@@ -19,7 +19,7 @@ This skill runs directly in the main conversation (not as a subprocess) because 
 
 ### Prerequisites
 
-- Dev server must be running at the BASE_URL (default: `http://192.168.0.12:5174`)
+- Dev server must be running at the BASE_URL (default: `http://localhost:5174`)
 - If argument is "prod", use `https://tablethat.ai`
 - Playwright MCP browser tools must be available
 - If the browser fails to launch, try `mcp__playwright__browser_install` first
