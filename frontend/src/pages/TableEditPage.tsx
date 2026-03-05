@@ -239,7 +239,7 @@ export default function TableEditPage() {
   const [hasChanges, setHasChanges] = useState(false);
 
   // Chat
-  const { updateContext, messages } = useChatContext();
+  const { updateContext, messages, loadForContext } = useChatContext();
   const [chatOpen, setChatOpen] = useState(true);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
@@ -267,6 +267,11 @@ export default function TableEditPage() {
   useEffect(() => {
     fetchTable();
   }, [fetchTable]);
+
+  // Load conversation for this table
+  useEffect(() => {
+    loadForContext('table_edit', tableId);
+  }, [tableId, loadForContext]);
 
   // Push context to chat
   useEffect(() => {

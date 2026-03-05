@@ -212,17 +212,18 @@ class ChatService:
         logger.debug(f"Created chat {chat.id} for user {user_id} in app {app} scope={scope}")
         return chat
 
-    async def get_or_create_for_context(
+    async def get_for_context(
         self,
         user_id: int,
         current_page: str,
         table_id: Optional[int] = None,
         app: str = "table_that"
-    ) -> Conversation:
-        """Get the most recent conversation for a page context, or create one.
+    ) -> Optional[Conversation]:
+        """Get the most recent conversation for a page context.
 
         Derives scope from current_page + table_id using the shared derive_scope().
-        Raises ValueError if scope cannot be derived.
+        Returns None if no conversation exists for this context.
+        Conversations are only created on first message send (via _setup_chat).
         """
         scope = derive_scope({"current_page": current_page, "table_id": table_id})
         if not scope:
@@ -238,10 +239,7 @@ class ChatService:
             .limit(1)
         )
         result = await self.db.execute(stmt)
-        chat = result.scalars().first()
-        if chat:
-            return chat
-        return await self.create_chat(user_id, app=app, scope=scope)
+        return result.scalars().first()
 
     async def migrate_to_table(
         self,

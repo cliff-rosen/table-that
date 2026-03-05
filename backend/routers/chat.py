@@ -56,7 +56,7 @@ async def get_chat_by_context(
 ):
     """Get or create a conversation for the given page context."""
     try:
-        chat = await service.get_or_create_for_context(
+        chat = await service.get_for_context(
             user_id=current_user.user_id,
             current_page=current_page,
             table_id=table_id,
@@ -64,6 +64,8 @@ async def get_chat_by_context(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if not chat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No conversation found")
     try:
         messages = await service.get_messages(chat.id, current_user.user_id)
 

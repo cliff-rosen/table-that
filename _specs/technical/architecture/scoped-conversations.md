@@ -29,22 +29,32 @@ Input: `current_page` + `table_id` from context.
 
 ## Two Operations
 
-### 1. Conversation Loading (on page open)
+### 1. Conversation Loading (page-driven)
 
-**Trigger:** ChatTray opens or user navigates to a different page/table.
+**Trigger:** Page component mounts or route param (`tableId`) changes.
+
+**Who calls:** Each page calls `loadForContext()` directly from a `useEffect` driven by route params — NOT from ChatTray. ChatTray is purely a UI component; it does not drive conversation loading.
 
 **Endpoint:** `GET /api/chats/by-context?current_page=...&table_id=...`
 
-**Service method:** `ChatService.get_or_create_for_context()`
+**Service method:** `ChatService.get_for_context()`
 
 **Steps:**
 
 1. Derive scope from `current_page` + `table_id` → e.g. `"table:42"`
 2. Query: `WHERE user_id = ? AND app = ? AND scope = "table:42"` (most recent)
-3. **Found** → return it
-4. **Not found** → create new conversation with that scope, return it
+3. **Found** → return it with messages
+4. **Not found** → return 404 (frontend shows empty chat)
 
-No migration logic here. Simple lookup or create.
+Lookup only — never creates. Conversations are only created on first message send (via `_setup_chat`).
+
+**State machine:** The conversation to load is determined by the URL, not by context state. `tableId` from `useParams()` is the driver:
+
+| URL | tableId | Scope loaded |
+|---|---|---|
+| `/tables` | null | `"tables_list"` |
+| `/tables/42` | 42 | `"table:42"` |
+| `/tables/42/edit` | 42 | `"table:42"` |
 
 ### 2. Message Persistence & Migration (on each message send)
 
@@ -82,7 +92,7 @@ Migration is handled by the backend when it detects a scope mismatch during mess
 3. Handler sends message: `[User accepted and created "Bug Tracker"]`
 4. `_setup_chat` loads conversation, derives scope `"table:42"`, sees mismatch → migrates
 5. Handler navigates to `/tables/42`
-6. ChatTray on table_view loads → queries for `"table:42"` → finds the migrated conversation
+6. TableViewPage mounts → calls `loadForContext('table_view', 42)` → finds the migrated conversation
 
 The context change is the telegraph. The backend detects the mismatch and acts on it. No separate migration endpoint, no frontend migration logic.
 
@@ -90,12 +100,19 @@ The context change is the telegraph. The backend detects the mismatch and acts o
 
 ## Frontend Contract
 
-The frontend never constructs scope strings. It provides context:
+The frontend never constructs scope strings. It provides `current_page` + `table_id` and the backend derives scope.
 
-- Pages call `updateContext({ current_page, table_id, ... })`
-- ChatTray reads `current_page` and `table_id` from context to trigger loads
-- `getChatByContext(currentPage, tableId)` sends these to the backend
-- Backend derives scope, loads or creates conversation, returns it
+**Conversation loading is page-driven:**
+
+- Each page calls `loadForContext(currentPage, tableId)` in a `useEffect` driven by route params
+- ChatTray does NOT trigger loads — it only renders the loaded conversation
+- `loadForContext()` (in ChatContext) calls `getChatByContext()` which hits the backend
+
+**Context updates are separate from loading:**
+
+- Pages call `updateContext({ current_page, table_id, columns, rows, ... })` to push AI context
+- ChatTray passes `initialContext` to set base context on mount
+- These do NOT trigger conversation loading — they only enrich the context sent with messages
 
 After reset (new conversation), the chat stays empty until the user sends a message, which creates a new conversation via `_setup_chat`.
 
@@ -106,8 +123,12 @@ After reset (new conversation), the chat stays empty until the user sends a mess
 | File | Role |
 |---|---|
 | `services/chat_service.py` → `derive_scope()` | Single source of truth for scope format |
-| `services/chat_service.py` → `get_or_create_for_context()` | Conversation loading (lookup or create) |
+| `services/chat_service.py` → `get_for_context()` | Conversation loading (lookup only) |
 | `services/chat_service.py` → `migrate_to_table()` | Scope migration (called by _setup_chat) |
 | `services/chat_stream_service.py` → `_setup_chat()` | Message persistence with scope migration |
 | `routers/chat.py` → `GET /by-context` | Passes current_page + table_id to service |
 | `frontend/context/ChatContext.tsx` → `loadForContext()` | Loads conversation by page context |
+| `frontend/pages/TablesListPage.tsx` | Calls `loadForContext('tables_list')` on mount |
+| `frontend/pages/TableViewPage.tsx` | Calls `loadForContext('table_view', tableId)` on mount/tableId change |
+| `frontend/pages/TableEditPage.tsx` | Calls `loadForContext('table_edit', tableId)` on mount/tableId change |
+| `frontend/components/chat/ChatTray.tsx` | UI only — does NOT drive conversation loading |

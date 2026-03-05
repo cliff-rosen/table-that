@@ -148,7 +148,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage, chatId, messages } = useChatContext();
+  const { updateContext, sendMessage, chatId, messages, loadForContext } = useChatContext();
   const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
@@ -158,9 +158,13 @@ export default function TablesListPage() {
   const [deleteTarget, setDeleteTarget] = useState<TableListItem | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
-  const prevChatIdRef = useRef<number | null>(null);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
+
+  // Load conversation for this page context
+  useEffect(() => {
+    loadForContext('tables_list');
+  }, [loadForContext]);
 
   const handleStarterClick = useCallback((prompt: string) => {
     setChatOpen(true);
@@ -197,12 +201,11 @@ export default function TablesListPage() {
     fetchTables();
   }, [fetchTables]);
 
-  // Clear active proposal when conversation resets
+  // Clear active proposal when no conversation is active
   useEffect(() => {
-    if (chatId === null && prevChatIdRef.current !== null) {
+    if (chatId === null) {
       setActiveProposal(null);
     }
-    prevChatIdRef.current = chatId;
   }, [chatId]);
 
   // Push context to chat whenever tables list or active proposal changes

@@ -259,10 +259,9 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     }, []);
 
     const loadForContext = useCallback(async (currentPage: string, tableId?: number) => {
-        // Skip if already loaded for this context
+        // Skip if we've already queried for this context (even if no conversation was found)
         if (lastLoadedPageRef.current === currentPage
-            && lastLoadedTableIdRef.current === tableId
-            && chatIdRef.current !== null) {
+            && lastLoadedTableIdRef.current === tableId) {
             return true;
         }
         try {

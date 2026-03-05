@@ -42,7 +42,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, sendMessage, messages } = useChatContext();
+  const { updateContext, sendMessage, messages, loadForContext } = useChatContext();
   const { isGuest } = useAuth();
 
   // UI state
@@ -132,6 +132,11 @@ export default function TableViewPage() {
       hasLoadedRef.current = true;
     });
   }, [fetchTable, fetchRows]);
+
+  // Load conversation for this table
+  useEffect(() => {
+    loadForContext('table_view', tableId);
+  }, [tableId, loadForContext]);
 
   // Debounced search
   useEffect(() => {

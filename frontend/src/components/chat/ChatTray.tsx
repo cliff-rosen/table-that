@@ -169,7 +169,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadForContext, chatId, context, guestLimitReached } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, chatId, context, guestLimitReached } = useChatContext();
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -208,16 +208,6 @@ export default function ChatTray({
         }
     }, [hidden, initialContext, setContext]);
 
-    // Load conversation for current page context. Fires when tray opens or
-    // page/table changes. After reset, the chat stays empty until the user
-    // sends a message (which creates a new conversation via _setup_chat).
-    const currentPage = context.current_page as string | undefined;
-    const tableId = context.table_id as number | undefined;
-    useEffect(() => {
-        if (!isOpen || isLoading || !currentPage) return;
-        loadForContext(currentPage, tableId);
-    }, [isOpen, currentPage, tableId, loadForContext, isLoading]);
-
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -226,15 +216,13 @@ export default function ChatTray({
         scrollToBottom();
     }, [messages, streamingText, activeToolProgress, isLoading]);
 
-    // Clear all conversation-scoped state when conversation resets (chatId goes to null)
-    const prevChatIdRef = useRef(chatId);
+    // Clear conversation-scoped UI state when no conversation is active
     useEffect(() => {
-        if (chatId === null && prevChatIdRef.current !== null) {
+        if (chatId === null) {
             setToolsToShow(null);
             setToolsTrace(undefined);
             setDiagnosticsToShow(null);
         }
-        prevChatIdRef.current = chatId;
     }, [chatId]);
 
     // Handle full chat reset — clears messages; the scope effect will re-load
