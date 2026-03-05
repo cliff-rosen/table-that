@@ -111,36 +111,43 @@ export function ToolCallCard({ toolCall, isExpanded, onToggle, assistantText }: 
                 </div>
 
                 {isExpanded && (
-                    <div className="p-3 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                    <div className="border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
                         {assistantText && (
-                            <div className="mb-3">
-                                <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">Assistant</div>
+                            <div className="px-3 pt-3">
+                                <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">Assistant Reasoning</div>
                                 <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-32 overflow-auto">
                                     {assistantText}
                                 </div>
                             </div>
                         )}
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                            Input → Output • Click expand icon for full view
+                        {/* Input */}
+                        <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                            <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Input</div>
+                            <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-40 overflow-auto">
+                                {JSON.stringify(toolCall.tool_input, null, 2)}
+                            </pre>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Input</div>
-                                <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-24 overflow-hidden">
-                                    {JSON.stringify(toolCall.tool_input, null, 2).slice(0, 300)}
-                                    {JSON.stringify(toolCall.tool_input, null, 2).length > 300 && '...'}
-                                </pre>
-                            </div>
-                            <div>
-                                <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Output</div>
-                                <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-24 overflow-hidden">
-                                    {toolCall.output_to_model.slice(0, 300)}
-                                    {toolCall.output_to_model.length > 300 && '...'}
-                                </pre>
-                            </div>
-                        </div>
+                        {/* Progress */}
                         {hasProgress && (
-                            <ProgressTimeline events={toolCall.progress_events!} />
+                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                                <ProgressTimeline events={toolCall.progress_events!} />
+                            </div>
+                        )}
+                        {/* Output */}
+                        <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                            <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Output</div>
+                            <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-48 overflow-auto">
+                                {toolCall.output_to_model}
+                            </pre>
+                        </div>
+                        {/* Payload */}
+                        {toolCall.payload && (
+                            <div className="px-3 py-2">
+                                <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">Payload</div>
+                                <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-40 overflow-auto">
+                                    {JSON.stringify(toolCall.payload, null, 2)}
+                                </pre>
+                            </div>
                         )}
                     </div>
                 )}

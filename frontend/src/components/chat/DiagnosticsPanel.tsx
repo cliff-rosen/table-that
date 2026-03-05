@@ -324,14 +324,27 @@ function ToolsTab({ allToolCalls, onFullscreen }: {
                             <span className="text-xs text-gray-400 shrink-0 ml-auto">{toolCall.execution_ms}ms</span>
                         </button>
 
-                        {/* Expanded: input, progress events, output */}
+                        {/* Expanded: input, progress events, output, payload */}
                         {isExpanded && (
                             <div className="border-t border-gray-200 dark:border-gray-700">
                                 {/* Input */}
                                 <div className="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10 border-b border-gray-100 dark:border-gray-700">
-                                    <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Input</div>
-                                    <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-20 overflow-hidden">
-                                        {JSON.stringify(toolCall.tool_input, null, 2).slice(0, 500)}
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="text-xs font-medium text-blue-600 dark:text-blue-400">Input</div>
+                                        <button
+                                            onClick={() => onFullscreen({
+                                                type: 'raw',
+                                                title: `${toolCall.tool_name} — Input`,
+                                                content: JSON.stringify(toolCall.tool_input, null, 2),
+                                            })}
+                                            className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                            title="View fullscreen"
+                                        >
+                                            <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                    <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-48 overflow-auto">
+                                        {JSON.stringify(toolCall.tool_input, null, 2)}
                                     </pre>
                                 </div>
 
@@ -354,7 +367,7 @@ function ToolsTab({ allToolCalls, onFullscreen }: {
                                                     <span className="font-medium text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate">
                                                         {evt.stage}
                                                     </span>
-                                                    <span className="text-gray-700 dark:text-gray-300 truncate">
+                                                    <span className="text-gray-700 dark:text-gray-300 break-words min-w-0">
                                                         {evt.message}
                                                     </span>
                                                 </div>
@@ -364,7 +377,7 @@ function ToolsTab({ allToolCalls, onFullscreen }: {
                                 )}
 
                                 {/* Output */}
-                                <div className="px-3 py-2 bg-green-50/50 dark:bg-green-900/10">
+                                <div className="px-3 py-2 bg-green-50/50 dark:bg-green-900/10 border-b border-gray-100 dark:border-gray-700">
                                     <div className="flex items-center justify-between mb-1">
                                         <div className="text-xs font-medium text-green-600 dark:text-green-400">Output</div>
                                         <button
@@ -379,11 +392,33 @@ function ToolsTab({ allToolCalls, onFullscreen }: {
                                             <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
                                         </button>
                                     </div>
-                                    <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-20 overflow-hidden">
-                                        {toolCall.output_to_model.slice(0, 500)}
-                                        {toolCall.output_to_model.length > 500 && '...'}
+                                    <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-64 overflow-auto">
+                                        {toolCall.output_to_model}
                                     </pre>
                                 </div>
+
+                                {/* Payload */}
+                                {toolCall.payload && (
+                                    <div className="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="text-xs font-medium text-purple-600 dark:text-purple-400">Payload</div>
+                                            <button
+                                                onClick={() => onFullscreen({
+                                                    type: 'raw',
+                                                    title: `${toolCall.tool_name} — Payload`,
+                                                    content: JSON.stringify(toolCall.payload, null, 2),
+                                                })}
+                                                className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                                title="View fullscreen"
+                                            >
+                                                <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                        <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-48 overflow-auto">
+                                            {JSON.stringify(toolCall.payload, null, 2)}
+                                        </pre>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
