@@ -53,11 +53,17 @@ class LookupStrategy(RowStrategy):
             elif action == "error":
                 yield RowStep(type="error", detail=step.get("detail", "Unknown error"))
             elif action == "answer":
-                value = step.get("text")
+                outcome = step.get("outcome", "found")
+                value = step.get("value")
+                explanation = step.get("explanation")
                 yield RowStep(
                     type="answer",
                     detail=value or "",
-                    data={"value": value},
+                    data={
+                        "outcome": outcome,
+                        "value": value,
+                        "explanation": explanation,
+                    },
                 )
 
 

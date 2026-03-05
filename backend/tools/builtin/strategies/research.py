@@ -72,18 +72,16 @@ class ResearchStrategy(RowStrategy):
                 "IMPORTANT: Your goal is COMPLETE COVERAGE. Find ALL relevant items, not just the first few. "
                 "Search from multiple angles and cross-reference sources. "
                 "Synthesize everything you find into a comprehensive answer. "
-                "If coverage may be incomplete, note it briefly at the end. "
-                "Your output goes directly into a spreadsheet cell, so return ONLY the answer value. "
-                "No preamble, no explanation."
+                "If coverage may be incomplete, mention it in the explanation field of submit_answer. "
+                "When done, call submit_answer with found=true and ONLY the raw value, no preamble."
             )
         else:
             built_query = (
                 f"Given: {row_context}. {query}\n\n"
-                "IMPORTANT: Always provide an answer based on what you find. "
-                "Synthesize whatever information is available into a useful response. "
-                "Even partial information is valuable — summarize what you found. "
-                "Your output goes directly into a spreadsheet cell, so return ONLY the answer value. "
-                "No preamble, no explanation."
+                "IMPORTANT: When you find the answer, call submit_answer(found=true, value=<answer>). "
+                "Even partial information is valuable — submit what you found. "
+                "If you genuinely cannot find the information, call submit_answer(found=false, explanation=<why>). "
+                "The value field goes directly into a spreadsheet cell — raw value only, no preamble."
             )
 
         # Get max research steps from config
@@ -131,17 +129,25 @@ class ResearchStrategy(RowStrategy):
                         detail=step.get("detail", "Unknown error"),
                     )
                 elif action == "answer":
-                    answer_value = step.get("text")
+                    outcome = step.get("outcome", "found")
+                    answer_value = step.get("value") if outcome == "found" else None
+                    explanation = step.get("explanation")
                     yield RowStep(
                         type="answer",
                         detail=answer_value or "",
-                        data={"value": answer_value},
+                        data={
+                            "outcome": outcome,
+                            "value": answer_value,
+                            "explanation": explanation,
+                        },
                     )
 
         except Exception as e:
             logger.error(f"research: crashed: {e}", exc_info=True)
             yield RowStep(type="error", detail=f"Research crashed: {e}")
-            yield RowStep(type="answer", detail="", data={"value": None})
+            yield RowStep(type="answer", detail="", data={
+                "outcome": "error", "value": None, "explanation": f"Research crashed: {e}",
+            })
             return
 
         # Coverage assessment step (comprehensive only)

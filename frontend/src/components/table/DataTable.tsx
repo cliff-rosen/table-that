@@ -578,7 +578,7 @@ export default function DataTable({
       </thead>
 
       {/* Body */}
-      <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+      <tbody>
         {effectiveRows.length === 0 ? (
           <tr>
             <td colSpan={displayColumns.length + 1} className="px-4 py-12 text-center">
@@ -610,7 +610,7 @@ export default function DataTable({
             return (
               <tr
                 key={row.id}
-                className={`transition-colors ${rowBg}`}
+                className={`transition-colors border-t border-t-gray-100 dark:border-t-gray-700/50 ${rowBg}`}
               >
                 {/* Checkbox / Proposal status */}
                 <td className="w-12 px-3 py-2.5">

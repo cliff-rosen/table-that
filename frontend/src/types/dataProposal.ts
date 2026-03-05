@@ -43,6 +43,8 @@ export interface ResearchStep {
   result?: string;
   value?: string;
   level?: string;
+  outcome?: 'found' | 'not_found' | 'error';
+  explanation?: string;
 }
 
 export interface ResearchLogEntry {
@@ -55,6 +57,7 @@ export interface ResearchLogEntry {
   confidence?: string;
   raw_value?: string;
   thoroughness?: 'exploratory' | 'comprehensive';
+  explanation?: string;
 }
 
 // =============================================================================

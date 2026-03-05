@@ -300,6 +300,79 @@ register_tool(ToolConfig(
 # research_web — Search agent with progress streaming
 # =============================================================================
 
+# Structured answer tool — forces the LLM to declare found/not_found explicitly
+_SUBMIT_ANSWER_TOOL = {
+    "name": "submit_answer",
+    "description": (
+        "Submit your final answer. You MUST call this when you have found the answer "
+        "OR when you've determined the answer cannot be found after searching."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "found": {
+                "type": "boolean",
+                "description": "true if you found the answer, false if not",
+            },
+            "value": {
+                "type": "string",
+                "description": (
+                    "The answer value — ONLY the raw value, no preamble or explanation. "
+                    "Required when found=true. Omit or leave empty when found=false."
+                ),
+            },
+            "explanation": {
+                "type": "string",
+                "description": "Brief note: what you found or why you couldn't find it (1-2 sentences).",
+            },
+        },
+        "required": ["found"],
+    },
+}
+
+
+def _parse_submit_answer(tool_use) -> dict:
+    """Extract structured answer from a submit_answer tool call."""
+    found = tool_use.input.get("found", False)
+    value = tool_use.input.get("value", "").strip() if found else None
+    explanation = tool_use.input.get("explanation", "")
+    # Safety: strip preamble from value if LLM snuck one in
+    if value:
+        value = _strip_preamble(value)
+    outcome = "found" if (found and value) else "not_found"
+    val_preview = repr(value[:120]) if value else "None"
+    expl_preview = repr(explanation[:120]) if explanation else "''"
+    logger.info(
+        f"submit_answer: outcome={outcome}, "
+        f"value={val_preview}, explanation={expl_preview}"
+    )
+    return {
+        "action": "answer",
+        "outcome": outcome,
+        "value": value,
+        "explanation": explanation,
+    }
+
+
+def _text_fallback_answer(raw_text: str) -> dict:
+    """Fallback: classify a free-text answer when LLM didn't use submit_answer."""
+    from tools.builtin.strategies.coerce import is_not_found
+    text = _strip_preamble(raw_text)
+    if not text or is_not_found(text):
+        return {
+            "action": "answer",
+            "outcome": "not_found",
+            "value": None,
+            "explanation": text or "Empty response",
+        }
+    return {
+        "action": "answer",
+        "outcome": "found",
+        "value": text,
+        "explanation": None,
+    }
+
+
 # Inner tool definitions for the research LLM call
 _RESEARCH_INNER_TOOLS = [
     {
@@ -325,6 +398,7 @@ _RESEARCH_INNER_TOOLS = [
             "required": ["url"],
         },
     },
+    _SUBMIT_ANSWER_TOOL,
 ]
 
 def _build_research_system_prompt(thoroughness: str = "exploratory") -> str:
@@ -366,31 +440,24 @@ def _build_research_system_prompt(thoroughness: str = "exploratory") -> str:
         "## Rules\n"
         "- NEVER answer from memory or training data. ALWAYS search first.\n"
         "- Make a genuine effort: try at least 2 different approaches before giving up.\n"
-        "- For URLs/links: fetch the page to verify the URL is correct.\n"
-        "- If you truly cannot find the answer after multiple attempts, respond with exactly: "
-        "Could not determine an answer.\n\n"
-        "## CRITICAL: Output format\n"
-        "Your final answer will be stored directly in a database cell. "
-        "Return ONLY the raw value — no preambles, no explanations, no surrounding text, no commentary.\n\n"
-        "RULES:\n"
+        "- For URLs/links: fetch the page to verify the URL is correct.\n\n"
+        "## CRITICAL: How to submit your answer\n"
+        "When you are done researching, you MUST call the submit_answer tool. NEVER produce a plain text "
+        "response as your final answer.\n\n"
+        "If you FOUND the answer:\n"
+        "  submit_answer(found=true, value=\"<raw value only>\", explanation=\"<brief note>\")\n\n"
+        "If you could NOT find the answer after genuine effort:\n"
+        "  submit_answer(found=false, explanation=\"<why you couldn't find it>\")\n\n"
+        "The value field goes directly into a spreadsheet cell:\n"
         "- ONE value only. No sentences around it. No narration.\n"
-        "- Do NOT explain how you found the answer.\n"
-        "- Do NOT describe what the answer means.\n"
+        "- Do NOT explain how you found the answer in the value field.\n"
         "- Do NOT say 'Perfect!', 'Great!', 'I found...', 'Here is...', etc.\n"
-        "- Do NOT narrate your process or confirm the result.\n"
-        "- If asked for a URL, return ONLY the URL — nothing else.\n"
-        "- If asked for a name, return ONLY the name — nothing else.\n\n"
-        "WRONG examples (NEVER do this):\n"
-        "- 'Perfect! I found the official page. The URL shows this is the correct product. https://example.com'\n"
-        "- 'The official website for Acme Corp is https://acme.com'\n"
-        "- 'Based on my research, the CEO is Jane Doe'\n"
-        "- 'After checking the website, the company was founded in 2010'\n\n"
-        "RIGHT examples (ALWAYS do this):\n"
-        "- 'https://example.com'\n"
-        "- 'Jane Doe'\n"
-        "- '2010'\n"
-        "- 'Acme Corp announced a new product line on February 15, 2026.'\n\n"
-        "Your output goes directly into a spreadsheet cell. This is the MOST IMPORTANT rule."
+        "- If asked for a URL, the value should be ONLY the URL.\n"
+        "- If asked for a name, the value should be ONLY the name.\n\n"
+        "WRONG: submit_answer(found=true, value=\"The official website for Acme Corp is https://acme.com\")\n"
+        "RIGHT: submit_answer(found=true, value=\"https://acme.com\", explanation=\"Found on Google\")\n\n"
+        "WRONG: submit_answer(found=true, value=\"Based on my research, the CEO is Jane Doe\")\n"
+        "RIGHT: submit_answer(found=true, value=\"Jane Doe\", explanation=\"Confirmed on company about page\")"
     )
 
 
@@ -432,6 +499,7 @@ _LOOKUP_INNER_TOOLS = [
             "required": ["query"],
         },
     },
+    _SUBMIT_ANSWER_TOOL,
 ]
 
 
@@ -446,13 +514,16 @@ def _build_lookup_system_prompt() -> str:
         "1. Call search_web with a well-crafted query.\n"
         "2. Extract the answer from snippets. Do NOT fetch pages unless the snippets are truly ambiguous.\n"
         "3. VERIFICATION: Before answering, ask yourself — 'Do I have the definitive answer?' "
-        "If multiple sources agree, or the answer comes from an authoritative source, proceed. "
-        "If the snippets are contradictory or vague, respond with: Could not determine an answer.\n"
-        "4. Return ONLY the raw answer value — no preamble, no explanation.\n"
-        "5. Your output goes directly into a spreadsheet cell.\n"
-        "6. If the answer is not in the snippets, respond with: Could not determine an answer.\n\n"
-        "WRONG: 'The company was founded in 2010'\n"
-        "RIGHT: '2010'"
+        "If multiple sources agree, or the answer comes from an authoritative source, proceed.\n\n"
+        "## CRITICAL: How to submit your answer\n"
+        "When you are done, you MUST call submit_answer. NEVER produce a plain text response.\n\n"
+        "If you FOUND the answer:\n"
+        "  submit_answer(found=true, value=\"<raw value only>\")\n\n"
+        "If the answer is NOT in the snippets or snippets are contradictory:\n"
+        "  submit_answer(found=false, explanation=\"<why>\")\n\n"
+        "The value field goes directly into a spreadsheet cell — raw value only, no preamble.\n"
+        "WRONG: submit_answer(found=true, value=\"The company was founded in 2010\")\n"
+        "RIGHT: submit_answer(found=true, value=\"2010\")"
     )
 
 
@@ -470,7 +541,7 @@ async def _lookup_web_core(
       {"action": "search", "query": "...", "detail": "..."}
       {"action": "thinking", "text": "..."}
       {"action": "error", "detail": "..."}
-      {"action": "answer", "text": str | None}  — always last
+      {"action": "answer", "outcome": "found"|"not_found"|"error", "value": str|None, "explanation": str|None}
     """
     logger.info(f"lookup_web_core: starting, question={question[:100]!r}")
 
@@ -480,7 +551,7 @@ async def _lookup_web_core(
     for turn in range(max_steps):
         if cancellation_token and cancellation_token.is_cancelled:
             yield {"action": "error", "detail": "Cancelled by user"}
-            yield {"action": "answer", "text": None}
+            yield {"action": "answer", "outcome": "error", "value": None, "explanation": "Cancelled by user"}
             return
 
         try:
@@ -498,26 +569,34 @@ async def _lookup_web_core(
         except Exception as e:
             logger.warning(f"lookup_web_core: LLM call failed (turn {turn}): {e}")
             yield {"action": "error", "detail": f"LLM call failed: {e}"}
-            yield {"action": "answer", "text": None}
+            yield {"action": "answer", "outcome": "error", "value": None, "explanation": f"LLM call failed: {e}"}
             return
 
         tool_uses = [b for b in response.content if b.type == "tool_use"]
         text_blocks = [b for b in response.content if b.type == "text"]
 
         if not tool_uses:
+            # No tool calls — text-only fallback (LLM didn't use submit_answer)
             if text_blocks:
-                text = _strip_preamble(text_blocks[0].text)
-                if text:
-                    yield {"action": "answer", "text": text}
+                raw_text = text_blocks[0].text.strip()
+                if raw_text:
+                    logger.info(f"lookup_web_core: text fallback (no submit_answer), text={raw_text[:120]!r}")
+                    yield _text_fallback_answer(raw_text)
                     return
             yield {"action": "error", "detail": "Empty response"}
-            yield {"action": "answer", "text": None}
+            yield {"action": "answer", "outcome": "error", "value": None, "explanation": "LLM returned empty response"}
             return
 
         # Emit thinking text
         for block in text_blocks:
             if block.text.strip():
                 yield {"action": "thinking", "text": block.text.strip()}
+
+        # Check for submit_answer among tool calls
+        submit_use = next((t for t in tool_uses if t.name == "submit_answer"), None)
+        if submit_use:
+            yield _parse_submit_answer(submit_use)
+            return
 
         messages.append({"role": "assistant", "content": response.content})
         tool_results: List[Dict[str, Any]] = []
@@ -539,29 +618,34 @@ async def _lookup_web_core(
 
         messages.append({"role": "user", "content": tool_results})
 
-    # Exhausted turns — force answer
+    # Exhausted turns — force structured answer via submit_answer
+    logger.warning("lookup_web_core: exhausted turns, forcing submit_answer")
     messages.append({
         "role": "user",
-        "content": "STOP. Return ONLY the answer value from the search results above. No explanation.",
+        "content": (
+            "STOP. You must call submit_answer NOW with the answer from the search results above. "
+            "If you found the answer, use found=true and put ONLY the raw value in the value field. "
+            "If you did not find the answer, use found=false."
+        ),
     })
     try:
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=256,
             messages=messages,
+            tools=[_SUBMIT_ANSWER_TOOL],
+            tool_choice={"type": "tool", "name": "submit_answer"},
             system=_build_lookup_system_prompt(),
         )
-        text_blocks = [b for b in response.content if b.type == "text"]
-        if text_blocks:
-            text = _strip_preamble(text_blocks[0].text)
-            if text:
-                yield {"action": "answer", "text": text}
-                return
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        if tool_uses:
+            yield _parse_submit_answer(tool_uses[0])
+            return
     except Exception as e:
-        logger.warning(f"lookup_web_core: final answer failed: {e}")
+        logger.warning(f"lookup_web_core: forced submit_answer failed: {e}")
 
     yield {"action": "error", "detail": "No answer after search"}
-    yield {"action": "answer", "text": None}
+    yield {"action": "answer", "outcome": "error", "value": None, "explanation": "No answer after exhausting all turns"}
 
 
 async def execute_lookup_web(
@@ -581,7 +665,10 @@ async def execute_lookup_web(
     async for step in _lookup_web_core(question, 2, db, user_id, cancellation_token=cancel_token):
         action = step["action"]
         if action == "answer":
-            answer = step.get("text") or "Could not determine an answer."
+            if step.get("outcome") == "found":
+                answer = step.get("value") or "Could not determine an answer."
+            else:
+                answer = "Could not determine an answer."
         elif action == "search":
             yield ToolProgress(
                 stage="search",
@@ -643,7 +730,7 @@ async def _research_web_core(
       {"action": "fetch", "url": "...", "detail": "Title: ..."}
       {"action": "thinking", "text": "..."}
       {"action": "error", "detail": "LLM call failed: ..."}
-      {"action": "answer", "text": "..." | None}  — final answer (always last)
+      {"action": "answer", "outcome": "found"|"not_found"|"error", "value": str|None, "explanation": str|None}
 
     The "action"/"detail" keys are designed to be collected into a trace log.
     """
@@ -659,7 +746,7 @@ async def _research_web_core(
         if cancellation_token and cancellation_token.is_cancelled:
             logger.info(f"research_web_core: cancelled before turn {turn}")
             yield {"action": "error", "detail": "Cancelled by user"}
-            yield {"action": "answer", "text": None}
+            yield {"action": "answer", "outcome": "error", "value": None, "explanation": "Cancelled by user"}
             return
         try:
             api_kwargs: Dict[str, Any] = dict(
@@ -681,7 +768,7 @@ async def _research_web_core(
         except Exception as e:
             logger.warning(f"research_web_core: LLM call failed (turn {turn}): {e}")
             yield {"action": "error", "detail": f"LLM call failed: {e}"}
-            yield {"action": "answer", "text": None}
+            yield {"action": "answer", "outcome": "error", "value": None, "explanation": f"LLM call failed: {e}"}
             return
 
         # Check for tool use
@@ -689,26 +776,31 @@ async def _research_web_core(
         text_blocks = [b for b in response.content if b.type == "text"]
 
         if not tool_uses:
-            # No more tool calls — extract the final text answer
+            # No tool calls — text-only fallback (LLM didn't use submit_answer)
             if text_blocks:
                 raw_text = text_blocks[0].text.strip()
-                text = _strip_preamble(raw_text)
-                logger.info(
-                    f"research_web_core: final answer, length={len(text)}, "
-                    f"preview={text[:120]!r}"
-                )
-                if text:
-                    yield {"action": "answer", "text": text}
+                if raw_text:
+                    logger.info(
+                        f"research_web_core: text fallback (no submit_answer), "
+                        f"length={len(raw_text)}, preview={raw_text[:120]!r}"
+                    )
+                    yield _text_fallback_answer(raw_text)
                     return
             logger.warning("research_web_core: no tool calls and no text in response")
             yield {"action": "error", "detail": "LLM returned empty response (no tools, no text)"}
-            yield {"action": "answer", "text": None}
+            yield {"action": "answer", "outcome": "error", "value": None, "explanation": "LLM returned empty response"}
             return
 
         # Emit any thinking text before tool calls
         for block in text_blocks:
             if block.text.strip():
                 yield {"action": "thinking", "text": block.text.strip()}
+
+        # Check for submit_answer among tool calls
+        submit_use = next((t for t in tool_uses if t.name == "submit_answer"), None)
+        if submit_use:
+            yield _parse_submit_answer(submit_use)
+            return
 
         # Execute each tool call
         messages.append({"role": "assistant", "content": response.content})
@@ -757,32 +849,25 @@ async def _research_web_core(
 
         messages.append({"role": "user", "content": tool_results})
 
-    # Exhausted all turns — force a final answer (no tools)
-    logger.warning(f"research_web_core: exhausted {max_steps} turns, forcing final answer")
+    # Exhausted all turns — force structured answer via submit_answer
+    logger.warning(f"research_web_core: exhausted {max_steps} turns, forcing submit_answer")
 
     if thoroughness == "comprehensive":
         forced_msg = (
             "STOP RESEARCHING. You have no more search/fetch steps available. "
-            "You MUST answer NOW using ONLY information you already found above.\n\n"
-            "CRITICAL OUTPUT RULES:\n"
-            "- Return ONLY the raw answer value. Your output goes directly into a spreadsheet cell.\n"
-            "- NEVER include preambles like 'Based on...', 'I found...', 'The answer is...'\n"
-            "- If your coverage may be incomplete, note it briefly at the end "
-            "(e.g., 'Note: additional items may exist').\n"
-            "- Synthesize ALL findings into a comprehensive answer.\n"
-            "- If you truly found NOTHING useful, respond with exactly: Could not determine an answer."
+            "You MUST call submit_answer NOW using ONLY information you already found above.\n\n"
+            "If you found useful information, use found=true with ONLY the raw value. "
+            "Synthesize ALL findings into a comprehensive answer. "
+            "If your coverage may be incomplete, mention it in the explanation field.\n"
+            "If you truly found NOTHING useful, use found=false with an explanation of what you searched."
         )
     else:
         forced_msg = (
             "STOP RESEARCHING. You have no more search/fetch steps available. "
-            "You MUST answer NOW using ONLY information you already found above.\n\n"
-            "CRITICAL OUTPUT RULES:\n"
-            "- Return ONLY the raw answer value. Your output goes directly into a spreadsheet cell.\n"
-            "- NEVER include preambles like 'Based on...', 'I found...', 'The answer is...', "
-            "'I need to fetch...', 'Let me search...'\n"
-            "- Do NOT describe what you would do next or what you still need to find.\n"
-            "- If you found partial information, return what you have.\n"
-            "- If you truly found NOTHING useful, respond with exactly: Could not determine an answer."
+            "You MUST call submit_answer NOW using ONLY information you already found above.\n\n"
+            "If you found information, use found=true with ONLY the raw value (no preamble). "
+            "If you found partial information, still use found=true with what you have.\n"
+            "If you truly found NOTHING useful, use found=false with an explanation."
         )
 
     messages.append({"role": "user", "content": forced_msg})
@@ -791,21 +876,19 @@ async def _research_web_core(
             model="claude-haiku-4-5-20251001",
             max_tokens=max_tokens_per_call,
             messages=messages,
+            tools=[_SUBMIT_ANSWER_TOOL],
+            tool_choice={"type": "tool", "name": "submit_answer"},
             system=_build_research_system_prompt(thoroughness),
-            # No tools — forces text response
         )
-        text_blocks = [b for b in response.content if b.type == "text"]
-        if text_blocks:
-            raw_text = text_blocks[0].text.strip()
-            text = _strip_preamble(raw_text)
-            if text:
-                yield {"action": "answer", "text": text}
-                return
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        if tool_uses:
+            yield _parse_submit_answer(tool_uses[0])
+            return
     except Exception as e:
-        logger.warning(f"research_web_core: final answer call failed: {e}")
+        logger.warning(f"research_web_core: forced submit_answer failed: {e}")
 
     yield {"action": "error", "detail": f"Exhausted all {max_steps} research turns without reaching an answer"}
-    yield {"action": "answer", "text": None}
+    yield {"action": "answer", "outcome": "error", "value": None, "explanation": f"Exhausted all {max_steps} turns"}
 
 
 async def execute_research_web(
@@ -847,7 +930,10 @@ async def execute_research_web(
     ):
         action = step["action"]
         if action == "answer":
-            answer = step.get("text") or "Could not determine an answer."
+            if step.get("outcome") == "found":
+                answer = step.get("value") or "Could not determine an answer."
+            else:
+                answer = "Could not determine an answer."
         elif action == "search":
             yield ToolProgress(
                 stage="search",

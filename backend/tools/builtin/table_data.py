@@ -467,7 +467,7 @@ async def execute_enrich_column(
     for user review.
     """
     from tools.builtin.strategies import get_strategy
-    from tools.builtin.strategies.coerce import coerce_value, is_not_found
+    from tools.builtin.strategies.coerce import coerce_value
 
     table_id = _get_table_id(context)
     if not table_id:
@@ -599,6 +599,7 @@ async def execute_enrich_column(
                 row_data[col["name"]] = val
 
         enrichment_value = None
+        not_found_explanation = ""
         row_steps = []
         confidence = "none"
 
@@ -635,15 +636,21 @@ async def execute_enrich_column(
                         progress=completed_count / total,
                     ))
                 elif step.type == "answer":
-                    enrichment_value = step.data.get("value") if step.data else step.detail
+                    # Use structured outcome from strategy
+                    outcome = step.data.get("outcome", "found") if step.data else "found"
+                    if outcome == "found":
+                        enrichment_value = step.data.get("value") if step.data else step.detail
+                    else:
+                        enrichment_value = None
+                        not_found_explanation = (step.data.get("explanation") or "") if step.data else ""
 
         except Exception as e:
             logger.error(f"enrich_column: row {row_obj.id} ({label}) crashed: {e}", exc_info=True)
             row_steps.append({"action": "error", "detail": f"Strategy crashed: {e}"})
 
-        # Coerce value
+        # Coerce value — outcome already determined by strategy
         raw_value = enrichment_value
-        if enrichment_value and not is_not_found(enrichment_value):
+        if enrichment_value:
             coerced, coerce_confidence = coerce_value(
                 enrichment_value, target_col_type, target_col_options
             )
@@ -705,6 +712,7 @@ async def execute_enrich_column(
                 "steps": row_steps,
                 "strategy": strategy_name,
                 "confidence": confidence,
+                "explanation": not_found_explanation,
             }
             if thoroughness:
                 nf_log["thoroughness"] = thoroughness

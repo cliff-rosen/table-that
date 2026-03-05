@@ -147,18 +147,39 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
           <span className="text-gray-500 dark:text-gray-400 italic">{step.detail}</span>
         </div>
       );
-    case 'answer':
+    case 'answer': {
+      const isFound = step.outcome === 'found' || (!step.outcome && (step.value || step.detail || step.text));
+      const isNotFound = step.outcome === 'not_found';
+      const isError = step.outcome === 'error';
       return (
         <div className={`flex items-start gap-1.5 ${textCls}`}>
-          <CheckIcon className={`${iconCls} text-green-500 flex-shrink-0 mt-0.5`} />
+          {isNotFound || isError ? (
+            <ExclamationTriangleIcon className={`${iconCls} ${isError ? 'text-red-500' : 'text-amber-500'} flex-shrink-0 mt-0.5`} />
+          ) : (
+            <CheckIcon className={`${iconCls} text-green-500 flex-shrink-0 mt-0.5`} />
+          )}
           <div className="min-w-0">
-            <span className="text-gray-500 dark:text-gray-400">Result: </span>
-            <span className="text-gray-700 dark:text-gray-300 font-medium">
-              {step.text || step.detail || step.value || 'No answer'}
-            </span>
+            {isFound ? (
+              <>
+                <span className="text-gray-500 dark:text-gray-400">Result: </span>
+                <span className="text-gray-700 dark:text-gray-300 font-medium">
+                  {step.value || step.text || step.detail || 'No answer'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className={`${isError ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'} font-medium`}>
+                  {isError ? 'Error' : 'Not found'}
+                </span>
+                {step.explanation && (
+                  <span className="text-gray-500 dark:text-gray-400 ml-1">— {step.explanation}</span>
+                )}
+              </>
+            )}
           </div>
         </div>
       );
+    }
     case 'coverage':
       return (
         <div className={`flex items-start gap-1.5 ${textCls}`}>
@@ -274,6 +295,11 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
             → {entry.value.length > 80 ? entry.value.slice(0, 80) + '...' : entry.value}
           </span>
         )}
+        {!isFound && entry.explanation && !large && (
+          <span className={`${textCls} text-amber-500 dark:text-amber-400 truncate ml-auto`}>
+            {entry.explanation.length > 60 ? entry.explanation.slice(0, 60) + '...' : entry.explanation}
+          </span>
+        )}
         <span className={`${textCls} text-gray-400 dark:text-gray-500 flex-shrink-0`}>
           {entry.steps.length} step{entry.steps.length !== 1 ? 's' : ''}
         </span>
@@ -284,6 +310,12 @@ function ResearchLogRow({ entry, large, defaultExpanded = false }: { entry: Rese
             <div className={`${textCls} bg-green-50 dark:bg-green-900/20 rounded p-2 mb-2 text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words`}>
               <span className="font-medium text-green-700 dark:text-green-400">Answer: </span>
               {entry.value}
+            </div>
+          )}
+          {!isFound && entry.explanation && (
+            <div className={`${textCls} bg-amber-50 dark:bg-amber-900/20 rounded p-2 mb-2 text-gray-800 dark:text-gray-200`}>
+              <span className="font-medium text-amber-700 dark:text-amber-400">Not found: </span>
+              {entry.explanation}
             </div>
           )}
           {entry.steps.map((step, i) => (

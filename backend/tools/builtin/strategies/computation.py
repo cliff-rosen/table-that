@@ -60,7 +60,11 @@ class ComputationStrategy(RowStrategy):
                 yield RowStep(
                     type="answer",
                     detail=value or "",
-                    data={"value": value},
+                    data={
+                        "outcome": "found" if value else "error",
+                        "value": value,
+                        "explanation": step.get("explanation"),
+                    },
                 )
 
 
