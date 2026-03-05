@@ -194,9 +194,9 @@ SCHEMA_PROPOSAL: {
   "table_name": "Table Name",
   "table_description": "Description",
   "operations": [
-    { "action": "add", "column": { "name": "Col Name", "type": "text|number|date|boolean|select", "required": true|false, "options": ["a","b"] } },
+    { "action": "add", "column": { "name": "Col Name", "type": "text|number|date|boolean|select|url", "required": true|false, "options": ["a","b"] } },
     { "action": "add", "column": { ... }, "after_column_id": "col_xxx" },
-    { "action": "modify", "column_id": "col_xxx", "changes": { "name": "New Name", "type": "select", "options": [...], "required": true } },
+    { "action": "modify", "column_id": "col_xxx", "changes": { "name": "New Name", "type": "select|url", "options": [...], "required": true } },
     { "action": "remove", "column_id": "col_xxx" },
     { "action": "reorder", "column_id": "col_xxx", "after_column_id": "col_yyy" }
   ]
@@ -209,6 +209,7 @@ Rules:
 - Use column NAMES when adding columns. Use column IDs (from context) when modifying/removing/reordering.
 - For select columns, always include the full options list (not just additions).
 - filterDisplay controls the filter UI for select columns: "tab" for inline buttons, "dropdown" for a dropdown chip. Always use a string value, never null.
+- Use `url` for columns that hold website links, URLs, or web addresses.
 - Always include a brief "reasoning" field.
 - When adding columns, place them logically near related columns using "after_column_id". For example, "Battery Life" should go next to "Power Options", not at the end. Group columns by theme: identifiers together, metrics together, categories together. Only omit after_column_id (append to end) if there's no logical grouping.
 - For "create" mode, ALWAYS include "sample_rows": an array of 2-3 objects with realistic example data. Keys are column NAMES (matching your proposed columns). Include data for ALL columns in each row. Make the data realistic and varied — real names, dates, numbers, option values. Do NOT include sample_rows for update mode.
@@ -247,7 +248,7 @@ _COLUMN_DEF_SCHEMA = {
         "name": {"type": "string", "description": "Column display name"},
         "type": {
             "type": "string",
-            "enum": ["text", "number", "date", "boolean", "select"],
+            "enum": ["text", "number", "date", "boolean", "select", "url"],
         },
         "required": {"type": "boolean"},
         "options": {
@@ -295,7 +296,7 @@ _SCHEMA_OPERATION = {
                         "name": {"type": "string"},
                         "type": {
                             "type": "string",
-                            "enum": ["text", "number", "date", "boolean", "select"],
+                            "enum": ["text", "number", "date", "boolean", "select", "url"],
                         },
                         "required": {"type": "boolean"},
                         "options": {"type": "array", "items": {"type": "string"}},

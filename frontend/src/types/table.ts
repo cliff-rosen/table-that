@@ -2,7 +2,7 @@
  * Table and Row types for table.that
  */
 
-export type ColumnType = 'text' | 'number' | 'date' | 'boolean' | 'select';
+export type ColumnType = 'text' | 'number' | 'date' | 'boolean' | 'select' | 'url';
 
 export interface ColumnDefinition {
   id: string;        // Stable ID like "col_xxx"

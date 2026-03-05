@@ -107,6 +107,12 @@ def _detect_column_type(values: List[str]) -> str:
     if numeric_count == len(values):
         return "number"
 
+    # Check if values look like URLs
+    import re as _re
+    url_count = sum(1 for v in values if _re.match(r'^https?://|^www\.', v, _re.IGNORECASE))
+    if url_count >= len(values) * 0.7:
+        return "url"
+
     # Check if all values look like dates
     date_patterns = _check_date_values(values)
     if date_patterns:

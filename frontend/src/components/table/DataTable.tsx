@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   TableCellsIcon,
   SparklesIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import type { ColumnDefinition, ColumnType, TableRow, SortState } from '../../types/table';
 import type { DataOperation } from '../../types/dataProposal';
@@ -52,6 +53,7 @@ export function getDefaultValue(col: ColumnDefinition): unknown {
     case 'date': return '';
     case 'boolean': return false;
     case 'select': return col.options?.[0] ?? '';
+    case 'url': return '';
     default: return '';
   }
 }
@@ -244,6 +246,37 @@ export function CellRenderer({ column, value }: CellRendererProps) {
       ) : (
         <span className="text-sm text-gray-400 dark:text-gray-500">--</span>
       );
+
+    case 'url': {
+      const urlStr = value !== null && value !== undefined ? String(value) : '';
+      if (!urlStr) {
+        return <span className="text-sm text-gray-400 dark:text-gray-500">--</span>;
+      }
+      const fullUrl = urlStr.startsWith('http://') || urlStr.startsWith('https://') || urlStr.startsWith('//')
+        ? urlStr
+        : 'https://' + urlStr;
+      let displayText = urlStr;
+      try {
+        const parsed = new URL(fullUrl.startsWith('//') ? 'https:' + fullUrl : fullUrl);
+        displayText = parsed.hostname + (parsed.pathname !== '/' ? parsed.pathname : '');
+      } catch {
+        // keep raw string
+      }
+      if (displayText.length > 40) displayText = displayText.slice(0, 40) + '…';
+      return (
+        <a
+          href={fullUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={urlStr}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate max-w-full"
+        >
+          {displayText}
+          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 flex-shrink-0" />
+        </a>
+      );
+    }
 
     default: // text
       return <TextCellRenderer value={value} />;

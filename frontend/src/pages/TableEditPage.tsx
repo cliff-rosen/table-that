@@ -33,6 +33,7 @@ const COLUMN_TYPES: { value: ColumnType; label: string; description: string }[] 
   { value: 'date', label: 'Date', description: 'Date values' },
   { value: 'boolean', label: 'Boolean', description: 'Yes/No toggle' },
   { value: 'select', label: 'Select', description: 'Pick from options' },
+  { value: 'url', label: 'URL', description: 'Website links' },
 ];
 
 // =============================================================================

@@ -88,6 +88,17 @@ export default function AddRecordModal({ columns, onSave, onClose }: AddRecordMo
           />
         );
 
+      case 'url':
+        return (
+          <Input
+            id={`add-${col.id}`}
+            type="url"
+            value={String(value ?? '')}
+            onChange={(e) => updateField(col.id, e.target.value)}
+            placeholder="https://example.com"
+          />
+        );
+
       default: // text
         return (
           <Input

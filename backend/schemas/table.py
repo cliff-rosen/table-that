@@ -14,6 +14,7 @@ class ColumnType(str, Enum):
     DATE = "date"
     BOOLEAN = "boolean"
     SELECT = "select"
+    URL = "url"
 
 
 class ColumnDefinition(BaseModel):

@@ -144,6 +144,16 @@ def coerce_value(
         cleaned, confidence = _coerce_boolean(cleaned)
     elif column_type == "select" and column_options:
         cleaned, confidence = _coerce_select(cleaned, column_options)
+    elif column_type == "url":
+        # Strip angle-bracket wrappers
+        cleaned = cleaned.strip('<>')
+        # Ensure protocol prefix
+        if cleaned and not cleaned.startswith(('http://', 'https://', '//')):
+            cleaned = 'https://' + cleaned
+        # Cap length
+        if len(cleaned) > 2000:
+            cleaned = cleaned[:2000]
+            confidence = "medium"
     elif column_type == "text":
         # Cap length
         if len(cleaned) > 2000:

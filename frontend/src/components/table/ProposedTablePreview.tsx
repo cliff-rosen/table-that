@@ -26,6 +26,7 @@ const TYPE_COLORS: Record<string, string> = {
   date: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   boolean: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   select: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  url: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
 };
 
 // =============================================================================

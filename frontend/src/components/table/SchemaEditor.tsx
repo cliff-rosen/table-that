@@ -8,6 +8,7 @@ const COLUMN_TYPES: { value: ColumnType; label: string }[] = [
   { value: 'date', label: 'Date' },
   { value: 'boolean', label: 'Boolean' },
   { value: 'select', label: 'Select' },
+  { value: 'url', label: 'URL' },
 ];
 
 interface SchemaEditorProps {
