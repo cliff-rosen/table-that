@@ -6,11 +6,11 @@ description: Run a flow-aligned QA walkthrough of the table.that app. Tests the 
 # QA Walkthrough
 
 ## Arguments
-$ARGUMENTS — optional: BASE_URL (default: http://192.168.0.12:5174) or specific phases to run (e.g., "phase 1-3", "core only"), or "prod" to run against https://tablethat.ironcliff.ai
+$ARGUMENTS — optional: BASE_URL (default: http://192.168.0.12:5174) or specific phases to run (e.g., "phase 1-3", "core only"), or "prod" to run against https://tablethat.ai
 
 ## Instructions
 
-You are running a QA walkthrough of the table.that application, organized around two authoritative flow specs:
+You are running a QA walkthrough of the TableThat application, organized around two authoritative flow specs:
 
 1. **New User Flow** (`_specs/flows/new-user-flow.md`) — Registration, login, empty state
 2. **Core Flow** (`_specs/flows/core-flow.md`) — Create table, populate, add column, enrich
@@ -20,9 +20,27 @@ This skill runs directly in the main conversation (not as a subprocess) because 
 ### Prerequisites
 
 - Dev server must be running at the BASE_URL (default: `http://192.168.0.12:5174`)
-- If argument is "prod", use `https://tablethat.ironcliff.ai`
+- If argument is "prod", use `https://tablethat.ai`
 - Playwright MCP browser tools must be available
 - If the browser fails to launch, try `mcp__playwright__browser_install` first
+
+### Output Directory
+
+Each run writes all artifacts (screenshots + report) to a timestamped folder:
+
+```
+_specs/signal/qa-runs/YYYYMMDD-HHmm/
+  qa-1a-landing.png
+  qa-1b-alt-guest.png
+  ...
+  report.md
+```
+
+At the start of the run:
+1. Generate a timestamp string: `YYYYMMDD-HHmm` (e.g., `20260304-1830`)
+2. Create the output directory: `_specs/signal/qa-runs/{timestamp}/`
+3. Use this directory as the path prefix for ALL screenshot filenames (e.g., `_specs/signal/qa-runs/20260304-1830/qa-1a-landing.png`)
+4. Write the report to `report.md` inside this directory (in addition to overwriting `_specs/signal/qa-latest.md`)
 
 ### Test Configuration
 
@@ -71,7 +89,7 @@ Execute each phase in order. Take a screenshot at every checkpoint marked with [
    - [ ] Pain-statement hero: "Here's your updated table." / "You check. It's not updated."
    - [ ] Textarea with placeholder "Describe your table..."
    - [ ] "Create Table" submit button
-   - [ ] 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
+   - [ ] 4 starter pills (full prompt text as button labels): Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
    - [ ] Header: "Log in" and "Get Started" links
    - [ ] No "session expired" message visible
 
@@ -361,7 +379,11 @@ Note: Do NOT delete the test user or table — leave them for manual inspection 
 
 ### 1. Signal Report
 
-Write the full report to `_specs/signal/qa-latest.md`, overwriting the previous content. Use this format:
+Write the full report to both:
+- `_specs/signal/qa-runs/{timestamp}/report.md` (permanent archive)
+- `_specs/signal/qa-latest.md` (overwrite with latest)
+
+Use this format:
 
 ```markdown
 # QA Walkthrough Report

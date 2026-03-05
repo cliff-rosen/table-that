@@ -8,100 +8,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon, BugAntIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import { showErrorToast } from '@/lib/errorToast';
-import { AgentTrace as ChatAgentTrace, ToolCall } from '@/types/chat';
+import type { AgentTrace, ToolCall, MessageExtras, Message } from '@/types/chat';
 import { DiagnosticsPanel } from '@/components/chat/DiagnosticsPanel';
 import { ToolCallCard } from '@/components/chat/diagnostics/ToolCallCard';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
-
-interface SuggestedValue {
-    text: string;
-}
-
-interface SuggestedAction {
-    label: string;
-    action: string;
-    handler?: string;
-    data?: Record<string, unknown>;
-}
-
-interface ToolRecord {
-    tool_name: string;
-    input: Record<string, unknown>;
-    output: string;
-}
-
-// Legacy diagnostics format (for old messages)
-interface LegacyDiagnostics {
-    model: string;
-    max_tokens: number;
-    max_iterations?: number;
-    temperature?: number;
-    system_prompt: string;
-    tools: string[];
-    messages: Array<{ role: string; content: string }>;
-    context: Record<string, unknown>;
-    raw_llm_response?: string;
-}
-
-// New trace format (for new messages)
-interface AgentTrace {
-    trace_id: string;
-    model: string;
-    max_tokens: number;
-    max_iterations: number;
-    temperature: number;
-    system_prompt: string;
-    tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
-    context: Record<string, unknown>;
-    initial_messages: Array<Record<string, unknown>>;
-    iterations: Array<{
-        iteration: number;
-        messages_to_model: Array<Record<string, unknown>>;
-        response_content: Array<Record<string, unknown>>;
-        stop_reason: string;
-        usage: { input_tokens: number; output_tokens: number };
-        api_call_ms: number;
-        tool_calls: Array<{
-            tool_use_id: string;
-            tool_name: string;
-            // New format uses tool_input, legacy uses input_from_model/input_to_executor
-            tool_input?: Record<string, unknown>;
-            input_from_model?: Record<string, unknown>;
-            input_to_executor?: Record<string, unknown>;
-            output_from_executor: unknown;
-            output_type: string;
-            output_to_model: string;
-            payload?: Record<string, unknown>;
-            execution_ms: number;
-        }>;
-    }>;
-    final_text: string;
-    total_iterations: number;
-    outcome: string;
-    error_message?: string;
-    total_input_tokens: number;
-    total_output_tokens: number;
-    total_duration_ms: number;
-    peak_input_tokens?: number;
-}
-
-interface MessageExtras {
-    tool_history?: ToolRecord[];
-    custom_payload?: Record<string, unknown>;
-    diagnostics?: LegacyDiagnostics;  // Legacy format
-    trace?: AgentTrace;  // New format
-    suggested_values?: SuggestedValue[];
-    suggested_actions?: SuggestedAction[];
-}
-
-interface Message {
-    id: number;
-    role: string;
-    content: string;
-    context?: Record<string, unknown>;
-    extras?: MessageExtras;
-    created_at: string;
-}
 
 interface AdminConversation {
     id: number;
@@ -431,7 +341,7 @@ export function ConversationList() {
             {/* Trace Panel launched from left sidebar */}
             {traceToShow && (
                 <DiagnosticsPanel
-                    diagnostics={traceToShow as unknown as ChatAgentTrace}
+                    diagnostics={traceToShow as AgentTrace}
                     onClose={() => setTraceToShow(null)}
                 />
             )}
@@ -628,7 +538,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
             {/* Diagnostics Panel Modal (rich trace viewer) */}
             {showDiagnosticsPanel && trace && (
                 <DiagnosticsPanel
-                    diagnostics={trace as unknown as ChatAgentTrace}
+                    diagnostics={trace as AgentTrace}
                     onClose={() => setShowDiagnosticsPanel(false)}
                 />
             )}

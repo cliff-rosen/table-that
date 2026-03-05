@@ -58,6 +58,7 @@ nul
 # QA & Playwright screenshots
 playwright-*.png
 qa-*.png
+_specs/signal/qa-runs/
 
 # Demo assets (audio, video, frames)
 _demo/

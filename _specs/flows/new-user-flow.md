@@ -43,6 +43,8 @@ The primary entry path — user tries before registering.
   [Track Job Applications] [Research Competitors]
 ```
 
+> Note: Landing page pills display the full prompt text as button labels (e.g., "Build me a list of top dentists in my area with ratings, insurance accepted, and availability"). The short names above are the internal `title` used for filtering.
+
 **Header** (PublicTopBar): App name, dark mode toggle, "Log in" link, "Get Started" button (links to /register)
 
 ### What happens on submit
@@ -176,8 +178,12 @@ Shown when: no tables AND chat closed AND not a guest AND no active proposal.
 - Subtext: "Describe a table and AI will build it for you — schema, data, and all."
 - Textarea with placeholder "Describe your table..."
 - "Create Table" submit button
-- 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors
+- 4 starter pills: Find a Dentist, Compare Laptops, Track Job Applications, Research Competitors (same as landing page)
 - "or create a table manually" link → opens CreateTableModal
+
+### StarterGrid (when tables exist)
+
+When the user has at least one table, the tables list shows a **StarterGrid** below the table cards with up to 6 starter cards (title + description format). The StarterGrid pulls from the full set of starter prompts, which may include additional entries beyond the 4 shown on the landing page and PromptHero (e.g., "Plan a Wedding", "Home Renovation").
 
 ### State B — Waiting state
 
