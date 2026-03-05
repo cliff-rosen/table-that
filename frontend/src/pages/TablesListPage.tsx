@@ -148,7 +148,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage, chatId, messages } = useChatContext();
+  const { updateContext, sendMessage, chatId, messages, migrateToTable } = useChatContext();
   const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
@@ -304,13 +304,14 @@ export default function TablesListPage() {
         sample_rows: [],
       });
 
+      await migrateToTable(created.id);
       sendMessage(`[User accepted and created "${created.name}"${includeSampleData ? ' with sample data' : ''}.]`);
       setActiveProposal(null);
       navigate(`/tables/${created.id}`);
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate, updateContext, sendMessage]);
+  }, [navigate, updateContext, sendMessage, migrateToTable]);
 
   // Loading skeleton
   if (isLoading) {
@@ -342,7 +343,6 @@ export default function TablesListPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
-        scope="tables_list"
         initialContext={{
           current_page: 'tables_list',
         }}

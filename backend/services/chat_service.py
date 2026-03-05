@@ -17,6 +17,25 @@ from database import get_async_db
 logger = logging.getLogger(__name__)
 
 
+def derive_scope(context: Dict[str, Any]) -> Optional[str]:
+    """Derive conversation scope from page context.
+
+    The scope is the entity the conversation is bound to:
+      "tables_list"   — the tables list page
+      "table:<id>"    — a specific table
+
+    This is the single source of truth for scope format. Used by the
+    chat router (conversation loading) and stream service (persistence).
+    """
+    page = context.get("current_page", "")
+    table_id = context.get("table_id")
+    if page in ("table_view", "table_edit") and table_id:
+        return f"table:{table_id}"
+    if page == "tables_list":
+        return "tables_list"
+    return None
+
+
 class ChatService:
     """Service for managing chats and messages."""
 
@@ -193,13 +212,21 @@ class ChatService:
         logger.debug(f"Created chat {chat.id} for user {user_id} in app {app} scope={scope}")
         return chat
 
-    async def get_or_create_for_scope(
+    async def get_or_create_for_context(
         self,
         user_id: int,
-        scope: str,
+        current_page: str,
+        table_id: Optional[int] = None,
         app: str = "table_that"
     ) -> Conversation:
-        """Get the most recent conversation for a scope, or create one."""
+        """Get the most recent conversation for a page context, or create one.
+
+        Derives scope from current_page + table_id using the shared derive_scope().
+        Raises ValueError if scope cannot be derived.
+        """
+        scope = derive_scope({"current_page": current_page, "table_id": table_id})
+        if not scope:
+            raise ValueError(f"Cannot derive conversation scope from page '{current_page}'")
         stmt = (
             select(Conversation)
             .where(
@@ -216,13 +243,18 @@ class ChatService:
             return chat
         return await self.create_chat(user_id, app=app, scope=scope)
 
-    async def update_scope(
+    async def migrate_to_table(
         self,
         chat_id: int,
         user_id: int,
-        new_scope: str
+        table_id: int
     ) -> Optional[Conversation]:
-        """Update a conversation's scope (e.g. migrate tables_list -> table:42)."""
+        """Migrate a conversation's scope to a specific table.
+
+        Called explicitly when a table is created from the tables_list page.
+        Derives the new scope from table_id — the caller never passes scope strings.
+        """
+        new_scope = f"table:{table_id}"
         chat = await self.get_chat(chat_id, user_id)
         if not chat:
             return None
@@ -230,7 +262,7 @@ class ChatService:
         chat.updated_at = datetime.utcnow()
         await self.db.commit()
         await self.db.refresh(chat)
-        logger.debug(f"Updated chat {chat_id} scope to {new_scope}")
+        logger.info(f"Migrated chat {chat_id} scope to {new_scope}")
         return chat
 
     async def add_message(

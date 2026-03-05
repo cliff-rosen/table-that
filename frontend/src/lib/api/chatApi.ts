@@ -36,13 +36,24 @@ export const chatApi = {
     // === Chat Persistence ===
 
     /**
-     * Get or create a conversation for a given scope (e.g. "tables_list", "table:42")
+     * Get or create a conversation for the given page context.
+     * Backend derives scope from current_page + table_id.
      */
-    async getChatByScope(scope: string, app = 'table_that'): Promise<ConversationWithMessages> {
-        const response = await api.get('/api/chats/by-scope', {
-            params: { scope, app }
-        });
+    async getChatByContext(currentPage: string, tableId?: number | null, app = 'table_that'): Promise<ConversationWithMessages> {
+        const params: Record<string, unknown> = { current_page: currentPage, app };
+        if (tableId != null) params.table_id = tableId;
+        const response = await api.get('/api/chats/by-context', { params });
         return response.data;
+    },
+
+    /**
+     * Migrate a conversation's scope to a specific table.
+     * Called when a table is created from the tables_list page.
+     */
+    async migrateChat(chatId: number, tableId: number): Promise<void> {
+        await api.patch(`/api/chats/${chatId}/migrate`, null, {
+            params: { table_id: tableId }
+        });
     },
 
 

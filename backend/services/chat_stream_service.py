@@ -51,7 +51,7 @@ from agents.agent_loop import (
     AgentCancelled,
     AgentError,
 )
-from services.chat_service import ChatService
+from services.chat_service import ChatService, derive_scope
 
 logger = logging.getLogger(__name__)
 
@@ -571,47 +571,24 @@ class ChatStreamService:
         """Derive app identifier from context."""
         return "table_that"
 
-    @staticmethod
-    def _derive_scope(context: Dict[str, Any]) -> Optional[str]:
-        """Derive conversation scope from page context.
-
-        The scope is the entity the conversation is bound to:
-          "tables_list"   — the tables list page
-          "table:<id>"    — a specific table
-        """
-        page = context.get("current_page", "")
-        table_id = context.get("table_id")
-        if page in ("table_view", "table_edit") and table_id:
-            return f"table:{table_id}"
-        if page == "tables_list":
-            return "tables_list"
-        return None
-
     async def _setup_chat(self, request) -> Optional[int]:
         """
         Set up chat persistence and save user message (async).
 
-        Scope logic:
-          - conversation_id provided → load it; if derived scope differs,
-            update the conversation's scope (handles tables_list → table:N
-            migration automatically).
-          - conversation_id absent → derive scope from context, create new
-            conversation with that scope.
+        If conversation_id is provided, loads it. Otherwise creates a new
+        conversation with scope derived from context. Scope migration is
+        handled explicitly via the migrate endpoint, not here.
 
         Returns chat_id or None if persistence fails.
         """
         try:
             chat_id = request.conversation_id
             app = self._get_app_from_context(request.context)
-            derived_scope = self._derive_scope(request.context)
+            derived_scope = derive_scope(request.context)
 
             if chat_id:
                 chat = await self.chat_service.get_chat(chat_id, self.user_id)
-                if chat:
-                    # Migrate scope if context has moved (e.g. tables_list → table:42)
-                    if derived_scope and chat.scope != derived_scope:
-                        await self.chat_service.update_scope(chat_id, self.user_id, derived_scope)
-                else:
+                if not chat:
                     chat_id = None
 
             if not chat_id:

@@ -15,8 +15,6 @@ const STORAGE_KEY = 'chatTrayWidth';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
-    /** Conversation scope — determines which conversation to load (e.g. "tables_list", "table:42") */
-    scope: string;
     /** Hide the chat tray completely (used when modal takes over) */
     hidden?: boolean;
     /** Whether the chat tray is open */
@@ -111,7 +109,6 @@ function MessageContent({
 
 export default function ChatTray({
     initialContext,
-    scope: scopeProp,
     hidden = false,
     isOpen,
     onOpenChange,
@@ -172,7 +169,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadForScope, chatId, context, guestLimitReached } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadForContext, chatId, context, guestLimitReached } = useChatContext();
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -211,14 +208,15 @@ export default function ChatTray({
         }
     }, [hidden, initialContext, setContext]);
 
-    // Load conversation for scope. Reactive to chatId so it re-fires after reset.
-    // loadForScope internally skips if scope+chatId already match, so this is safe to call often.
-    // Skip while loading — sendMessage with newConversation sets chatId to null which would
-    // trigger this effect and overwrite the in-flight user message.
+    // Load conversation for current page context. Fires when tray opens or
+    // page/table changes. After reset, the chat stays empty until the user
+    // sends a message (which creates a new conversation via _setup_chat).
+    const currentPage = context.current_page as string | undefined;
+    const tableId = context.table_id as number | undefined;
     useEffect(() => {
-        if (!isOpen || isLoading) return;
-        loadForScope(scopeProp);
-    }, [isOpen, scopeProp, chatId, loadForScope, isLoading]);
+        if (!isOpen || isLoading || !currentPage) return;
+        loadForContext(currentPage, tableId);
+    }, [isOpen, currentPage, tableId, loadForContext, isLoading]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

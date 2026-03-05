@@ -22,8 +22,6 @@ interface ChatContextType {
     statusText: string | null;
     activeToolProgress: ActiveToolProgress | null;
     chatId: number | null;
-    /** The entity the current conversation is bound to — see Conversation.scope in types/chat.ts */
-    scope: string | null;
     guestLimitReached: boolean;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
@@ -32,8 +30,10 @@ interface ChatContextType {
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
     reset: () => void;
-    /** Load (or create) the conversation bound to the given entity. */
-    loadForScope: (scope: string) => Promise<boolean>;
+    /** Load (or create) the conversation for the current page context. */
+    loadForContext: (currentPage: string, tableId?: number) => Promise<boolean>;
+    /** Migrate the current conversation to a specific table (called on table creation). */
+    migrateToTable: (tableId: number) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -54,19 +54,16 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const [statusText, setStatusText] = useState<string | null>(null);
     const [chatId, setChatIdState] = useState<number | null>(null);
     const chatIdRef = useRef<number | null>(null);
-    const [scope, setScopeState] = useState<string | null>(null);
-    const scopeRef = useRef<string | null>(null);
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
     const [guestLimitReached, setGuestLimitReached] = useState(false);
+
+    // Track what context we last loaded for, to avoid redundant loads
+    const lastLoadedPageRef = useRef<string | null>(null);
+    const lastLoadedTableIdRef = useRef<number | undefined>(undefined);
 
     const setChatId = useCallback((id: number | null) => {
         chatIdRef.current = id;
         setChatIdState(id);
-    }, []);
-
-    const setScope = useCallback((s: string | null) => {
-        scopeRef.current = s;
-        setScopeState(s);
     }, []);
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -259,15 +256,25 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         setMessages([]);
         setError(null);
         setChatId(null);
+        lastLoadedPageRef.current = null;
+        lastLoadedTableIdRef.current = undefined;
     }, []);
 
-    const loadForScope = useCallback(async (newScope: string) => {
-        // Skip if already loaded for this scope
-        if (scopeRef.current === newScope && chatIdRef.current !== null) {
+    const loadForContext = useCallback(async (currentPage: string, tableId?: number) => {
+        // Skip if already loaded for this context
+        if (lastLoadedPageRef.current === currentPage
+            && lastLoadedTableIdRef.current === tableId
+            && chatIdRef.current !== null) {
             return true;
         }
         try {
-            const chat = await chatApi.getChatByScope(newScope, app);
+            const chat = await chatApi.getChatByContext(currentPage, tableId, app);
+
+            // A send started while we were awaiting — don't overwrite its state
+            if (abortControllerRef.current) {
+                return true;
+            }
+
             const loadedMessages: ChatMessage[] = chat.messages
                 .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                 .map(msg => ({
@@ -284,18 +291,33 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                 }));
             setMessages(loadedMessages);
             setChatId(chat.id);
-            setScope(newScope);
+            lastLoadedPageRef.current = currentPage;
+            lastLoadedTableIdRef.current = tableId;
             setError(null);
             return true;
         } catch (err) {
-            console.error('Failed to load chat for scope:', newScope, err);
-            // Start fresh for this scope
+            console.error('Failed to load chat for context:', currentPage, tableId, err);
+            // A send started while we were awaiting — don't overwrite its state
+            if (abortControllerRef.current) {
+                return false;
+            }
+            // Start fresh
             setMessages([]);
             setChatId(null);
-            setScope(newScope);
+            lastLoadedPageRef.current = currentPage;
+            lastLoadedTableIdRef.current = tableId;
             return false;
         }
-    }, [app, setChatId, setScope]);
+    }, [app, setChatId]);
+
+    const migrateToTable = useCallback(async (tableId: number) => {
+        if (!chatIdRef.current) return;
+        try {
+            await chatApi.migrateChat(chatIdRef.current, tableId);
+        } catch (err) {
+            console.error('Failed to migrate chat to table:', tableId, err);
+        }
+    }, []);
 
     return (
         <ChatContext.Provider value={{
@@ -307,7 +329,6 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             statusText,
             activeToolProgress,
             chatId,
-            scope,
             guestLimitReached,
             sendMessage,
             resetGuestLimit,
@@ -315,7 +336,8 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             updateContext,
             setContext: replaceContext,
             reset,
-            loadForScope
+            loadForContext,
+            migrateToTable
         }}>
             {children}
         </ChatContext.Provider>

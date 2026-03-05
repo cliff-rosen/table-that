@@ -6,13 +6,13 @@ Full trace of a single user message through the table.that chat system.
 
 ## Step 1: Scope Loading & Context Building
 
-### 1a. Scope Loading
+### 1a. Conversation Loading
 
 **File:** `frontend/src/components/chat/ChatTray.tsx`
 
-When ChatTray opens, it calls `loadForScope(scope)` where `scope` is a prop passed by the page (e.g. `"tables_list"`, `"table:42"`). This calls `GET /api/chats/by-scope?scope=...` to load (or create) the conversation bound to that entity. Each table has its own conversation — navigating between tables switches conversations automatically.
+When ChatTray opens, it reads `current_page` and `table_id` from context and calls `loadForContext(currentPage, tableId)`. This calls `GET /api/chats/by-context?current_page=...&table_id=...` — the backend derives scope and returns the right conversation (or creates one). Each table has its own conversation — navigating between tables switches conversations automatically.
 
-After a reset (new conversation), `chatId` becomes null, which re-triggers the effect and calls `loadForScope` again, creating a fresh conversation for the same scope.
+After a reset (new conversation), `chatId` becomes null, which re-triggers the effect and calls `loadForContext` again, creating a fresh conversation for the same page context.
 
 ### 1b. Context Building
 
@@ -81,10 +81,9 @@ User submits input → `handleSubmit()` → calls `sendMessage(text, Interaction
 
 **File:** `backend/services/chat_stream_service.py` (lines 80-369)
 
-### 5a. Scope Derivation & Persistence Setup (line 96)
-- Calls `_derive_scope(context)` to determine the scope from `current_page` + `table_id`
-- If `conversation_id` is provided: loads existing conversation; if derived scope differs from stored scope, auto-migrates (updates the scope column)
-- If no `conversation_id`: creates a new conversation with the derived scope
+### 5a. Persistence Setup (line 96)
+- If `conversation_id` is provided: loads existing conversation
+- If no `conversation_id`: derives scope from context via `derive_scope()`, creates new conversation with that scope
 - Saves user message to DB
 - Emits `ChatIdEvent` immediately so frontend has the conversation_id
 

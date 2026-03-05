@@ -46,20 +46,25 @@ class ChatWithMessagesResponse(BaseModel):
 
 # === User Endpoints ===
 
-@router.get("/by-scope", response_model=ChatWithMessagesResponse)
-async def get_chat_by_scope(
-    scope: str = Query(..., description="Conversation scope, e.g. 'tables_list' or 'table:42'"),
+@router.get("/by-context", response_model=ChatWithMessagesResponse)
+async def get_chat_by_context(
+    current_page: str = Query(..., description="Page identifier: tables_list, table_view, table_edit"),
+    table_id: Optional[int] = Query(None, description="Table ID (required for table_view/table_edit)"),
     app: str = Query("table_that", description="App identifier"),
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """Get or create a conversation for a given scope. Returns the conversation with messages."""
+    """Get or create a conversation for the given page context."""
     try:
-        chat = await service.get_or_create_for_scope(
+        chat = await service.get_or_create_for_context(
             user_id=current_user.user_id,
-            scope=scope,
+            current_page=current_page,
+            table_id=table_id,
             app=app
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    try:
         messages = await service.get_messages(chat.id, current_user.user_id)
 
         return ChatWithMessagesResponse(
@@ -81,11 +86,28 @@ async def get_chat_by_scope(
             ]
         )
     except Exception as e:
-        logger.error(f"get_chat_by_scope failed - user_id={current_user.user_id}, scope={scope}: {e}", exc_info=True)
+        logger.error(f"get_chat_by_context failed - user_id={current_user.user_id}, page={current_page}, table_id={table_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get chat by scope: {str(e)}"
+            detail=f"Failed to get chat by context: {str(e)}"
         )
+
+
+@router.patch("/{chat_id}/migrate")
+async def migrate_chat(
+    chat_id: int,
+    table_id: int = Query(..., description="Table ID to migrate the conversation to"),
+    service: ChatService = Depends(get_chat_service),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """Migrate a conversation's scope to a specific table.
+
+    Called when a table is created from the tables_list page.
+    """
+    chat = await service.migrate_to_table(chat_id, current_user.user_id, table_id)
+    if not chat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
+    return {"ok": True}
 
 
 # === Admin Endpoints ===
