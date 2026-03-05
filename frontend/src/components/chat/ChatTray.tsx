@@ -216,13 +216,11 @@ export default function ChatTray({
         scrollToBottom();
     }, [messages, streamingText, activeToolProgress, isLoading]);
 
-    // Clear conversation-scoped UI state when no conversation is active
+    // Clear conversation-scoped UI state when conversation changes
     useEffect(() => {
-        if (chatId === null) {
-            setToolsToShow(null);
-            setToolsTrace(undefined);
-            setDiagnosticsToShow(null);
-        }
+        setToolsToShow(null);
+        setToolsTrace(undefined);
+        setDiagnosticsToShow(null);
     }, [chatId]);
 
     // Handle full chat reset — clears messages; the scope effect will re-load

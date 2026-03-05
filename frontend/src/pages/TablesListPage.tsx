@@ -201,11 +201,13 @@ export default function TablesListPage() {
     fetchTables();
   }, [fetchTables]);
 
-  // Clear active proposal when no conversation is active
+  // When conversation changes: clear proposal and skip scanning historical messages.
+  // Must be declared BEFORE the scanning effect (React runs effects in declaration order).
   useEffect(() => {
     if (chatId === null) {
       setActiveProposal(null);
     }
+    lastCheckedIndexRef.current = messages.length;
   }, [chatId]);
 
   // Push context to chat whenever tables list or active proposal changes

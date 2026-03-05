@@ -42,7 +42,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { updateContext, sendMessage, messages, loadForContext } = useChatContext();
+  const { updateContext, sendMessage, messages, loadForContext, chatId } = useChatContext();
   const { isGuest } = useAuth();
 
   // UI state
@@ -65,9 +65,10 @@ export default function TableViewPage() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedRef = useRef(false);
 
-  // Track which messages we've already checked for data-tool usage
-  // Start from current length so we only react to NEW messages, not history
+  // Track which messages we've already scanned (data-tools and payloads).
+  // Initialized to current length so we skip messages already in context on mount.
   const lastCheckedIndexRef = useRef(messages.length);
+  const lastPayloadIndexRef = useRef(messages.length);
 
   // -----------------------------------------------------------------------
   // Fetch table definition
@@ -177,6 +178,14 @@ export default function TableViewPage() {
       });
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
+
+  // When a conversation is loaded from DB, skip scanning its historical messages.
+  // Resets BOTH scanning refs. Must be declared BEFORE both scanning effects
+  // (React runs effects in declaration order).
+  useEffect(() => {
+    lastCheckedIndexRef.current = messages.length;
+    lastPayloadIndexRef.current = messages.length;
+  }, [chatId]);
 
   // Auto-refresh rows when chat executes data-modifying tools
   const DATA_TOOLS = ['create_row', 'update_row', 'delete_row'];
@@ -359,8 +368,6 @@ export default function TableViewPage() {
 
   // Detect incoming payloads for inline proposal rendering
   // (Must be after useTableProposal so proposal.handlePayload is defined)
-  // Start from current length so we only react to NEW messages, not history
-  const lastPayloadIndexRef = useRef(messages.length);
   useEffect(() => {
     // Reset ref when messages shrink (e.g. new conversation started)
     if (messages.length < lastPayloadIndexRef.current) {
