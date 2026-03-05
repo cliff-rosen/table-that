@@ -668,18 +668,30 @@ async def execute_lookup_web(
 
     cancel_token = context.get("_cancellation_token")
     answer = "Could not determine an answer."
+    answer_outcome = "not_found"
+    answer_explanation = ""
     async for step in _lookup_web_core(question, 2, db, user_id, cancellation_token=cancel_token):
         action = step["action"]
         if action == "answer":
-            if step.get("outcome") == "found":
+            answer_outcome = step.get("outcome", "not_found")
+            answer_explanation = step.get("explanation", "")
+            if answer_outcome == "found":
                 answer = step.get("value") or "Could not determine an answer."
             else:
                 answer = "Could not determine an answer."
+            yield ToolProgress(
+                stage="answer",
+                message=f"{'Found' if answer_outcome == 'found' else 'Not found'}: {(answer if answer_outcome == 'found' else answer_explanation)[:120]}",
+                data={"outcome": answer_outcome, "value": step.get("value"), "explanation": answer_explanation},
+            )
         elif action == "search":
+            search_data: dict = {"query": step.get("query"), "detail": step.get("detail")}
+            if step.get("result"):
+                search_data["result"] = step["result"]
             yield ToolProgress(
                 stage="search",
                 message=f"Searching: {step.get('query', '')[:80]}",
-                data={"query": step.get("query"), "detail": step.get("detail")},
+                data=search_data,
             )
         elif action == "thinking":
             yield ToolProgress(
@@ -936,27 +948,42 @@ async def execute_research_web(
 
     cancel_token = context.get("_cancellation_token")
     answer = "Could not determine an answer."
+    answer_outcome = "not_found"
+    answer_explanation = ""
     async for step in _research_web_core(
         query, max_steps, db, user_id,
         cancellation_token=cancel_token, thoroughness=thoroughness,
     ):
         action = step["action"]
         if action == "answer":
-            if step.get("outcome") == "found":
+            answer_outcome = step.get("outcome", "not_found")
+            answer_explanation = step.get("explanation", "")
+            if answer_outcome == "found":
                 answer = step.get("value") or "Could not determine an answer."
             else:
                 answer = "Could not determine an answer."
+            yield ToolProgress(
+                stage="answer",
+                message=f"{'Found' if answer_outcome == 'found' else 'Not found'}: {(answer if answer_outcome == 'found' else answer_explanation)[:120]}",
+                data={"outcome": answer_outcome, "value": step.get("value"), "explanation": answer_explanation},
+            )
         elif action == "search":
+            search_data: dict = {"query": step.get("query"), "detail": step.get("detail")}
+            if step.get("result"):
+                search_data["result"] = step["result"]
             yield ToolProgress(
                 stage="search",
                 message=f"Searching: {step.get('query', '')[:80]}",
-                data={"query": step.get("query"), "detail": step.get("detail")},
+                data=search_data,
             )
         elif action == "fetch":
+            fetch_data: dict = {"url": step.get("url"), "detail": step.get("detail")}
+            if step.get("result"):
+                fetch_data["result"] = step["result"]
             yield ToolProgress(
                 stage="fetch",
                 message=f"Reading: {step.get('url', '')[:80]}",
-                data={"url": step.get("url"), "detail": step.get("detail")},
+                data=fetch_data,
             )
         elif action == "thinking":
             yield ToolProgress(

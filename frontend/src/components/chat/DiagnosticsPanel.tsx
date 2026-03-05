@@ -265,6 +265,67 @@ function StageIcon({ stage }: { stage: string }) {
     return <WrenchScrewdriverIcon className={`${cls} text-gray-400`} />;
 }
 
+/** Renders rich detail for a progress event's data field (search results, answer outcome, etc.) */
+function ProgressEventDetail({ data }: { data: Record<string, unknown> }) {
+    const outcome = data.outcome as string | undefined;
+    const value = data.value as string | undefined;
+    const explanation = data.explanation as string | undefined;
+    const result = data.result as string | undefined;
+
+    return (
+        <div className="mt-1 ml-[7.5rem] space-y-1">
+            {/* Structured answer outcome */}
+            {outcome && (
+                <div className={`flex items-center gap-1.5 text-xs ${
+                    outcome === 'found' ? 'text-green-600 dark:text-green-400' :
+                    outcome === 'error' ? 'text-red-600 dark:text-red-400' :
+                    'text-amber-600 dark:text-amber-400'
+                }`}>
+                    {outcome === 'found' ? (
+                        <CheckCircleIcon className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                        <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span className="font-medium">{outcome}</span>
+                    {value && <span className="text-gray-700 dark:text-gray-300 truncate">— {value.slice(0, 200)}</span>}
+                </div>
+            )}
+            {explanation && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                    {explanation.slice(0, 300)}
+                </div>
+            )}
+            {/* Search/fetch result content */}
+            {result && (
+                <ResultBlock text={result} />
+            )}
+        </div>
+    );
+}
+
+/** Collapsible block for search/fetch result text in progress events */
+function ResultBlock({ text }: { text: string }) {
+    const [expanded, setExpanded] = useState(false);
+    const lines = text.split('\n');
+    const isLong = lines.length > 6 || text.length > 400;
+    const preview = isLong && !expanded ? lines.slice(0, 6).join('\n') : text;
+    return (
+        <div className="border-l-2 border-gray-200 dark:border-gray-700 pl-2">
+            <pre className="text-[11px] text-gray-500 dark:text-gray-400 whitespace-pre-wrap break-words max-h-48 overflow-auto">
+                {preview}{isLong && !expanded && '…'}
+            </pre>
+            {isLong && (
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="text-[10px] text-blue-500 hover:text-blue-700 dark:text-blue-400 mt-0.5"
+                >
+                    {expanded ? 'Show less' : `Show all (${text.length} chars)`}
+                </button>
+            )}
+        </div>
+    );
+}
+
 function ToolsTab({ allToolCalls, onFullscreen }: {
     allToolCalls: { iteration: number; toolCall: ToolCall }[];
     onFullscreen: (content: FullscreenContent) => void;
@@ -357,23 +418,29 @@ function ToolsTab({ allToolCalls, onFullscreen }: {
                                             Execution Steps ({toolCall.progress_events!.length})
                                         </div>
                                         <div className="space-y-0.5">
-                                            {toolCall.progress_events!.map((evt, i) => (
-                                                <div key={i} className="flex items-start gap-2 text-xs py-0.5">
-                                                    <span className="text-gray-400 font-mono w-14 text-right shrink-0">
-                                                        {evt.elapsed_ms >= 1000
-                                                            ? `${(evt.elapsed_ms / 1000).toFixed(1)}s`
-                                                            : `${evt.elapsed_ms}ms`
-                                                        }
-                                                    </span>
-                                                    <StageIcon stage={evt.stage} />
-                                                    <span className="font-medium text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate">
-                                                        {evt.stage}
-                                                    </span>
-                                                    <span className="text-gray-700 dark:text-gray-300 break-words min-w-0">
-                                                        {evt.message}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                            {toolCall.progress_events!.map((evt, i) => {
+                                                const hasRichData = evt.data && (evt.data.result || evt.data.outcome);
+                                                return (
+                                                    <div key={i}>
+                                                        <div className="flex items-start gap-2 text-xs py-0.5">
+                                                            <span className="text-gray-400 font-mono w-14 text-right shrink-0">
+                                                                {evt.elapsed_ms >= 1000
+                                                                    ? `${(evt.elapsed_ms / 1000).toFixed(1)}s`
+                                                                    : `${evt.elapsed_ms}ms`
+                                                                }
+                                                            </span>
+                                                            <StageIcon stage={evt.stage} />
+                                                            <span className="font-medium text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate">
+                                                                {evt.stage}
+                                                            </span>
+                                                            <span className="text-gray-700 dark:text-gray-300 break-words min-w-0">
+                                                                {evt.message}
+                                                            </span>
+                                                        </div>
+                                                        {hasRichData ? <ProgressEventDetail data={evt.data!} /> : null}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
