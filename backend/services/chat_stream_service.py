@@ -57,8 +57,8 @@ logger = logging.getLogger(__name__)
 
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 8000
-DEFAULT_MAX_TOOL_ITERATIONS = 5
-GUEST_TURN_LIMIT = 2
+DEFAULT_MAX_TOOL_ITERATIONS = 5  # Configurable max iterations for agent loop, can be adjusted based on needs and model capabilities.
+GUEST_TURN_LIMIT = 8  # Max messages (user + assistant) a guest can send before hitting the limit. Set to a low number for testing, can be increased later.
 # Context window for the chat model. Warning fires at 70% usage.
 CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
@@ -263,7 +263,11 @@ class ChatStreamService:
             suggested_values = None
             if parsed.get("suggested_values"):
                 suggested_values = [
-                    SuggestedValue(text=sv) if isinstance(sv, str) else SuggestedValue(**sv)
+                    (
+                        SuggestedValue(text=sv)
+                        if isinstance(sv, str)
+                        else SuggestedValue(**sv)
+                    )
                     for sv in parsed["suggested_values"]
                 ]
 

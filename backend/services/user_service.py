@@ -535,6 +535,22 @@ class UserService:
         logger.info(f"Deleted user {user_id} ({email})")
         return True
 
+    async def bulk_delete_users(
+        self, user_ids: list[int], deleted_by: UserModel
+    ) -> dict:
+        """Delete multiple users. Returns summary of results."""
+        deleted = []
+        failed = []
+        for uid in user_ids:
+            try:
+                await self.delete_user(uid, deleted_by)
+                deleted.append(uid)
+            except HTTPException as e:
+                failed.append({"user_id": uid, "detail": e.detail})
+            except Exception as e:
+                failed.append({"user_id": uid, "detail": str(e)})
+        return {"deleted": deleted, "failed": failed}
+
 
 # Dependency injection provider for async user service
 async def get_user_service(

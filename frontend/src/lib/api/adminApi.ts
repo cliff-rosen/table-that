@@ -134,6 +134,14 @@ export const adminApi = {
     await api.delete(`/api/admin/users/${userId}`);
   },
 
+  /**
+   * Bulk delete users (platform admin only)
+   */
+  async bulkDeleteUsers(userIds: number[]): Promise<{ deleted: number[]; failed: { user_id: number; detail: string }[] }> {
+    const response = await api.post('/api/admin/users/bulk-delete', { user_ids: userIds });
+    return response.data;
+  },
+
   // ==================== Invitation Management ====================
 
   /**

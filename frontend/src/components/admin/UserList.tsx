@@ -31,6 +31,10 @@ export function UserList() {
     const [selectedOrgId, setSelectedOrgId] = useState<number | ''>('');
     const [isAssigning, setIsAssigning] = useState(false);
 
+    // Multi-select state
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+
     useEffect(() => {
         loadData();
     }, [filterOrgId]);
@@ -38,6 +42,7 @@ export function UserList() {
     const loadData = async () => {
         setIsLoading(true);
         setError(null);
+        setSelectedIds(new Set());
         try {
             const [userListResponse, orgList] = await Promise.all([
                 adminApi.getAllUsers({ org_id: filterOrgId }),
@@ -105,6 +110,46 @@ export function UserList() {
         return true;
     };
 
+    const deletableUsers = users.filter(canDeleteUser);
+    const allDeletableSelected = deletableUsers.length > 0 && deletableUsers.every(u => selectedIds.has(u.user_id));
+
+    const toggleSelect = (userId: number) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(userId)) next.delete(userId);
+            else next.add(userId);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (allDeletableSelected) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(deletableUsers.map(u => u.user_id)));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const count = selectedIds.size;
+        if (count === 0) return;
+        if (!confirm(`Are you sure you want to delete ${count} user${count > 1 ? 's' : ''}? This action cannot be undone.`)) return;
+
+        setIsDeleting(true);
+        try {
+            const result = await adminApi.bulkDeleteUsers(Array.from(selectedIds));
+            if (result.failed.length > 0) {
+                setError(`Deleted ${result.deleted.length}, failed ${result.failed.length}: ${result.failed.map(f => f.detail).join(', ')}`);
+            }
+            setSelectedIds(new Set());
+            await loadData();
+        } catch (err) {
+            setError(handleApiError(err));
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const startEditRole = (user: User) => {
         setEditingUser(user);
         setSelectedRole(user.role);
@@ -144,9 +189,21 @@ export function UserList() {
         <div className="space-y-6">
             {/* Header with Filter */}
             <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Users ({totalUsers})
-                </h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Users ({totalUsers})
+                    </h2>
+                    {selectedIds.size > 0 && (
+                        <button
+                            onClick={handleBulkDelete}
+                            disabled={isDeleting}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+                        >
+                            <TrashIcon className="h-4 w-4" />
+                            Delete {selectedIds.size} selected
+                        </button>
+                    )}
+                </div>
                 <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-600 dark:text-gray-400">Filter by org:</label>
                     <select
@@ -173,6 +230,15 @@ export function UserList() {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-gray-900">
                         <tr>
+                            <th className="w-10 px-3 py-3">
+                                <input
+                                    type="checkbox"
+                                    checked={allDeletableSelected}
+                                    onChange={toggleSelectAll}
+                                    className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                                    title="Select all deletable users"
+                                />
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 User
                             </th>
@@ -192,7 +258,19 @@ export function UserList() {
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {users.map((user) => (
-                            <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <tr key={user.user_id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedIds.has(user.user_id) ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}>
+                                <td className="w-10 px-3 py-4">
+                                    {canDeleteUser(user) ? (
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(user.user_id)}
+                                            onChange={() => toggleSelect(user.user_id)}
+                                            className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                                        />
+                                    ) : (
+                                        <input type="checkbox" disabled className="rounded border-gray-200 dark:border-gray-700 opacity-30" />
+                                    )}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-3">
                                         <UserIcon className="h-5 w-5 text-gray-400" />
@@ -250,7 +328,7 @@ export function UserList() {
                         ))}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                     No users found
                                 </td>
                             </tr>

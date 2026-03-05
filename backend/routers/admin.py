@@ -325,6 +325,29 @@ async def delete_user(
         )
 
 
+class BulkDeleteUsers(BaseModel):
+    """Request schema for bulk user deletion."""
+
+    user_ids: list[int] = Field(description="IDs of users to delete")
+
+
+@router.post("/users/bulk-delete", summary="Bulk delete users")
+async def bulk_delete_users(
+    body: BulkDeleteUsers,
+    current_user: User = Depends(require_platform_admin),
+    user_service: UserService = Depends(get_user_service),
+):
+    """Delete multiple users at once. Platform admin only."""
+    logger.info(
+        f"bulk_delete_users - admin_user_id={current_user.user_id}, user_ids={body.user_ids}"
+    )
+    result = await user_service.bulk_delete_users(body.user_ids, current_user)
+    logger.info(
+        f"bulk_delete_users complete - deleted={len(result['deleted'])}, failed={len(result['failed'])}"
+    )
+    return result
+
+
 # ==================== Invitation Management ====================
 
 
