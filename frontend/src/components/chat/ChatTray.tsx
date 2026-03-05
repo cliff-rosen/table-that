@@ -213,10 +213,12 @@ export default function ChatTray({
 
     // Load conversation for scope. Reactive to chatId so it re-fires after reset.
     // loadForScope internally skips if scope+chatId already match, so this is safe to call often.
+    // Skip while loading — sendMessage with newConversation sets chatId to null which would
+    // trigger this effect and overwrite the in-flight user message.
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || isLoading) return;
         loadForScope(scopeProp);
-    }, [isOpen, scopeProp, chatId, loadForScope]);
+    }, [isOpen, scopeProp, chatId, loadForScope, isLoading]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
