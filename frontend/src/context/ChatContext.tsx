@@ -32,8 +32,6 @@ interface ChatContextType {
     reset: () => void;
     /** Load (or create) the conversation for the current page context. */
     loadForContext: (currentPage: string, tableId?: number) => Promise<boolean>;
-    /** Migrate the current conversation to a specific table (called on table creation). */
-    migrateToTable: (tableId: number) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -310,15 +308,6 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         }
     }, [app, setChatId]);
 
-    const migrateToTable = useCallback(async (tableId: number) => {
-        if (!chatIdRef.current) return;
-        try {
-            await chatApi.migrateChat(chatIdRef.current, tableId);
-        } catch (err) {
-            console.error('Failed to migrate chat to table:', tableId, err);
-        }
-    }, []);
-
     return (
         <ChatContext.Provider value={{
             messages,
@@ -336,8 +325,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             updateContext,
             setContext: replaceContext,
             reset,
-            loadForContext,
-            migrateToTable
+            loadForContext
         }}>
             {children}
         </ChatContext.Provider>

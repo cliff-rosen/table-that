@@ -46,15 +46,6 @@ export const chatApi = {
         return response.data;
     },
 
-    /**
-     * Migrate a conversation's scope to a specific table.
-     * Called when a table is created from the tables_list page.
-     */
-    async migrateChat(chatId: number, tableId: number): Promise<void> {
-        await api.patch(`/api/chats/${chatId}/migrate`, null, {
-            params: { table_id: tableId }
-        });
-    },
 
 
     // === Streaming Chat ===

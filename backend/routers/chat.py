@@ -93,23 +93,6 @@ async def get_chat_by_context(
         )
 
 
-@router.patch("/{chat_id}/migrate")
-async def migrate_chat(
-    chat_id: int,
-    table_id: int = Query(..., description="Table ID to migrate the conversation to"),
-    service: ChatService = Depends(get_chat_service),
-    current_user: User = Depends(auth_service.validate_token)
-):
-    """Migrate a conversation's scope to a specific table.
-
-    Called when a table is created from the tables_list page.
-    """
-    chat = await service.migrate_to_table(chat_id, current_user.user_id, table_id)
-    if not chat:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
-    return {"ok": True}
-
-
 # === Admin Endpoints ===
 
 class AdminChatResponse(BaseModel):

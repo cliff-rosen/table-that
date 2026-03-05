@@ -575,9 +575,9 @@ class ChatStreamService:
         """
         Set up chat persistence and save user message (async).
 
-        If conversation_id is provided, loads it. Otherwise creates a new
-        conversation with scope derived from context. Scope migration is
-        handled explicitly via the migrate endpoint, not here.
+        If conversation_id is provided, loads it and migrates scope if
+        context indicates a different entity (e.g. tables_list → table:42).
+        Otherwise creates a new conversation with scope derived from context.
 
         Returns chat_id or None if persistence fails.
         """
@@ -588,7 +588,13 @@ class ChatStreamService:
 
             if chat_id:
                 chat = await self.chat_service.get_chat(chat_id, self.user_id)
-                if not chat:
+                if chat:
+                    table_id = request.context.get("table_id")
+                    if derived_scope and chat.scope != derived_scope and table_id:
+                        await self.chat_service.migrate_to_table(
+                            chat_id, self.user_id, table_id
+                        )
+                else:
                     chat_id = None
 
             if not chat_id:

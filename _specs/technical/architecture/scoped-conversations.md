@@ -27,7 +27,7 @@ Input: `current_page` + `table_id` from context.
 
 ---
 
-## Three Operations
+## Two Operations
 
 ### 1. Conversation Loading (on page open)
 
@@ -46,7 +46,7 @@ Input: `current_page` + `table_id` from context.
 
 No migration logic here. Simple lookup or create.
 
-### 2. Message Persistence (on each message send)
+### 2. Message Persistence & Migration (on each message send)
 
 **Trigger:** User sends a message via `POST /api/chat/stream`.
 
@@ -55,32 +55,21 @@ No migration logic here. Simple lookup or create.
 **Steps:**
 
 1. Derive scope from context → e.g. `"table:42"`
-2. If `conversation_id` provided → load it, save message
-3. If no `conversation_id` → create new conversation with derived scope, save message
+2. If `conversation_id` provided:
+   a. Load conversation
+   b. If derived scope differs from stored scope AND table_id is present → migrate scope
+   c. Save message to this conversation
+3. If no `conversation_id`:
+   a. Create new conversation with derived scope
+   b. Save message
 
-No migration logic here either. By the time messages are sent, scope is already correct.
-
-### 3. Explicit Migration (on table creation)
-
-**Trigger:** User accepts a schema proposal and a table is created.
-
-**Endpoint:** `PATCH /api/chats/{chat_id}/migrate`
-
-**Service method:** `ChatService.migrate_to_table(chat_id, user_id, table_id)`
-
-**Steps:**
-
-1. Derive new scope from table_id → `"table:42"`
-2. Update conversation's scope column
-3. Return success
-
-This is called explicitly by the frontend at the moment of table creation, when we know both the conversation ID and the new table ID.
+Migration happens here because the context change IS the signal. When the accept-proposal handler updates context to `{current_page: "table_view", table_id: 42}` and then sends a message, `_setup_chat` sees the scope mismatch and migrates.
 
 ---
 
 ## Scope Migration
 
-Migration is **explicit, not automatic**. It happens at a single well-defined moment.
+Migration is handled by the backend when it detects a scope mismatch during message persistence. The frontend triggers it implicitly by updating context and sending a message.
 
 ### tables_list → table:\<id\>
 
@@ -89,12 +78,13 @@ Migration is **explicit, not automatic**. It happens at a single well-defined mo
 **What happens:**
 
 1. Accept-proposal handler creates the table → gets `table_id = 42`
-2. Handler calls `PATCH /api/chats/{chatId}/migrate` with `table_id = 42`
-3. Backend updates conversation scope from `"tables_list"` to `"table:42"`
-4. Handler navigates to `/tables/42`
-5. ChatTray on table_view loads → queries for `"table:42"` → finds the migrated conversation
+2. Handler updates context: `{current_page: "table_view", table_id: 42}`
+3. Handler sends message: `[User accepted and created "Bug Tracker"]`
+4. `_setup_chat` loads conversation, derives scope `"table:42"`, sees mismatch → migrates
+5. Handler navigates to `/tables/42`
+6. ChatTray on table_view loads → queries for `"table:42"` → finds the migrated conversation
 
-The migration is telegraphed — we know at table creation time that it needs to happen, so we do it right then. No guessing, no fallback queries, no fragile in-memory state chains.
+The context change is the telegraph. The backend detects the mismatch and acts on it. No separate migration endpoint, no frontend migration logic.
 
 ---
 
@@ -103,10 +93,11 @@ The migration is telegraphed — we know at table creation time that it needs to
 The frontend never constructs scope strings. It provides context:
 
 - Pages call `updateContext({ current_page, table_id, ... })`
-- ChatTray reads `current_page` and `table_id` from context
+- ChatTray reads `current_page` and `table_id` from context to trigger loads
 - `getChatByContext(currentPage, tableId)` sends these to the backend
 - Backend derives scope, loads or creates conversation, returns it
-- At table creation time, frontend calls `migrateToTable(tableId)` — the only explicit migration point
+
+After reset (new conversation), the chat stays empty until the user sends a message, which creates a new conversation via `_setup_chat`.
 
 ---
 
@@ -116,10 +107,7 @@ The frontend never constructs scope strings. It provides context:
 |---|---|
 | `services/chat_service.py` → `derive_scope()` | Single source of truth for scope format |
 | `services/chat_service.py` → `get_or_create_for_context()` | Conversation loading (lookup or create) |
-| `services/chat_service.py` → `migrate_to_table()` | Explicit scope migration |
-| `services/chat_stream_service.py` → `_setup_chat()` | Message persistence (no migration) |
+| `services/chat_service.py` → `migrate_to_table()` | Scope migration (called by _setup_chat) |
+| `services/chat_stream_service.py` → `_setup_chat()` | Message persistence with scope migration |
 | `routers/chat.py` → `GET /by-context` | Passes current_page + table_id to service |
-| `routers/chat.py` → `PATCH /{chat_id}/migrate` | Explicit migration endpoint |
-| `frontend/lib/api/chatApi.ts` → `migrateChat()` | Calls migration endpoint |
 | `frontend/context/ChatContext.tsx` → `loadForContext()` | Loads conversation by page context |
-| `frontend/context/ChatContext.tsx` → `migrateToTable()` | Calls migrateChat with current chatId |

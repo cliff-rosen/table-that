@@ -671,7 +671,7 @@ Conversations are saved to the database for continuity across sessions.
 
 See [scoped-conversations.md](scoped-conversations.md) for the full design.
 
-Each conversation is bound to a specific entity via the `scope` column. The backend owns all scope logic — the frontend never constructs or passes scope strings. Migration from `"tables_list"` to `"table:<id>"` is explicit, triggered by the frontend at table creation time via `PATCH /api/chats/{id}/migrate`.
+Each conversation is bound to a specific entity via the `scope` column. The backend owns all scope logic — the frontend never constructs or passes scope strings. Migration from `"tables_list"` to `"table:<id>"` happens automatically in `_setup_chat` when the context signals a scope change.
 
 ### What Gets Saved
 

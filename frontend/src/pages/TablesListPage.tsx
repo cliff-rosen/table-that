@@ -148,7 +148,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { updateContext, sendMessage, chatId, messages, migrateToTable } = useChatContext();
+  const { updateContext, sendMessage, chatId, messages } = useChatContext();
   const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
@@ -304,14 +304,13 @@ export default function TablesListPage() {
         sample_rows: [],
       });
 
-      await migrateToTable(created.id);
       sendMessage(`[User accepted and created "${created.name}"${includeSampleData ? ' with sample data' : ''}.]`);
       setActiveProposal(null);
       navigate(`/tables/${created.id}`);
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate, updateContext, sendMessage, migrateToTable]);
+  }, [navigate, updateContext, sendMessage]);
 
   // Loading skeleton
   if (isLoading) {
