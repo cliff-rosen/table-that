@@ -21,6 +21,13 @@ from tools.registry import ToolConfig, ToolProgress, ToolResult, register_tool
 
 logger = logging.getLogger(__name__)
 
+# Only advertise brotli if the decoder is actually installed
+try:
+    import brotli  # noqa: F401
+    _ACCEPT_ENCODING = "gzip, deflate, br"
+except ImportError:
+    _ACCEPT_ENCODING = "gzip, deflate"
+
 BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -29,7 +36,7 @@ BROWSER_HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": _ACCEPT_ENCODING,
     "DNT": "1",
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
@@ -52,7 +59,7 @@ BOT_HEADERS = {
     "User-Agent": "TableThat/1.0 (data research tool; https://table.that)",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": _ACCEPT_ENCODING,
 }
 
 # Domains that require honest bot identification — they 403 fake browser UAs
@@ -207,7 +214,9 @@ async def execute_fetch_webpage(
         if "html" not in content_type and "text" not in content_type:
             return f"Error: URL returned non-HTML content ({content_type}). Only HTML pages are supported."
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        # Use raw bytes so BeautifulSoup detects encoding from <meta charset>,
+        # which is more reliable than the HTTP Content-Type header.
+        soup = BeautifulSoup(resp.content, "html.parser")
 
         # Extract title
         title = ""
@@ -216,7 +225,8 @@ async def execute_fetch_webpage(
             title = title_el.get_text(strip=True)
 
         # Remove non-content elements
-        for tag in soup(["script", "style", "nav", "footer", "aside", "header", "noscript", "svg", "iframe"]):
+        for tag in soup(["script", "style", "nav", "footer", "aside", "header",
+                         "noscript", "svg", "iframe", "template"]):
             tag.decompose()
 
         # Get text content
@@ -229,7 +239,12 @@ async def execute_fetch_webpage(
 
         truncated = False
         if len(text) > max_chars:
-            text = text[:max_chars]
+            # Truncate at a word boundary to avoid cutting mid-word
+            cut = text[:max_chars].rfind(" ")
+            if cut > max_chars // 2:
+                text = text[:cut]
+            else:
+                text = text[:max_chars]
             truncated = True
 
         word_count = len(text.split())

@@ -24,6 +24,7 @@ anthropic>=0.40
 # HTTP & Networking
 httpx>=0.25
 httpx-sse>=0.4
+brotli>=1.1
 
 # Web Scraping
 beautifulsoup4>=4.12

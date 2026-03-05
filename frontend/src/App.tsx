@@ -27,6 +27,31 @@ import TablesListPage from './pages/TablesListPage';
 import TableViewPage from './pages/TableViewPage';
 import TableEditPage from './pages/TableEditPage';
 
+// Extracted to module level so React sees a stable component reference.
+// When defined inline, every AuthContext state change (e.g. setError on failed
+// guest conversion) caused AppContent to re-render, redefining this function,
+// which made React unmount/remount the entire authenticated tree — killing
+// modals, chat state, etc.
+function AuthenticatedApp({ newVersionAvailable }: { newVersionAvailable: boolean }) {
+  return (
+    <div className="h-screen flex flex-col dark:bg-gray-900 bg-gray-50">
+      <TopBar newVersionAvailable={newVersionAvailable} />
+      <main className={`flex-1 min-h-0 flex flex-col overflow-hidden ${newVersionAvailable ? 'pt-[100px]' : 'pt-16'}`}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/tables" />} />
+          <Route path="/tables" element={<TablesListPage />} />
+          <Route path="/tables/:tableId" element={<TableViewPage />} />
+          <Route path="/tables/:tableId/edit" element={<TableEditPage />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Navigate to="/profile" replace />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
 // Inner component that uses auth context
 function AppContent() {
   const { handleSessionExpired, isAuthenticated } = useAuth();
@@ -42,26 +67,6 @@ function AppContent() {
 
   const { newVersionAvailable } = useVersionCheck();
 
-  const AuthenticatedApp = () => {
-    return (
-      <div className="h-screen flex flex-col dark:bg-gray-900 bg-gray-50">
-        <TopBar newVersionAvailable={newVersionAvailable} />
-        <main className={`flex-1 min-h-0 flex flex-col overflow-hidden ${newVersionAvailable ? 'pt-[100px]' : 'pt-16'}`}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/tables" />} />
-            <Route path="/tables" element={<TablesListPage />} />
-            <Route path="/tables/:tableId" element={<TableViewPage />} />
-            <Route path="/tables/:tableId/edit" element={<TableEditPage />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/settings" element={<Navigate to="/profile" replace />} />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
-    );
-  };
-
   return (
     <ThemeProvider>
       <ErrorBoundary>
@@ -76,7 +81,7 @@ function AppContent() {
           </Routes>
         ) : (
           <ChatProvider>
-            <AuthenticatedApp />
+            <AuthenticatedApp newVersionAvailable={newVersionAvailable} />
           </ChatProvider>
         )}
       </ErrorBoundary>
