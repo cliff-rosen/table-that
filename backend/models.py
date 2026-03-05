@@ -105,12 +105,26 @@ class User(Base):
 # === USER TRACKING & CHAT PERSISTENCE ===
 
 class Conversation(Base):
-    """Chat conversation session"""
+    """Chat conversation session.
+
+    scope: The entity this conversation is bound to. Each conversation
+    belongs to exactly one scope, and each scope has at most one active
+    conversation. Navigating between scopes switches conversations.
+
+    Values:
+      "tables_list"  — bound to the tables list page (table creation flow)
+      "table:<id>"   — bound to a specific table, e.g. "table:42"
+
+    When a table is created from a tables_list conversation, the scope
+    is migrated from "tables_list" to "table:<id>" so the creation
+    context carries over to the new table.
+    """
     __tablename__ = "conversations"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
     app = Column(String(50), nullable=False, default="kh", index=True)
+    scope = Column(String(100), nullable=True, index=True)
     title = Column(String(255), nullable=True)  # Optional, can auto-generate from first message
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

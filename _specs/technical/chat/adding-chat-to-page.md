@@ -330,6 +330,7 @@ The frontend renders payloads via `payloadHandlers`.
 
 ```tsx
 <ChatTray
+    scope={`my_entity:${entityId}`}   // Required — binds conversation to this entity
     initialContext={{
         current_page: "my_page",
         active_tab: activeTab,      // Important for tab-specific tools/payloads
@@ -401,6 +402,7 @@ The frontend renders payloads via `payloadHandlers`.
 ### Frontend
 
 5. **Add ChatTray to page component**
+   - [ ] Pass `scope` prop to bind conversations to the entity (e.g. `"table:42"`, `"tables_list"`)
    - [ ] Pass `initialContext` with `current_page`, `active_tab`, relevant IDs
    - [ ] Define `payloadHandlers` for each payload type
 

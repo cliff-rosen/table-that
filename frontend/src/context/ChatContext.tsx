@@ -22,6 +22,8 @@ interface ChatContextType {
     statusText: string | null;
     activeToolProgress: ActiveToolProgress | null;
     chatId: number | null;
+    /** The entity the current conversation is bound to — see Conversation.scope in types/chat.ts */
+    scope: string | null;
     guestLimitReached: boolean;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
@@ -30,8 +32,8 @@ interface ChatContextType {
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
     reset: () => void;
-    loadChat: (id: number) => Promise<boolean>;
-    loadMostRecent: () => Promise<boolean>;
+    /** Load (or create) the conversation bound to the given entity. */
+    loadForScope: (scope: string) => Promise<boolean>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -52,12 +54,19 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const [statusText, setStatusText] = useState<string | null>(null);
     const [chatId, setChatIdState] = useState<number | null>(null);
     const chatIdRef = useRef<number | null>(null);
+    const [scope, setScopeState] = useState<string | null>(null);
+    const scopeRef = useRef<string | null>(null);
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
     const [guestLimitReached, setGuestLimitReached] = useState(false);
 
     const setChatId = useCallback((id: number | null) => {
         chatIdRef.current = id;
         setChatIdState(id);
+    }, []);
+
+    const setScope = useCallback((s: string | null) => {
+        scopeRef.current = s;
+        setScopeState(s);
     }, []);
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -252,47 +261,41 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         setChatId(null);
     }, []);
 
-    const loadChat = useCallback(async (id: number) => {
+    const loadForScope = useCallback(async (newScope: string) => {
+        // Skip if already loaded for this scope
+        if (scopeRef.current === newScope && chatIdRef.current !== null) {
+            return true;
+        }
         try {
-            const chat = await chatApi.getChat(id);
+            const chat = await chatApi.getChatByScope(newScope, app);
             const loadedMessages: ChatMessage[] = chat.messages
                 .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                 .map(msg => ({
                     role: msg.role as 'user' | 'assistant',
                     content: msg.content,
                     timestamp: msg.created_at,
-                    // Include extras if present
                     ...(msg.extras?.suggested_values && { suggested_values: msg.extras.suggested_values }),
                     ...(msg.extras?.suggested_actions && { suggested_actions: msg.extras.suggested_actions }),
                     ...(msg.extras?.tool_history && { tool_history: msg.extras.tool_history }),
                     ...(msg.extras?.custom_payload && { custom_payload: msg.extras.custom_payload }),
-                    // Check both trace (stored name) and diagnostics (legacy/stream name)
                     ...((msg.extras?.trace || msg.extras?.diagnostics) && {
                         diagnostics: msg.extras.trace || msg.extras.diagnostics
                     }),
                 }));
             setMessages(loadedMessages);
-            setChatId(id);
+            setChatId(chat.id);
+            setScope(newScope);
             setError(null);
             return true;
         } catch (err) {
-            console.error('Failed to load chat:', err);
+            console.error('Failed to load chat for scope:', newScope, err);
+            // Start fresh for this scope
+            setMessages([]);
+            setChatId(null);
+            setScope(newScope);
             return false;
         }
-    }, []);
-
-    const loadMostRecent = useCallback(async () => {
-        try {
-            const { chats } = await chatApi.listChats(1, 0, app);
-            if (chats.length > 0) {
-                return await loadChat(chats[0].id);
-            }
-            return false;
-        } catch (err) {
-            console.error('Failed to load most recent chat:', err);
-            return false;
-        }
-    }, [loadChat, app]);
+    }, [app, setChatId, setScope]);
 
     return (
         <ChatContext.Provider value={{
@@ -304,6 +307,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             statusText,
             activeToolProgress,
             chatId,
+            scope,
             guestLimitReached,
             sendMessage,
             resetGuestLimit,
@@ -311,8 +315,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             updateContext,
             setContext: replaceContext,
             reset,
-            loadChat,
-            loadMostRecent
+            loadForScope
         }}>
             {children}
         </ChatContext.Provider>

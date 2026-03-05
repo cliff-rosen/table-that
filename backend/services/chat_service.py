@@ -23,24 +23,6 @@ class ChatService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_user_chats(
-        self,
-        user_id: int,
-        app: str = "kh",
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[Conversation]:
-        """Get chats for a user in a specific app (async)."""
-        stmt = (
-            select(Conversation)
-            .where(Conversation.user_id == user_id, Conversation.app == app)
-            .order_by(desc(Conversation.updated_at))
-            .offset(offset)
-            .limit(limit)
-        )
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
-
     async def get_chat(
         self,
         chat_id: int,
@@ -195,18 +177,60 @@ class ChatService:
         self,
         user_id: int,
         app: str = "kh",
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        scope: Optional[str] = None
     ) -> Conversation:
         """Create a new chat (async)."""
         chat = Conversation(
             user_id=user_id,
             app=app,
-            title=title
+            title=title,
+            scope=scope
         )
         self.db.add(chat)
         await self.db.commit()
         await self.db.refresh(chat)
-        logger.debug(f"Created chat {chat.id} for user {user_id} in app {app}")
+        logger.debug(f"Created chat {chat.id} for user {user_id} in app {app} scope={scope}")
+        return chat
+
+    async def get_or_create_for_scope(
+        self,
+        user_id: int,
+        scope: str,
+        app: str = "table_that"
+    ) -> Conversation:
+        """Get the most recent conversation for a scope, or create one."""
+        stmt = (
+            select(Conversation)
+            .where(
+                Conversation.user_id == user_id,
+                Conversation.app == app,
+                Conversation.scope == scope,
+            )
+            .order_by(desc(Conversation.updated_at))
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        chat = result.scalars().first()
+        if chat:
+            return chat
+        return await self.create_chat(user_id, app=app, scope=scope)
+
+    async def update_scope(
+        self,
+        chat_id: int,
+        user_id: int,
+        new_scope: str
+    ) -> Optional[Conversation]:
+        """Update a conversation's scope (e.g. migrate tables_list -> table:42)."""
+        chat = await self.get_chat(chat_id, user_id)
+        if not chat:
+            return None
+        chat.scope = new_scope
+        chat.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(chat)
+        logger.debug(f"Updated chat {chat_id} scope to {new_scope}")
         return chat
 
     async def add_message(

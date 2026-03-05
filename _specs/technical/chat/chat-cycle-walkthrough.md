@@ -4,7 +4,17 @@ Full trace of a single user message through the table.that chat system.
 
 ---
 
-## Step 1: Context Building
+## Step 1: Scope Loading & Context Building
+
+### 1a. Scope Loading
+
+**File:** `frontend/src/components/chat/ChatTray.tsx`
+
+When ChatTray opens, it calls `loadForScope(scope)` where `scope` is a prop passed by the page (e.g. `"tables_list"`, `"table:42"`). This calls `GET /api/chats/by-scope?scope=...` to load (or create) the conversation bound to that entity. Each table has its own conversation — navigating between tables switches conversations automatically.
+
+After a reset (new conversation), `chatId` becomes null, which re-triggers the effect and calls `loadForScope` again, creating a fresh conversation for the same scope.
+
+### 1b. Context Building
 
 **File:** `frontend/src/pages/TableViewPage.tsx` (lines 147-170)
 
@@ -71,8 +81,10 @@ User submits input → `handleSubmit()` → calls `sendMessage(text, Interaction
 
 **File:** `backend/services/chat_stream_service.py` (lines 80-369)
 
-### 5a. Persistence Setup (line 96)
-- Resolves or creates conversation via `ChatService`
+### 5a. Scope Derivation & Persistence Setup (line 96)
+- Calls `_derive_scope(context)` to determine the scope from `current_page` + `table_id`
+- If `conversation_id` is provided: loads existing conversation; if derived scope differs from stored scope, auto-migrates (updates the scope column)
+- If no `conversation_id`: creates a new conversation with the derived scope
 - Saves user message to DB
 - Emits `ChatIdEvent` immediately so frontend has the conversation_id
 

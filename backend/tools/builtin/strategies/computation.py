@@ -39,6 +39,41 @@ class ComputationStrategy(RowStrategy):
         # with empty row_data since values are already resolved
         resolved_formula = self.interpolate_template(params["formula"], row_data)
 
+        # Short-circuit: if all placeholders resolved and safe eval can't
+        # handle it, return the interpolated string directly. This avoids
+        # sending URLs / plain text to the Haiku LLM fallback, which would
+        # misinterpret them as math and refuse ("I cannot compute a URL").
+        import re as _re
+        has_unresolved = bool(_re.search(r'\{[^}]+\}', resolved_formula))
+        if not has_unresolved:
+            from tools.builtin.compute import _try_safe_eval
+            safe_result = _try_safe_eval(resolved_formula, {})
+            if safe_result is not None:
+                # Genuine math — return the computed result
+                yield RowStep(
+                    type="compute",
+                    detail=f"{resolved_formula} = {safe_result}",
+                    data={"formula": params["formula"], "result": safe_result},
+                )
+                yield RowStep(
+                    type="answer",
+                    detail=safe_result,
+                    data={"outcome": "found", "value": safe_result},
+                )
+            else:
+                # Not math — pure string interpolation (URLs, text, etc.)
+                yield RowStep(
+                    type="compute",
+                    detail=f"Interpolated: {resolved_formula}",
+                    data={"formula": params["formula"], "result": resolved_formula},
+                )
+                yield RowStep(
+                    type="answer",
+                    detail=resolved_formula,
+                    data={"outcome": "found", "value": resolved_formula},
+                )
+            return
+
         async for step in _compute_core(
             resolved_formula, {}, cancellation_token=cancel_token,
         ):

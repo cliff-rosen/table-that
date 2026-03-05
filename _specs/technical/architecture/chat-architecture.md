@@ -667,6 +667,23 @@ interface ChatResponsePayload {
 
 Conversations are saved to the database for continuity across sessions.
 
+### Scoped Conversations
+
+Each conversation is bound to a specific entity via the `scope` column on the `conversations` table. The scope determines which conversation is loaded when the user opens chat on a given page.
+
+| Scope value | Meaning |
+|---|---|
+| `"tables_list"` | Conversation on the Tables List page (table creation flow) |
+| `"table:<id>"` | Conversation bound to a specific table (view/edit) |
+
+**Backend owns scope derivation.** The frontend sends context (`current_page`, `table_id`); the backend's `_derive_scope()` in `ChatStreamService` maps this to a scope string. The frontend never constructs scope strings directly.
+
+**Scope loading:** `GET /api/chats/by-scope?scope=table:42&app=table_that` returns the most recent conversation for that scope (or creates one). The frontend's `ChatTray` takes a `scope` prop and calls `loadForScope(scope)` on open.
+
+**Automatic scope migration:** When a table is created from the tables_list page, the conversation starts with scope `"tables_list"`. On the next message sent from the table view page, the backend detects the mismatch (conversation scope ≠ derived scope) and updates the conversation's scope to `"table:<id>"`. This is transparent — no frontend action needed.
+
+**One table per conversation.** A conversation never spans multiple tables. Navigating to a different table loads a different conversation.
+
 ### What Gets Saved
 
 - User messages and assistant responses
@@ -676,7 +693,7 @@ Conversations are saved to the database for continuity across sessions.
 
 ### Key Service
 
-`ChatService` (in `services/chat.py`) handles conversation CRUD operations.
+`ChatService` (in `services/chat_service.py`) handles conversation CRUD operations including `get_or_create_for_scope()` and `update_scope()`.
 
 ---
 

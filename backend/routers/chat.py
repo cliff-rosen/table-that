@@ -33,97 +33,39 @@ class MessageResponse(BaseModel):
     created_at: str
 
 
-# AdminMessageResponse is same as MessageResponse now, kept for backwards compatibility
-AdminMessageResponse = MessageResponse
-
-
-class ChatResponse(BaseModel):
-    """Chat response"""
-    id: int
-    title: Optional[str] = None
-    created_at: str
-    updated_at: str
-
 
 class ChatWithMessagesResponse(BaseModel):
     """Chat with messages"""
     id: int
     title: Optional[str] = None
+    scope: Optional[str] = None
     created_at: str
     updated_at: str
     messages: List[MessageResponse]
 
 
-class ChatsListResponse(BaseModel):
-    """List of chats"""
-    chats: List[ChatResponse]
-
-
 # === User Endpoints ===
 
-@router.get("", response_model=ChatsListResponse)
-async def list_chats(
-    app: str = Query("kh", description="App identifier: kh, tablizer, trialscout"),
-    limit: int = Query(50, le=100),
-    offset: int = Query(0, ge=0),
+@router.get("/by-scope", response_model=ChatWithMessagesResponse)
+async def get_chat_by_scope(
+    scope: str = Query(..., description="Conversation scope, e.g. 'tables_list' or 'table:42'"),
+    app: str = Query("table_that", description="App identifier"),
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """List user's chats for a specific app (async)."""
-    logger.info(f"list_chats - user_id={current_user.user_id}, app={app}, limit={limit}, offset={offset}")
-
+    """Get or create a conversation for a given scope. Returns the conversation with messages."""
     try:
-        chats = await service.get_user_chats(
+        chat = await service.get_or_create_for_scope(
             user_id=current_user.user_id,
-            app=app,
-            limit=limit,
-            offset=offset
+            scope=scope,
+            app=app
         )
+        messages = await service.get_messages(chat.id, current_user.user_id)
 
-        logger.info(f"list_chats complete - user_id={current_user.user_id}, app={app}, count={len(chats)}")
-        return ChatsListResponse(
-            chats=[
-                ChatResponse(
-                    id=c.id,
-                    title=c.title,
-                    created_at=c.created_at.isoformat(),
-                    updated_at=c.updated_at.isoformat()
-                )
-                for c in chats
-            ]
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"list_chats failed - user_id={current_user.user_id}, app={app}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list chats: {str(e)}"
-        )
-
-
-@router.get("/{chat_id}", response_model=ChatWithMessagesResponse)
-async def get_chat(
-    chat_id: int,
-    service: ChatService = Depends(get_chat_service),
-    current_user: User = Depends(auth_service.validate_token)
-):
-    """Get a chat with its messages (async)."""
-    logger.info(f"get_chat - user_id={current_user.user_id}, chat_id={chat_id}")
-
-    try:
-        chat = await service.get_chat(chat_id, current_user.user_id)
-        if not chat:
-            logger.warning(f"get_chat - not found - user_id={current_user.user_id}, chat_id={chat_id}")
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
-
-        messages = await service.get_messages(chat_id, current_user.user_id)
-
-        logger.info(f"get_chat complete - user_id={current_user.user_id}, chat_id={chat_id}, message_count={len(messages)}")
         return ChatWithMessagesResponse(
             id=chat.id,
             title=chat.title,
+            scope=chat.scope,
             created_at=chat.created_at.isoformat(),
             updated_at=chat.updated_at.isoformat(),
             messages=[
@@ -138,14 +80,11 @@ async def get_chat(
                 for m in messages
             ]
         )
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"get_chat failed - user_id={current_user.user_id}, chat_id={chat_id}: {e}", exc_info=True)
+        logger.error(f"get_chat_by_scope failed - user_id={current_user.user_id}, scope={scope}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get chat: {str(e)}"
+            detail=f"Failed to get chat by scope: {str(e)}"
         )
 
 
@@ -180,7 +119,7 @@ class AdminChatDetailResponse(BaseModel):
     title: Optional[str] = None
     created_at: str
     updated_at: str
-    messages: List[AdminMessageResponse]
+    messages: List[MessageResponse]
 
 
 @router.get("/admin/all", response_model=AdminChatsListResponse)
@@ -251,7 +190,7 @@ async def admin_get_chat(
             title=chat["title"],
             created_at=chat["created_at"],
             updated_at=chat["updated_at"],
-            messages=[AdminMessageResponse(**m) for m in chat["messages"]]
+            messages=[MessageResponse(**m) for m in chat["messages"]]
         )
 
     except HTTPException:

@@ -437,6 +437,7 @@ export default function TableEditPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
+        scope={`table:${tableId}`}
         initialContext={{
           current_page: 'table_edit',
           table_id: table.id,

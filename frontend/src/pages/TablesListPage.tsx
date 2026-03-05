@@ -156,22 +156,13 @@ export default function TablesListPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TableListItem | null>(null);
-  // Auto-open chat for guests who have an active conversation
-  const [chatOpen, setChatOpen] = useState(() => {
-    if (isGuest) {
-      const convId = sessionStorage.getItem('chatCurrentConversationId');
-      return !!convId && convId !== 'new';
-    }
-    return false;
-  });
+  const [chatOpen, setChatOpen] = useState(false);
   const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
   const prevChatIdRef = useRef<number | null>(null);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
 
   const handleStarterClick = useCallback((prompt: string) => {
-    // Mark as new conversation so ChatTray doesn't load old history over our message
-    sessionStorage.setItem('chatCurrentConversationId', 'new');
     setChatOpen(true);
     sendMessage(prompt, undefined, undefined, { newConversation: true });
   }, [sendMessage]);
@@ -184,8 +175,6 @@ export default function TablesListPage() {
     if (initialPrompt) {
       guestPromptHandled.current = true;
       sessionStorage.removeItem('guestInitialPrompt');
-      // Mark as new conversation so ChatTray doesn't load old history over our message
-      sessionStorage.setItem('chatCurrentConversationId', 'new');
       setChatOpen(true);
       setTimeout(() => {
         sendMessage(initialPrompt, undefined, undefined, { newConversation: true });
@@ -353,6 +342,7 @@ export default function TablesListPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
+        scope="tables_list"
         initialContext={{
           current_page: 'tables_list',
         }}

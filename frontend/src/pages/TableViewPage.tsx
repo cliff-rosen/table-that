@@ -427,6 +427,7 @@ export default function TableViewPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
+        scope={`table:${tableId}`}
         initialContext={{
           current_page: 'table_view',
           table_id: table.id,

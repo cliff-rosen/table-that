@@ -7,7 +7,6 @@
 import { api } from './index';
 import { makeStreamRequest } from './streamUtils';
 import {
-    Conversation,
     ConversationWithMessages,
     InteractionType,
     ActionMetadata,
@@ -30,15 +29,6 @@ export interface ChatRequest {
 
 
 // ============================================================================
-// Response Types
-// ============================================================================
-
-export interface ChatsListResponse {
-    chats: Conversation[];
-}
-
-
-// ============================================================================
 // API Client
 // ============================================================================
 
@@ -46,22 +36,15 @@ export const chatApi = {
     // === Chat Persistence ===
 
     /**
-     * List user's chats
+     * Get or create a conversation for a given scope (e.g. "tables_list", "table:42")
      */
-    async listChats(limit = 50, offset = 0, app = 'kh'): Promise<ChatsListResponse> {
-        const response = await api.get('/api/chats', {
-            params: { limit, offset, app }
+    async getChatByScope(scope: string, app = 'table_that'): Promise<ConversationWithMessages> {
+        const response = await api.get('/api/chats/by-scope', {
+            params: { scope, app }
         });
         return response.data;
     },
 
-    /**
-     * Get a chat with all its messages
-     */
-    async getChat(chatId: number): Promise<ConversationWithMessages> {
-        const response = await api.get(`/api/chats/${chatId}`);
-        return response.data;
-    },
 
     // === Streaming Chat ===
 

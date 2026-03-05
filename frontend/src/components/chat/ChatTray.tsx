@@ -12,10 +12,11 @@ import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 
 const STORAGE_KEY = 'chatTrayWidth';
-const CHAT_ID_KEY = 'chatCurrentConversationId';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
+    /** Conversation scope — determines which conversation to load (e.g. "tables_list", "table:42") */
+    scope: string;
     /** Hide the chat tray completely (used when modal takes over) */
     hidden?: boolean;
     /** Whether the chat tray is open */
@@ -110,6 +111,7 @@ function MessageContent({
 
 export default function ChatTray({
     initialContext,
+    scope: scopeProp,
     hidden = false,
     isOpen,
     onOpenChange,
@@ -170,7 +172,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, loadChat, chatId, context, guestLimitReached } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadForScope, chatId, context, guestLimitReached } = useChatContext();
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -209,46 +211,12 @@ export default function ChatTray({
         }
     }, [hidden, initialContext, setContext]);
 
-    // Track if we've loaded the initial conversation
-    const hasLoadedInitial = useRef(false);
-
-    // Load conversation when tray opens for the first time
-    // Check sessionStorage to restore previous state (including "new chat" state)
+    // Load conversation for scope. Reactive to chatId so it re-fires after reset.
+    // loadForScope internally skips if scope+chatId already match, so this is safe to call often.
     useEffect(() => {
-        if (isOpen && !hasLoadedInitial.current) {
-            hasLoadedInitial.current = true;
-            const storedChatId = sessionStorage.getItem(CHAT_ID_KEY);
-
-            if (storedChatId === 'new') {
-                // User explicitly started a new chat - stay empty
-                return;
-            } else if (storedChatId) {
-                // Load the specific conversation they were viewing
-                const chatId = parseInt(storedChatId, 10);
-                if (!isNaN(chatId)) {
-                    loadChat(chatId);
-                    return;
-                }
-            }
-            // No stored state - load most recent
-            loadMostRecent();
-        }
-    }, [isOpen, loadMostRecent, loadChat]);
-
-    // Sync chatId to sessionStorage when a conversation is created or loaded
-    // This ensures refresh loads the correct conversation
-    useEffect(() => {
-        // Only sync after initial load is complete
-        if (!hasLoadedInitial.current) return;
-
-        if (chatId !== null) {
-            // A conversation exists - save its ID
-            sessionStorage.setItem(CHAT_ID_KEY, chatId.toString());
-        } else {
-            // Conversation was reset (new conversation started) - persist so remount doesn't reload old chat
-            sessionStorage.setItem(CHAT_ID_KEY, 'new');
-        }
-    }, [chatId]);
+        if (!isOpen) return;
+        loadForScope(scopeProp);
+    }, [isOpen, scopeProp, chatId, loadForScope]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -269,12 +237,9 @@ export default function ChatTray({
         prevChatIdRef.current = chatId;
     }, [chatId]);
 
-    // Handle full chat reset
+    // Handle full chat reset — clears messages; the scope effect will re-load
     const handleReset = useCallback(() => {
         reset();
-        // Persist "new chat" state so refresh doesn't reload old conversation
-        sessionStorage.setItem(CHAT_ID_KEY, 'new');
-        // Focus the input after reset
         setTimeout(() => inputRef.current?.focus(), 0);
     }, [reset]);
 

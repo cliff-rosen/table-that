@@ -20,6 +20,20 @@ export interface Conversation {
     id: number;
     user_id?: number;
     title?: string;
+    /**
+     * The entity this conversation is bound to. Each conversation belongs
+     * to exactly one scope, and each scope has at most one active
+     * conversation. Navigating between scopes switches conversations.
+     *
+     * Values:
+     *   "tables_list"  — bound to the tables list page (table creation flow)
+     *   "table:<id>"   — bound to a specific table, e.g. "table:42"
+     *
+     * When a table is created from a tables_list conversation, the scope
+     * is migrated from "tables_list" to "table:<id>" so the creation
+     * context carries over to the new table.
+     */
+    scope?: string;
     created_at: string;
     updated_at: string;
 }

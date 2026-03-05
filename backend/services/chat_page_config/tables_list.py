@@ -86,6 +86,7 @@ If the context shows a PENDING PROPOSAL, the user is currently reviewing a schem
 - You can ONLY create new tables on this page — there is no active table to modify
 - Every SCHEMA_PROPOSAL must include table_name and table_description
 - Only use "add" operations (modify/remove/reorder don't apply — there's no existing table)
+- Create exactly ONE table per prompt. Never propose multiple tables in a single response. If the user asks for multiple tables, create the first one and tell them to come back for the next one after accepting it.
 
 ## Style
 Be helpful and fast. Propose a schema on the first message whenever possible. Keep explanations brief — one or two sentences, not paragraphs."""
