@@ -12,6 +12,8 @@ import {
     AgentResponseCard,
     ConfigCard,
 } from './diagnostics';
+import { ResearchLog } from '../table/ProposalWidgets';
+import type { DataProposalData } from '../../types/dataProposal';
 
 interface DiagnosticsPanelProps {
     diagnostics: AgentTrace;
@@ -414,9 +416,14 @@ function ToolsTab({ allToolCalls, onFullscreen }: {
                                                 <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
                                             </button>
                                         </div>
-                                        <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-48 overflow-auto">
-                                            {JSON.stringify(toolCall.payload, null, 2)}
-                                        </pre>
+                                        {/* Render research log nicely if this is a data_proposal payload */}
+                                        {toolCall.payload.type === 'data_proposal' && (toolCall.payload.data as DataProposalData)?.research_log ? (
+                                            <ResearchLog log={(toolCall.payload.data as DataProposalData).research_log!} />
+                                        ) : (
+                                            <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-48 overflow-auto">
+                                                {JSON.stringify(toolCall.payload, null, 2)}
+                                            </pre>
+                                        )}
                                     </div>
                                 )}
                             </div>

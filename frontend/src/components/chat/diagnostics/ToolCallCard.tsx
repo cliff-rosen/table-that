@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { MagnifyingGlassIcon, GlobeAltIcon, CalculatorIcon, CheckCircleIcon, ExclamationTriangleIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { ToolCall, ToolProgressRecord } from '../../../types/chat';
+import { ResearchLog } from '../../table/ProposalWidgets';
+import type { DataProposalData } from '../../../types/dataProposal';
 
 interface ToolCallCardProps {
     toolCall: ToolCall;
@@ -144,9 +146,13 @@ export function ToolCallCard({ toolCall, isExpanded, onToggle, assistantText }: 
                         {toolCall.payload && (
                             <div className="px-3 py-2">
                                 <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">Payload</div>
-                                <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-40 overflow-auto">
-                                    {JSON.stringify(toolCall.payload, null, 2)}
-                                </pre>
+                                {toolCall.payload.type === 'data_proposal' && (toolCall.payload.data as DataProposalData)?.research_log ? (
+                                    <ResearchLog log={(toolCall.payload.data as DataProposalData).research_log!} />
+                                ) : (
+                                    <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-40 overflow-auto">
+                                        {JSON.stringify(toolCall.payload, null, 2)}
+                                    </pre>
+                                )}
                             </div>
                         )}
                     </div>
@@ -302,9 +308,13 @@ function ToolCallFullscreen({ toolCall, onClose }: { toolCall: ToolCall; onClose
                     {activeTab === 'payload' && toolCall.payload && (
                         <div className="max-w-4xl mx-auto">
                             <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Data sent to frontend</div>
-                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                {JSON.stringify(toolCall.payload, null, 2)}
-                            </pre>
+                            {toolCall.payload.type === 'data_proposal' && (toolCall.payload.data as DataProposalData)?.research_log ? (
+                                <ResearchLog log={(toolCall.payload.data as DataProposalData).research_log!} defaultExpanded large />
+                            ) : (
+                                <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    {JSON.stringify(toolCall.payload, null, 2)}
+                                </pre>
+                            )}
                         </div>
                     )}
                 </div>

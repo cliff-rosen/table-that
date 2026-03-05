@@ -43,10 +43,13 @@ class LookupStrategy(RowStrategy):
             action = step["action"]
 
             if action == "search":
+                data: dict = {"detail": step.get("detail", "")}
+                if step.get("result"):
+                    data["result"] = step["result"]
                 yield RowStep(
                     type="search",
                     detail=step.get("query", ""),
-                    data={"detail": step.get("detail", "")},
+                    data=data,
                 )
             elif action == "thinking":
                 yield RowStep(type="thinking", detail=step.get("text", ""))

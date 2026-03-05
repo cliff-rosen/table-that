@@ -106,17 +106,23 @@ class ResearchStrategy(RowStrategy):
 
                 if action == "search":
                     search_count += 1
+                    search_data: dict = {"detail": step.get("detail", "")}
+                    if step.get("result"):
+                        search_data["result"] = step["result"]
                     yield RowStep(
                         type="search",
                         detail=step.get("query", ""),
-                        data={"detail": step.get("detail", "")},
+                        data=search_data,
                     )
                 elif action == "fetch":
                     fetch_count += 1
+                    fetch_data: dict = {"detail": step.get("detail", "")}
+                    if step.get("result"):
+                        fetch_data["result"] = step["result"]
                     yield RowStep(
                         type="fetch",
                         detail=step.get("url", ""),
-                        data={"detail": step.get("detail", "")},
+                        data=fetch_data,
                     )
                 elif action == "thinking":
                     yield RowStep(

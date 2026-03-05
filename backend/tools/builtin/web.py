@@ -300,6 +300,9 @@ register_tool(ToolConfig(
 # research_web — Search agent with progress streaming
 # =============================================================================
 
+# Max chars of tool result text to store in research_log steps for debugging
+_STEP_RESULT_MAX_CHARS = 2000
+
 # Structured answer tool — forces the LLM to declare found/not_found explicitly
 _SUBMIT_ANSWER_TOOL = {
     "name": "submit_answer",
@@ -606,7 +609,10 @@ async def _lookup_web_core(
                 search_query = tool_use.input.get("query", question)
                 result_text = await execute_search_web(tool_use.input, db, user_id, {})
                 detail = _summarize_search_results(result_text)
-                yield {"action": "search", "query": search_query, "detail": detail}
+                yield {
+                    "action": "search", "query": search_query, "detail": detail,
+                    "result": result_text[:_STEP_RESULT_MAX_CHARS] if result_text else None,
+                }
             else:
                 result_text = f"Unknown tool: {tool_use.name}"
 
@@ -815,7 +821,10 @@ async def _research_web_core(
                 result_text = await execute_search_web(tool_use.input, db, user_id, ctx)
                 detail = _summarize_search_results(result_text)
 
-                yield {"action": "search", "query": search_query, "detail": detail}
+                yield {
+                    "action": "search", "query": search_query, "detail": detail,
+                    "result": result_text[:_STEP_RESULT_MAX_CHARS] if result_text else None,
+                }
 
             elif tool_use.name == "fetch_webpage":
                 fetch_url = tool_use.input.get("url", "")
@@ -834,7 +843,10 @@ async def _research_web_core(
                         words = len(result_text.split())
                         detail = f"Fetched ~{words} words"
 
-                yield {"action": "fetch", "url": fetch_url, "detail": detail}
+                yield {
+                    "action": "fetch", "url": fetch_url, "detail": detail,
+                    "result": result_text[:_STEP_RESULT_MAX_CHARS] if result_text else None,
+                }
             else:
                 result_text = f"Unknown tool: {tool_use.name}"
 

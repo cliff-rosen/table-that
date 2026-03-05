@@ -69,6 +69,30 @@ export function ProgressBar({ current, total }: { current: number; total: number
 // ResearchStepRow
 // =============================================================================
 
+function StepResultBlock({ result }: { result: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = result.split('\n');
+  const isLong = lines.length > 6 || result.length > 400;
+  const preview = isLong && !expanded ? lines.slice(0, 6).join('\n') : result;
+  return (
+    <div className="mt-1 pl-1 border-l-2 border-gray-200 dark:border-gray-700">
+      <pre className="text-[11px] text-gray-500 dark:text-gray-400 whitespace-pre-wrap break-words max-h-48 overflow-auto">
+        {preview}
+        {isLong && !expanded && '...'}
+      </pre>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="text-[10px] text-blue-500 hover:text-blue-700 dark:text-blue-400 mt-0.5"
+        >
+          {expanded ? 'Show less' : `Show all (${result.length} chars)`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean }) {
   const textCls = large ? 'text-sm' : 'text-xs';
   const iconCls = large ? 'h-4 w-4' : 'h-3.5 w-3.5';
@@ -78,7 +102,7 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
       return (
         <div className={`flex items-start gap-1.5 ${textCls}`}>
           <MagnifyingGlassIcon className={`${iconCls} ${step.action === 'lookup' ? 'text-teal-500' : 'text-blue-500'} flex-shrink-0 mt-0.5`} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div>
               <span className="text-gray-500 dark:text-gray-400">{step.action === 'lookup' ? 'Lookup: ' : 'Search: '}</span>
               <span className="text-gray-700 dark:text-gray-300">{step.query || step.detail}</span>
@@ -88,6 +112,7 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
                 {step.detail}
               </div>
             )}
+            {step.result && <StepResultBlock result={step.result} />}
           </div>
         </div>
       );
@@ -95,12 +120,13 @@ function ResearchStepRow({ step, large }: { step: ResearchStep; large?: boolean 
       return (
         <div className={`flex items-start gap-1.5 ${textCls}`}>
           <GlobeAltIcon className={`${iconCls} text-purple-500 flex-shrink-0 mt-0.5`} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <span className="text-gray-500 dark:text-gray-400">Fetch: </span>
             <span className="text-gray-700 dark:text-gray-300 break-all">{step.url || step.detail}</span>
             {step.detail && step.url && (
               <span className="text-gray-400 dark:text-gray-500"> — {step.detail}</span>
             )}
+            {step.result && <StepResultBlock result={step.result} />}
           </div>
         </div>
       );
