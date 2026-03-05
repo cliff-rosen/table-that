@@ -239,7 +239,7 @@ export default function TableEditPage() {
   const [hasChanges, setHasChanges] = useState(false);
 
   // Chat
-  const { setContext, updateContext, messages, loadForContext } = useChatContext();
+  const { setContext, updateContext, messages, loadForContext, chatId } = useChatContext();
   const [chatOpen, setChatOpen] = useState(true);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
@@ -393,6 +393,12 @@ export default function TableEditPage() {
       showErrorToast(err, 'Failed to apply schema changes (changes shown but not saved)');
     }
   }, [columns, name, description, tableId]);
+
+  // When a conversation is loaded from DB, skip scanning its historical messages.
+  // Must be declared BEFORE the scanning effect (React runs effects in declaration order).
+  useEffect(() => {
+    lastCheckedIndexRef.current = messages.length;
+  }, [chatId]);
 
   // Detect schema proposals from chat messages
   useEffect(() => {

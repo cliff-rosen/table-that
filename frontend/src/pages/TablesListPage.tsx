@@ -359,81 +359,81 @@ export default function TablesListPage() {
           onManualCreate={() => setShowCreateModal(true)}
         />
       ) : (
-      <div className="flex-1 min-w-0 min-h-0 overflow-auto flex flex-col">
-        <div className="max-w-6xl mx-auto w-full px-6 py-8 flex-1 flex flex-col">
-          {/* Page header */}
-          <div className="flex-shrink-0 flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Tables
-                </h1>
-                {tables.length > 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {tables.length} {tables.length === 1 ? 'table' : 'tables'}
-                  </p>
-                )}
+        <div className="flex-1 min-w-0 min-h-0 overflow-auto flex flex-col">
+          <div className="max-w-6xl mx-auto w-full px-6 py-8 flex-1 flex flex-col">
+            {/* Page header */}
+            <div className="flex-shrink-0 flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Tables
+                  </h1>
+                  {tables.length > 0 && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {tables.length} {tables.length === 1 ? 'table' : 'tables'}
+                    </p>
+                  )}
+                </div>
               </div>
+              {!isGuest && (
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Import CSV
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Create Table
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* Content */}
+            {activeProposal ? (
+              <ProposedTablePreview
+                proposal={activeProposal}
+                onAccept={handleProposalAcceptFromPreview}
+                onDismiss={() => setActiveProposal(null)}
+              />
+            ) : tables.length === 0 ? (
+              /* Empty state — "your table will appear here" */
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <TableCellsIcon className="h-16 w-16 text-gray-200 dark:text-gray-700 mb-4" />
+                <h2 className="text-xl font-semibold text-gray-400 dark:text-gray-500">
+                  Your table will appear here
+                </h2>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                  Describe what you need in the chat and we&rsquo;ll build it.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tables.map((table) => (
+                  <TableCard
+                    key={table.id}
+                    table={table}
+                    onClick={() => navigate(`/tables/${table.id}`)}
+                    onEdit={() => navigate(`/tables/${table.id}/edit`)}
+                    onDelete={() => setDeleteTarget(table)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Starter prompts — hidden for guests */}
             {!isGuest && (
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              >
-                Import CSV
-              </button>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              >
-                Create Table
-              </button>
-            </div>
+              <StarterGrid
+                onStarterClick={handleStarterClick}
+                compact={tables.length > 0}
+              />
             )}
           </div>
-
-          {/* Content */}
-          {activeProposal ? (
-            <ProposedTablePreview
-              proposal={activeProposal}
-              onAccept={handleProposalAcceptFromPreview}
-              onDismiss={() => setActiveProposal(null)}
-            />
-          ) : tables.length === 0 ? (
-            /* Empty state — "your table will appear here" */
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <TableCellsIcon className="h-16 w-16 text-gray-200 dark:text-gray-700 mb-4" />
-              <h2 className="text-xl font-semibold text-gray-400 dark:text-gray-500">
-                Your table will appear here
-              </h2>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                Describe what you need in the chat and we&rsquo;ll build it.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {tables.map((table) => (
-                <TableCard
-                  key={table.id}
-                  table={table}
-                  onClick={() => navigate(`/tables/${table.id}`)}
-                  onEdit={() => navigate(`/tables/${table.id}/edit`)}
-                  onDelete={() => setDeleteTarget(table)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Starter prompts — hidden for guests */}
-          {!isGuest && (
-          <StarterGrid
-            onStarterClick={handleStarterClick}
-            compact={tables.length > 0}
-          />
-          )}
         </div>
-      </div>
       )}
 
       {/* Create modal */}
