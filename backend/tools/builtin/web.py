@@ -8,6 +8,7 @@ Also includes research_web — a mini search agent that loops over search/fetch
 to answer a natural-language question.
 """
 
+import json
 import logging
 import os
 from typing import Any, AsyncGenerator, Dict, List
@@ -667,7 +668,7 @@ async def execute_lookup_web(
         return
 
     cancel_token = context.get("_cancellation_token")
-    answer = "Could not determine an answer."
+    answer_value = None
     answer_outcome = "not_found"
     answer_explanation = ""
     async for step in _lookup_web_core(question, 2, db, user_id, cancellation_token=cancel_token):
@@ -676,13 +677,11 @@ async def execute_lookup_web(
             answer_outcome = step.get("outcome", "not_found")
             answer_explanation = step.get("explanation", "")
             if answer_outcome == "found":
-                answer = step.get("value") or "Could not determine an answer."
-            else:
-                answer = "Could not determine an answer."
+                answer_value = step.get("value")
             yield ToolProgress(
                 stage="answer",
-                message=f"{'Found' if answer_outcome == 'found' else 'Not found'}: {(answer if answer_outcome == 'found' else answer_explanation)[:120]}",
-                data={"outcome": answer_outcome, "value": step.get("value"), "explanation": answer_explanation},
+                message=f"{'Found' if answer_outcome == 'found' else 'Not found'}: {(answer_value or answer_explanation or '')[:120]}",
+                data={"outcome": answer_outcome, "value": answer_value, "explanation": answer_explanation},
             )
         elif action == "search":
             search_data: dict = {"query": step.get("query"), "detail": step.get("detail")}
@@ -704,7 +703,12 @@ async def execute_lookup_web(
                 message=step.get("detail", ""),
             )
 
-    yield ToolResult(text=answer)
+    result = {
+        "outcome": answer_outcome,
+        "value": answer_value,
+        "explanation": answer_explanation or None,
+    }
+    yield ToolResult(text=json.dumps(result))
 
 
 register_tool(ToolConfig(
@@ -713,7 +717,7 @@ register_tool(ToolConfig(
         "Quick web lookup: answers a simple factual question by searching the web "
         "and extracting the answer from snippets. Fast (1-2 search rounds, no page fetching). "
         "Use for questions with a definitive answer like 'What year was Acme founded?' or "
-        "'Who is the CEO of Company X?'. Returns the answer or 'Could not determine an answer.'"
+        "'Who is the CEO of Company X?'. Returns JSON: {outcome, value, explanation}."
     ),
     input_schema={
         "type": "object",
@@ -947,7 +951,7 @@ async def execute_research_web(
     )
 
     cancel_token = context.get("_cancellation_token")
-    answer = "Could not determine an answer."
+    answer_value = None
     answer_outcome = "not_found"
     answer_explanation = ""
     async for step in _research_web_core(
@@ -959,13 +963,11 @@ async def execute_research_web(
             answer_outcome = step.get("outcome", "not_found")
             answer_explanation = step.get("explanation", "")
             if answer_outcome == "found":
-                answer = step.get("value") or "Could not determine an answer."
-            else:
-                answer = "Could not determine an answer."
+                answer_value = step.get("value")
             yield ToolProgress(
                 stage="answer",
-                message=f"{'Found' if answer_outcome == 'found' else 'Not found'}: {(answer if answer_outcome == 'found' else answer_explanation)[:120]}",
-                data={"outcome": answer_outcome, "value": step.get("value"), "explanation": answer_explanation},
+                message=f"{'Found' if answer_outcome == 'found' else 'Not found'}: {(answer_value or answer_explanation or '')[:120]}",
+                data={"outcome": answer_outcome, "value": answer_value, "explanation": answer_explanation},
             )
         elif action == "search":
             search_data: dict = {"query": step.get("query"), "detail": step.get("detail")}
@@ -996,7 +998,12 @@ async def execute_research_web(
                 message=step.get("detail", ""),
             )
 
-    yield ToolResult(text=answer)
+    result = {
+        "outcome": answer_outcome,
+        "value": answer_value,
+        "explanation": answer_explanation or None,
+    }
+    yield ToolResult(text=json.dumps(result))
 
 
 register_tool(ToolConfig(
@@ -1007,7 +1014,7 @@ register_tool(ToolConfig(
         "thorough answer. Supports two thoroughness levels: 'exploratory' (default, "
         "fast reasonable sampling) and 'comprehensive' (exhaustive multi-angle search). "
         "Use this for complex questions that need synthesis from multiple sources. "
-        "Returns a concise answer or 'Could not determine an answer.'"
+        "Returns JSON: {outcome, value, explanation}."
     ),
     input_schema={
         "type": "object",
