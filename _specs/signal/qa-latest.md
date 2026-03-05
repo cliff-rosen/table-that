@@ -1,35 +1,35 @@
 # QA Walkthrough Report
 
-**Date:** 2026-03-04 (23:29 – 23:41)
-**Test User:** qa_test_20260304_2329@test.example.com
-**Base URL:** http://192.168.0.12:5174
+**Date:** 2026-03-04
+**Test User:** qa_test_20260304_1945@test.example.com
+**Base URL:** http://localhost:5174
 **Browser:** Playwright (Chromium)
 
 ## Summary
 
 | Phase | Flow | Name | Result | Issues |
 |-------|------|------|--------|--------|
-| 1 | New User Flow | Landing + Guest + Register + Empty State | PASS | 0 |
-| 2 | Core Flow Step 1 | Create Table | PASS | 1 |
+| 1 | New User Flow | Landing + Guest Flow + Registration | PASS | 0 |
+| 2 | Core Flow Step 1 | Create Table | PASS | 0 |
 | 3 | Core Flow Step 2 | Populate Data | PASS | 1 |
 | 4 | Core Flow Step 3 | Add Column | PASS | 0 |
-| 5 | Core Flow Step 4 | Enrich | FAIL | 1 |
-| 6 | Cross-Cutting | Session + UI + Console | PASS | 0 |
-| 7 | Context Integrity | Table navigation + chat context | PASS | 1 |
+| 5 | Core Flow Step 4 | Enrich | PASS | 1 |
+| 6 | Cross-Cutting | Session + UI + Console | PASS | 1 |
+| 7 | Context Integrity | Table navigation + chat context | PASS | 0 |
 
-**Overall: 6/7 phases passed**
+**Overall: 7/7 phases passed**
 
 ## DTP Assessment
 
 | Phase | Decision [D] | Tool [T] | Presentation [P] | Notes |
 |-------|-------------|---------|------------------|-------|
-| 1 | n/a | PASS | PASS | Landing, guest flow, registration all clean |
-| 2 | PASS | PASS | PASS | Minor: AI says "empty table" after including sample data |
-| 3 | PASS | PASS | PASS | SUGGESTED_VALUES raw JSON visible in chat (pre-existing) |
-| 4 | PASS | PASS | PASS | Column added cleanly |
-| 5 | FAIL | PASS | PASS | Inner LLM didn't call submit_answer for ambiguous companies; "Could not determine an answer..." leaked into cell values |
-| 6 | n/a | PASS | PASS | Session persistence, dark mode, profile all work |
-| 7 | PASS | PASS | FAIL | AI context switches correctly, but chat panel doesn't reset conversation history on table navigation |
+| 1 | n/a | PASS | PASS | Landing page, guest flow, registration all clean |
+| 2 | PASS | PASS | PASS | Schema proposal with preview table, sample data, Create/Dismiss |
+| 3 | PASS | PASS | PASS | AI used create_row tools directly (no DATA_PROPOSAL) — valid path |
+| 4 | PASS | PASS | PASS | SCHEMA_PROPOSAL (update) with strip, green highlight, filter tabs |
+| 5 | MINOR | PASS | PASS | [D] Priority values inconsistent with AI's own explanation (see #1) |
+| 6 | n/a | PASS | PASS | Session persistence, theme toggle, console audit clean |
+| 7 | PASS | PASS | PASS | Context correctly switches between tables; conversations isolated |
 
 ## Checklist Coverage
 
@@ -37,78 +37,71 @@
 
 | Checklist Item | Result | Phase | Notes |
 |---------------|--------|-------|-------|
-| Pain-statement hero visible | PASS | 1a | "Here's your updated table." hero displayed |
-| Textarea + Create Table button + 4 starters | PASS | 1a | All present and functional |
-| Guest flow: prompt → guest session → /tables + chat | PASS | 1b-alt | Clicked starter pill, redirected correctly |
-| Guest restrictions (no Import/Create/StarterGrid/Edit Schema) | PASS | 1b-alt | All restricted elements hidden |
-| "Log in" + "Register to save your work" in header (guest) | PASS | 1b-alt | Both links visible |
-| Registration form shows: email, password, confirm password | PASS | 1b | Form loaded correctly |
-| Successful registration auto-logs in | PASS | 1b | Auto-login after registration |
-| Redirects to /tables after registration | PASS | 1b | Correct redirect |
-| PromptHero visible (no tables, chat closed) | PASS | 1c | Heading, textarea, starters, manual link all visible |
-| "Your table will appear here" (chat open, no tables) | PASS | 1c | Shown during guest flow with chat open |
-| Import CSV + Create Table in header (hidden for guests) | PASS | 1c | Visible for registered users, hidden for guests |
+| Pain-statement hero visible | PASS | 1a | |
+| Textarea + Create Table button + 4 starters | PASS | 1a | Button disabled until text entered |
+| Guest flow: prompt -> guest session -> /tables + chat | PASS | 1b-alt | Starter pill clicked, redirected, chat opened |
+| Guest restrictions (no Import/Create/StarterGrid/Edit Schema) | PASS | 1b-alt | All hidden for guests |
+| "Log in" + "Register to save your work" in header (guest) | PASS | 1b-alt | |
+| Registration via "Register to save your work" link | PASS | 1b-alt | In-page modal after guest limit |
+| Successful registration auto-logs in | PASS | 1b-alt | Header switched to profile + Logout |
+| Stays on current page after registration | PASS | 1b-alt | Remained on /tables/208 |
+| PromptHero visible (no tables, chat closed) | SKIP | 1c | Tested guest flow instead |
+| "Your table will appear here" (chat open, no tables) | PASS | 1b-alt | Shown while waiting for AI |
+| Import CSV + Create Table in header (hidden for guests) | PASS | 1b-alt | Hidden for guest, appeared after registration |
 
 ### Core Flow (`_specs/flows/core-flow.md`)
 
 | Checklist Item | Result | Phase | Notes |
 |---------------|--------|-------|-------|
-| AI responds with SCHEMA_PROPOSAL (create) | PASS | 2 | Correct proposal generated |
-| SchemaProposalStrip appears | PASS | 2 | Preview table shown with proposed columns |
-| Apply creates table, strip disappears | PASS | 2 | Table created at /tables/190, 6 columns |
-| AI responds with DATA_PROPOSAL | PASS | 3 | 5 rows proposed with realistic data |
-| ProposalActionBar appears | PASS | 3 | "AI Proposed Changes — 5 additions" with checkboxes |
-| Apply inserts rows with progress | PASS | 3 | All 5 rows applied, success banner shown |
-| SCHEMA_PROPOSAL (update) for new column | PASS | 4 | Website column proposed |
-| New column appears with green highlight | PASS | 4 | Column added after Company |
+| AI responds with SCHEMA_PROPOSAL (create) | PASS | 2 | Preview table with columns, sample data, Create/Dismiss |
+| SchemaProposalCard appears (create mode) | PASS | 2 | "Proposed Table" card with preview |
+| Apply creates table, card disappears | PASS | 2 | Navigated to /tables/208 |
+| AI responds with tool calls (create_row) | PASS | 3 | 5 create_row tool calls, not DATA_PROPOSAL |
+| Table auto-refreshes with new rows | PASS | 3 | 8 rows after adding 5 |
+| SCHEMA_PROPOSAL (update) for new column | PASS | 4 | SchemaProposalStrip: "1 new column" |
+| New column appears with placeholder | PASS | 4 | Priority column with "—" values |
+| Apply adds column, strip disappears | PASS | 4 | 7 columns, Priority filter tabs appeared |
 | enrich_column tool called | PASS | 5 | Tool name: "Enrich Column" |
-| Strategy and results card | FAIL | 5 | Card title: "AI Enrichment Results". Strategy: Lookup. Research log: "8 found, 0 not found" — incorrect, 2 entries had "Could not determine..." text |
-| Progress bar during enrichment | PASS | 5 | Progress bar advanced during processing |
-| Enriched data applied to table | FAIL | 5 | Dismissed — 2 of 8 values were failure text, not real URLs |
+| Strategy and results card | PASS | 5 | Card title: "AI Proposed Changes — 8 updates". Research log: 8 found, 0 not found |
+| Progress bar during enrichment | PASS | 5 | "AI Enrichment — Searching..." with progress bar |
+| Enriched data applied to table | PASS | 5 | All 8 rows updated, action bar auto-dismissed |
+| No proposal reappearing after acceptance | PASS | 5 | chatId-based scanning ref reset working correctly |
 
 ## Issues Found
 
 | # | Severity | Layer | Phase | Description | Evidence |
 |---|----------|-------|-------|-------------|----------|
-| 1 | Critical | D | 5 | **submit_answer not called by inner LLM**: For ambiguous companies (Global Solutions, Acme Corp), the inner Haiku model produced free text ("Could not determine an answer. The search results show multiple companies with...") instead of calling the `submit_answer` tool. The text fallback path's `is_not_found()` regex didn't catch this phrasing, so the failure text leaked into proposed cell values. Research log incorrectly shows "8 found, 0 not found". | qa-5-enrichment-complete.png |
-| 2 | Low | D | 2 | AI says "empty table ready to go" in follow-up message, but table was created with sample data (3 rows) | qa-2-table-created.png |
-| 3 | Low | P | 3,7b | SUGGESTED_VALUES raw JSON visible in chat messages — the payload tag isn't being stripped from the rendered text | qa-3-populated.png, qa-7b-context-after-create.png |
-| 4 | Medium | P | 7c | **Chat doesn't reset conversation on table navigation**: When navigating from QA Pets to Job Applications table, the chat panel still shows the QA Pets conversation history. The AI's backend context correctly switches (it reports the right table), but the UI shows a confusing mix of conversations from different tables. | qa-7c-context-switch.png |
+| 1 | Low | D | 5 | Enrichment assigned "High" to 7/8 rows including sample companies (Acme Corp, Global Solutions) that the AI's own explanation categorized as "Low Priority." The enrichment strategy's web research overrode sensible heuristics. | qa-5-enrichment-complete.png — AI text says "Low: sample companies" but cells show "High" |
+| 2 | Low | D | 3 | AI used direct create_row tool calls instead of DATA_PROPOSAL for batch insertion. This bypasses the proposal review UX (checkboxes, selective apply). Not a bug — valid path — but less user control. | qa-3-populated.png |
+| 3 | Cosmetic | P | 6 | loadForContext 404 errors logged to console.error when no conversation exists yet. These are expected (lookup-only) but noisy — could be console.log level. | Console audit: 4 occurrences of "Failed to load chat for context" |
 
 ## Screenshots
 
 | File | Phase | Description |
 |------|-------|-------------|
-| qa-1a-landing.png | 1a | Landing page |
-| qa-1b-alt-guest.png | 1b-alt | Guest try-it flow |
-| qa-2-table-created.png | 2 | Table created with schema |
-| qa-3-data-proposal.png | 3 | Data proposal with 5 rows |
-| qa-3-populated.png | 3 | Table populated with 8 rows |
-| qa-4-add-column.png | 4 | Website column proposed |
-| qa-4-column-added.png | 4 | Website column added |
-| qa-5-enrichment-complete.png | 5 | Enrichment results (critical bug visible) |
-| qa-6a-after-relogin.png | 6a | Tables list after logout/login |
-| qa-6b-theme-toggle.png | 6b | Dark mode toggle |
+| qa-1a-landing.png | 1a | Landing page with hero, textarea, starters |
+| qa-1b-alt-guest.png | 1b-alt | Guest flow: schema proposal card for Job Applications |
+| qa-2-table-created.png | 2 | Table created with 3 sample rows, suggestion chips |
+| qa-3-populated.png | 3 | 8 rows after adding 5 via create_row tools |
+| qa-4-add-column.png | 4 | SchemaProposalStrip: Priority column proposed |
+| qa-4-column-added.png | 4 | Priority column added, filter tabs visible |
+| qa-5-enriching.png | 5 | Enrichment in progress with search status |
+| qa-5-enrichment-complete.png | 5 | DataProposalActionBar: 8 updates, research log |
+| qa-5-enriched.png | 5 | Priority values applied, table updated |
+| qa-6a-after-relogin.png | 6a | Tables list after logout/login, data persisted |
+| qa-6b-theme-toggle.png | 6b | Light mode toggle |
 | qa-7a-second-table.png | 7a | QA Pets table created |
-| qa-7b-context-after-create.png | 7b | AI correctly identifies QA Pets |
-| qa-7c-context-switch.png | 7c | Context switch — mixed chat history |
-| qa-7d-context-return.png | 7d | Return to QA Pets — AI context correct |
-| qa-7e-data-after-nav.png | 7e | Data proposal targets correct table |
+| qa-7b-context-after-create.png | 7b | AI correctly identifies QA Pets after creation |
+| qa-7c-context-switch.png | 7c | AI correctly identifies Job Applications after nav |
 
 ## Console Errors (Unexpected)
 
-None. Only expected 401 on `/api/tracking/events` (unauthenticated tracking endpoint during logout).
+None. All console errors were expected:
+- 401 on `/api/tracking/events` (unauthenticated tracking calls)
+- 404 on `/api/chats/by-context` (no conversation exists yet — expected for lookup-only pattern)
 
 ## Recommendations
 
-1. **Critical — Fix submit_answer adoption**: The inner LLM (Haiku) doesn't consistently call `submit_answer` for ambiguous lookups. Options:
-   - Strengthen the system prompt to make submit_answer mandatory
-   - Use `tool_choice: {"type": "any"}` to force tool use on the final turn
-   - Improve `_text_fallback_answer()` to catch more "Could not determine..." phrasings
-   - Add `is_not_found()` sentinel for "Could not determine an answer"
-
-2. **Medium — Fix chat conversation persistence across table navigation**: The chat panel should either (a) switch to a table-specific conversation when navigating to a different table, or (b) start a new conversation. Currently it shows a confusing mix of messages from different table contexts.
-
-3. **Low — Strip SUGGESTED_VALUES from rendered chat text**: The `SUGGESTED_VALUES: [{...}]` JSON appears raw in chat messages. This payload tag should be parsed and stripped before rendering, similar to how SCHEMA_PROPOSAL and DATA_PROPOSAL are handled.
-
-4. **Low — Fix "empty table" wording**: When table is created with sample data, AI should acknowledge the sample rows exist rather than saying "empty table ready to go."
+1. **Low priority**: Consider downgrading the `loadForContext` 404 handling from `console.error` to `console.log` — these are expected "no conversation yet" responses, not errors.
+2. **Low priority**: The enrichment strategy for the Priority column assigned "High" to almost everything. Consider whether the `computation` strategy (no web search needed) would be more appropriate for deriving values from existing row data.
+3. **Informational**: The AI chose direct `create_row` tool calls instead of `DATA_PROPOSAL` for batch row insertion. This is a valid path but skips the proposal review UX. If proposal-based insertion is preferred for batch operations, this could be guided via system prompt tuning.

@@ -8,11 +8,22 @@ Full trace of a single user message through the table.that chat system.
 
 ### 1a. Conversation Loading
 
-**File:** `frontend/src/components/chat/ChatTray.tsx`
+**File:** Each page component (e.g. `TableViewPage.tsx`, `TablesListPage.tsx`, `TableEditPage.tsx`)
 
-When ChatTray opens, it reads `current_page` and `table_id` from context and calls `loadForContext(currentPage, tableId)`. This calls `GET /api/chats/by-context?current_page=...&table_id=...` — the backend derives scope and returns the right conversation (or creates one). Each table has its own conversation — navigating between tables switches conversations automatically.
+Conversation loading is **page-driven**, not ChatTray-driven. Each page calls `loadForContext(currentPage, tableId)` directly from a `useEffect` driven by route params (`tableId` from `useParams()`). ChatTray is purely a UI component — it does not trigger loading.
 
-After a reset (new conversation), `chatId` becomes null, which re-triggers the effect and calls `loadForContext` again, creating a fresh conversation for the same page context.
+```tsx
+// Example: TableViewPage.tsx
+useEffect(() => {
+    loadForContext('table_view', tableId);
+}, [tableId, loadForContext]);
+```
+
+This calls `GET /api/chats/by-context?current_page=...&table_id=...` — the backend derives scope and returns the most recent conversation for that scope, or 404 if none exists. **Lookup only — never creates.** Conversations are only created on first message send (via `_setup_chat`).
+
+Each table has its own conversation — navigating between tables switches conversations automatically because `tableId` changes, which re-runs the effect.
+
+After a reset (new conversation), the chat stays empty until the user sends a message, which creates a new conversation via `_setup_chat`.
 
 ### 1b. Context Building
 

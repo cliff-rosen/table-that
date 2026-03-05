@@ -328,14 +328,36 @@ The LLM can call `get_payload(payload_id="abc123")` to retrieve full data withou
 
 The frontend renders payloads via `payloadHandlers`.
 
+ChatTray is a pure UI component — it does NOT drive conversation loading or context management. Pages own both responsibilities directly.
+
+**Page-driven context and loading:**
+
+```tsx
+// In your page component:
+const { setContext, updateContext, loadForContext } = useChatContext();
+
+// Set base context on mount (wipes stale context from previous page)
+useEffect(() => {
+    setContext({ current_page: 'my_page' });
+}, [setContext]);
+
+// Load conversation for this page context
+useEffect(() => {
+    loadForContext('my_page');
+}, [loadForContext]);
+
+// Enrich context when data loads (merge, don't replace)
+useEffect(() => {
+    if (selectedItem) {
+        updateContext({ item_id: selectedItem.id, item_name: selectedItem.name });
+    }
+}, [selectedItem, updateContext]);
+```
+
+**ChatTray in JSX (no initialContext prop):**
+
 ```tsx
 <ChatTray
-    initialContext={{
-        current_page: "my_page",
-        active_tab: activeTab,      // Important for tab-specific tools/payloads
-        item_id: selectedItem?.id,
-        item_name: selectedItem?.name,
-    }}
     payloadHandlers={{
         item_list: {
             render: (payload, callbacks) => (
@@ -401,8 +423,10 @@ The frontend renders payloads via `payloadHandlers`.
 ### Frontend
 
 5. **Add ChatTray to page component**
-   - [ ] Pass `initialContext` with `current_page`, `active_tab`, relevant IDs (ChatTray derives conversation identity from `current_page` + entity IDs in context)
-   - [ ] Define `payloadHandlers` for each payload type
+   - [ ] Call `setContext()` on mount with `current_page` (wipes stale context from previous page)
+   - [ ] Call `loadForContext(currentPage, entityId?)` on mount/route-param change
+   - [ ] Call `updateContext()` when page data loads (enriches context for the LLM)
+   - [ ] Render `<ChatTray>` with `payloadHandlers` for each payload type (no `initialContext` prop)
 
 6. **Create payload card components** (if needed)
    - [ ] Render payload data
