@@ -310,8 +310,8 @@ class ChatStreamService:
                     payloads_with_ids if payloads_with_ids else None
                 ),  # Full list for retrieval
                 "trace": trace.model_dump() if trace else None,  # Full execution trace
-                "suggested_values": parsed.get("suggested_values"),
-                "suggested_actions": parsed.get("suggested_actions"),
+                "suggested_values": [sv.model_dump() for sv in suggested_values] if suggested_values else None,
+                "suggested_actions": [sa.model_dump() for sa in suggested_actions] if suggested_actions else None,
             }
             # Remove None values to keep extras clean
             extras = {k: v for k, v in extras.items() if v is not None}

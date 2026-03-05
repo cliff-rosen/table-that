@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon, BugAntIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import { showErrorToast } from '@/lib/errorToast';
-import type { AgentTrace, ToolCall, MessageExtras, Message } from '@/types/chat';
+import type { AgentTrace, ToolCall, Message } from '@/types/chat';
 import { DiagnosticsPanel } from '@/components/chat/DiagnosticsPanel';
 import { ToolCallCard } from '@/components/chat/diagnostics/ToolCallCard';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
@@ -547,13 +547,13 @@ function MessageDetailPanel({ message }: { message: Message }) {
             {trace && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <div className={`rounded-lg p-3 ${
-                        trace.outcome === 'success' ? 'bg-green-50 dark:bg-green-900/20' :
+                        trace.outcome === 'complete' ? 'bg-green-50 dark:bg-green-900/20' :
                         trace.outcome === 'error' ? 'bg-red-50 dark:bg-red-900/20' :
                         'bg-yellow-50 dark:bg-yellow-900/20'
                     }`}>
                         <div className="text-xs text-gray-500 dark:text-gray-400">Outcome</div>
                         <div className={`font-semibold text-sm ${
-                            trace.outcome === 'success' ? 'text-green-700 dark:text-green-300' :
+                            trace.outcome === 'complete' ? 'text-green-700 dark:text-green-300' :
                             trace.outcome === 'error' ? 'text-red-700 dark:text-red-300' :
                             'text-yellow-700 dark:text-yellow-300'
                         }`}>{trace.outcome}</div>
@@ -645,11 +645,14 @@ function MessageDetailPanel({ message }: { message: Message }) {
                     </div>
                     <div className="p-4">
                         <div className="flex flex-wrap gap-2">
-                            {extras.suggested_values.map((val, idx) => (
-                                <div key={idx} className="px-3 py-2 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-lg">
-                                    <div className="text-sm font-medium text-cyan-800 dark:text-cyan-200">{val.text}</div>
-                                </div>
-                            ))}
+                            {extras.suggested_values.map((val: unknown, idx: number) => {
+                                const text = typeof val === 'string' ? val : (val as { text?: string })?.text ?? JSON.stringify(val);
+                                return (
+                                    <div key={idx} className="px-3 py-2 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-lg">
+                                        <div className="text-sm font-medium text-cyan-800 dark:text-cyan-200">{text}</div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -717,7 +720,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                     <div>
                                         <div className="text-gray-500 dark:text-gray-400 mb-1">Output</div>
                                         <pre className="bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap text-gray-900 dark:text-gray-100">
-                                            {tool.output.substring(0, 300)}{tool.output.length > 300 ? '...' : ''}
+                                            {typeof tool.output === 'string' ? tool.output.substring(0, 300) : JSON.stringify(tool.output, null, 2).substring(0, 300)}{(typeof tool.output === 'string' ? tool.output.length : JSON.stringify(tool.output).length) > 300 ? '...' : ''}
                                         </pre>
                                     </div>
                                 </div>
@@ -788,11 +791,11 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                     </pre>
                                 </div>
                             )}
-                            {legacyDiagnostics.raw_llm_response && (
+                            {(legacyDiagnostics as unknown as Record<string, unknown>).raw_llm_response && (
                                 <div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Raw LLM Response</div>
                                     <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
-                                        {legacyDiagnostics.raw_llm_response}
+                                        {String((legacyDiagnostics as unknown as Record<string, unknown>).raw_llm_response)}
                                     </pre>
                                 </div>
                             )}
