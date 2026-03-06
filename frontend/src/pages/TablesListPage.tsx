@@ -308,23 +308,14 @@ export default function TablesListPage() {
         }));
       }
 
-      updateContext({
-        current_page: 'table_view',
-        table_id: created.id,
-        table_name: created.name,
-        table_description: created.description || '',
-        columns: created.columns,
-        row_count: includeSampleData ? (proposal.sample_rows?.length || 0) : 0,
-        sample_rows: [],
-      });
-
-      sendMessage(`[User accepted and created "${created.name}"${includeSampleData ? ' with sample data' : ''}.]`);
       setActiveProposal(null);
-      navigate(`/tables/${created.id}`);
+      navigate(`/tables/${created.id}`, {
+        state: { justCreated: true, tableName: created.name, includedSampleData: includeSampleData },
+      });
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate, updateContext, sendMessage]);
+  }, [navigate]);
 
   // Loading skeleton
   if (isLoading) {

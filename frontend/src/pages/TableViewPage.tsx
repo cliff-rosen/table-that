@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   TableCellsIcon,
 } from '@heroicons/react/24/outline';
@@ -34,6 +34,7 @@ export default function TableViewPage() {
   const { tableId: tableIdParam } = useParams<{ tableId: string }>();
   const tableId = Number(tableIdParam);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Data state
   const [table, setTable] = useState<TableDefinition | null>(null);
@@ -147,6 +148,15 @@ export default function TableViewPage() {
   useEffect(() => {
     loadForContext('table_view', tableId);
   }, [tableId, loadForContext]);
+
+  // Send post-creation message when arriving from TablesListPage proposal accept
+  useEffect(() => {
+    const state = location.state as { justCreated?: boolean; tableName?: string; includedSampleData?: boolean } | null;
+    if (state?.justCreated) {
+      sendMessage(`[User accepted and created "${state.tableName}"${state.includedSampleData ? ' with sample data' : ''}.]`);
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, [location.state, sendMessage, location.pathname]);
 
   // Debounced search
   useEffect(() => {
