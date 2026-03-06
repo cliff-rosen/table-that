@@ -780,9 +780,25 @@ async def execute_enrich_column(
     )
 
     log_count = len(research_log)
+
+    # Build per-row value digest so the LLM can write an accurate summary
+    # (without this, it only sees "Found N rows" and guesses from stale context)
+    value_lines: list[str] = []
+    for log_entry in research_log:
+        label = log_entry.get("label", "?")
+        if log_entry.get("status") == "found":
+            val = str(log_entry.get("value", ""))
+            short = val[:120] + "…" if len(val) > 120 else val
+            value_lines.append(f"  ✓ {label}: {short}")
+        else:
+            reason = log_entry.get("explanation") or "no result"
+            value_lines.append(f"  ✗ {label}: {reason}")
+    value_digest = "\n".join(value_lines)
+
     summary = (
         f"Enriched {total} rows for '{target_col_name}' using {strategy.display_name}. "
-        f"Found values for {found_count} rows, {skipped} not found. "
+        f"Found values for {found_count} rows, {skipped} not found.\n\n"
+        f"Values:\n{value_digest}\n\n"
         f"Results are now shown inline in the table — updated cells are highlighted "
         f"and the user can review, uncheck, and Apply or Dismiss. "
         f"IMPORTANT: Do NOT write a DATA_PROPOSAL in your response — "
