@@ -149,10 +149,13 @@ export default function TableViewPage() {
     loadForContext('table_view', tableId);
   }, [tableId, loadForContext]);
 
-  // Send post-creation message when arriving from TablesListPage proposal accept
+  // Send post-creation message when arriving from TablesListPage proposal accept.
+  // Guard with a ref so React StrictMode's double-invoked effect doesn't send twice.
+  const sentCreationMsgRef = useRef(false);
   useEffect(() => {
     const state = location.state as { justCreated?: boolean; tableName?: string; includedSampleData?: boolean } | null;
-    if (state?.justCreated) {
+    if (state?.justCreated && !sentCreationMsgRef.current) {
+      sentCreationMsgRef.current = true;
       sendMessage(`[User accepted and created "${state.tableName}"${state.includedSampleData ? ' with sample data' : ''}.]`);
       window.history.replaceState({}, '', location.pathname);
     }
