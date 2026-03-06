@@ -295,9 +295,11 @@ export default function ChatTray({
                 <div className="flex flex-col h-full" style={{ width: `${width}px` }}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                        <div className="flex items-center gap-2">
-                            <ChatBubbleLeftRightIcon className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">AI</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <ChatBubbleLeftRightIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
+                                {context.table_name ? `AI — ${context.table_name}` : 'AI — Tables'}
+                            </span>
                         </div>
                         <div className="flex items-center gap-1">
                             <button
