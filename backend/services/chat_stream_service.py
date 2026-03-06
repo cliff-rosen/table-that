@@ -598,6 +598,8 @@ class ChatStreamService:
                     chat_id = None
 
             if not chat_id:
+                if not derived_scope:
+                    logger.warning(f"No scope derived from context: {request.context}")
                 chat = await self.chat_service.create_chat(self.user_id, app=app, scope=derived_scope)
                 chat_id = chat.id
 
