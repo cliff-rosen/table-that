@@ -156,7 +156,11 @@ export default function TablesListPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TableListItem | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(() => {
+    const stored = sessionStorage.getItem('chatOpen:tables_list');
+    return stored !== null ? stored === 'true' : false;
+  });
+  useEffect(() => { sessionStorage.setItem('chatOpen:tables_list', String(chatOpen)); }, [chatOpen]);
   const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);

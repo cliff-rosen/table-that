@@ -240,7 +240,11 @@ export default function TableEditPage() {
 
   // Chat
   const { setContext, updateContext, messages, loadForContext, chatId } = useChatContext();
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(() => {
+    const stored = sessionStorage.getItem('chatOpen:table');
+    return stored !== null ? stored === 'true' : true;
+  });
+  useEffect(() => { sessionStorage.setItem('chatOpen:table', String(chatOpen)); }, [chatOpen]);
   // Start from current length so we only react to NEW messages, not history
   const lastCheckedIndexRef = useRef(messages.length);
 

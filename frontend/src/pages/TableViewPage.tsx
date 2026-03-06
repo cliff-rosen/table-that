@@ -52,7 +52,11 @@ export default function TableViewPage() {
   const [editingCell, setEditingCell] = useState<{ rowId: number; columnId: string } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(() => {
+    const stored = sessionStorage.getItem('chatOpen:table');
+    return stored !== null ? stored === 'true' : true;
+  });
+  useEffect(() => { sessionStorage.setItem('chatOpen:table', String(chatOpen)); }, [chatOpen]);
   const [filters, setFilters] = useState<FilterState>({});
 
   // Compute filtered rows (client-side filtering on loaded rows)
