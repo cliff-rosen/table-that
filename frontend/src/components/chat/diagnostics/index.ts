@@ -16,6 +16,7 @@ export type { CollapsibleSectionProps } from './CollapsibleSection';
 export { ContentBlockRenderer } from './ContentBlockRenderer';
 export { MessagesList } from './MessagesList';
 export { ToolCallCard } from './ToolCallCard';
+export { ToolCallList } from './ToolCallList';
 export { IterationCard } from './IterationCard';
 export type { IterationCardProps } from './IterationCard';
 export { AgentResponseCard } from './AgentResponseCard';

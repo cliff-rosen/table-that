@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { BugAntIcon, ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/solid';
-import { AgentTrace, ToolCall } from '../../types/chat';
+import { AgentTrace } from '../../types/chat';
 import {
     FullscreenContent,
     FullscreenViewer,
@@ -11,9 +11,8 @@ import {
     IterationCard,
     AgentResponseCard,
     ConfigCard,
+    ToolCallList,
 } from './diagnostics';
-import { ResearchLog } from '../table/ProposalWidgets';
-import type { DataProposalData } from '../../types/dataProposal';
 
 interface DiagnosticsPanelProps {
     diagnostics: AgentTrace;
@@ -41,11 +40,7 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
 
     const toggleToolCall = (id: string) => {
         const next = new Set(expandedToolCalls);
-        if (next.has(id)) {
-            next.delete(id);
-        } else {
-            next.add(id);
-        }
+        if (next.has(id)) next.delete(id); else next.add(id);
         setExpandedToolCalls(next);
     };
 
@@ -59,20 +54,15 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
         setExpandedSections(next);
     };
 
-    // Collect all tool calls across iterations for the Tools tab
-    const allToolCalls: { iteration: number; toolCall: ToolCall }[] = [];
-    diagnostics.iterations?.forEach((iter) => {
-        iter.tool_calls?.forEach((tc) => {
-            allToolCalls.push({ iteration: iter.iteration, toolCall: tc });
-        });
-    });
-    const totalProgressEvents = allToolCalls.reduce(
-        (sum, { toolCall }) => sum + (toolCall.progress_events?.length || 0), 0
-    );
+    // Lightweight counts for tab labels
+    const toolCallCount = diagnostics.iterations?.reduce((sum, iter) => sum + (iter.tool_calls?.length || 0), 0) || 0;
+    const totalProgressEvents = diagnostics.iterations?.reduce(
+        (sum, iter) => sum + (iter.tool_calls || []).reduce((s, tc) => s + (tc.progress_events?.length || 0), 0), 0
+    ) || 0;
 
     const tabs: { id: TabType; label: string }[] = [
         { id: 'messages', label: `Messages (${diagnostics.iterations?.length || 0} iterations)` },
-        { id: 'tools', label: `Tools (${allToolCalls.length}${totalProgressEvents > 0 ? ` / ${totalProgressEvents} steps` : ''})` },
+        { id: 'tools', label: `Tools (${toolCallCount}${totalProgressEvents > 0 ? ` / ${totalProgressEvents} steps` : ''})` },
         { id: 'config', label: 'Config' },
         { id: 'metrics', label: 'Metrics' },
     ];
@@ -130,10 +120,7 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
                     )}
 
                     {activeTab === 'tools' && (
-                        <ToolsTab
-                            allToolCalls={allToolCalls}
-                            onFullscreen={setFullscreenContent}
-                        />
+                        <ToolCallList trace={diagnostics} autoExpandWithProgress emptyMessage="No tool calls in this trace" />
                     )}
 
                     {activeTab === 'config' && (
@@ -242,265 +229,6 @@ function MessagesTab({
 // ============================================================================
 // Tools Tab - Flat timeline of all tool calls and progress events
 // ============================================================================
-
-import {
-    MagnifyingGlassIcon,
-    GlobeAltIcon,
-    CalculatorIcon,
-    CheckCircleIcon,
-    ExclamationTriangleIcon,
-    BoltIcon,
-    WrenchScrewdriverIcon,
-} from '@heroicons/react/24/outline';
-
-function StageIcon({ stage }: { stage: string }) {
-    const cls = 'h-3.5 w-3.5';
-    if (stage.includes('search') || stage.includes('lookup')) return <MagnifyingGlassIcon className={`${cls} text-blue-500`} />;
-    if (stage.includes('fetch') || stage.includes('read')) return <GlobeAltIcon className={`${cls} text-teal-500`} />;
-    if (stage.includes('comput') || stage.includes('formula')) return <CalculatorIcon className={`${cls} text-amber-500`} />;
-    if (stage.includes('complete') || stage.includes('done') || stage.includes('answer') || stage.includes('row_done')) return <CheckCircleIcon className={`${cls} text-green-500`} />;
-    if (stage.includes('error') || stage.includes('fail')) return <ExclamationTriangleIcon className={`${cls} text-red-500`} />;
-    if (stage.includes('start') || stage.includes('enrich')) return <BoltIcon className={`${cls} text-indigo-500`} />;
-    if (stage.includes('skip')) return <BoltIcon className={`${cls} text-gray-400`} />;
-    return <WrenchScrewdriverIcon className={`${cls} text-gray-400`} />;
-}
-
-/** Renders rich detail for a progress event's data field (search results, answer outcome, etc.) */
-function ProgressEventDetail({ data }: { data: Record<string, unknown> }) {
-    const outcome = data.outcome as string | undefined;
-    const value = data.value as string | undefined;
-    const explanation = data.explanation as string | undefined;
-    const result = data.result as string | undefined;
-
-    return (
-        <div className="mt-1 ml-[7.5rem] space-y-1">
-            {/* Structured answer outcome */}
-            {outcome && (
-                <div className={`flex items-center gap-1.5 text-xs ${
-                    outcome === 'found' ? 'text-green-600 dark:text-green-400' :
-                    outcome === 'error' ? 'text-red-600 dark:text-red-400' :
-                    'text-amber-600 dark:text-amber-400'
-                }`}>
-                    {outcome === 'found' ? (
-                        <CheckCircleIcon className="h-3.5 w-3.5 shrink-0" />
-                    ) : (
-                        <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <span className="font-medium">{outcome}</span>
-                    {value && <span className="text-gray-700 dark:text-gray-300 truncate">— {value.slice(0, 200)}</span>}
-                </div>
-            )}
-            {explanation && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                    {explanation.slice(0, 300)}
-                </div>
-            )}
-            {/* Search/fetch result content */}
-            {result && (
-                <ResultBlock text={result} />
-            )}
-        </div>
-    );
-}
-
-/** Collapsible block for search/fetch result text in progress events */
-function ResultBlock({ text }: { text: string }) {
-    const [expanded, setExpanded] = useState(false);
-    const lines = text.split('\n');
-    const isLong = lines.length > 6 || text.length > 400;
-    const preview = isLong && !expanded ? lines.slice(0, 6).join('\n') : text;
-    return (
-        <div className="border-l-2 border-gray-200 dark:border-gray-700 pl-2">
-            <pre className="text-[11px] text-gray-500 dark:text-gray-400 whitespace-pre-wrap break-words max-h-48 overflow-auto">
-                {preview}{isLong && !expanded && '…'}
-            </pre>
-            {isLong && (
-                <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="text-[10px] text-blue-500 hover:text-blue-700 dark:text-blue-400 mt-0.5"
-                >
-                    {expanded ? 'Show less' : `Show all (${text.length} chars)`}
-                </button>
-            )}
-        </div>
-    );
-}
-
-function ToolsTab({ allToolCalls, onFullscreen }: {
-    allToolCalls: { iteration: number; toolCall: ToolCall }[];
-    onFullscreen: (content: FullscreenContent) => void;
-}) {
-    const [expandedTools, setExpandedTools] = useState<Set<string>>(
-        // Auto-expand tools that have progress events
-        new Set(allToolCalls.filter(({ toolCall }) => toolCall.progress_events?.length).map(({ toolCall }) => toolCall.tool_use_id))
-    );
-
-    const toggleTool = (id: string) => {
-        const next = new Set(expandedTools);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        setExpandedTools(next);
-    };
-
-    if (allToolCalls.length === 0) {
-        return <p className="text-gray-500 dark:text-gray-400">No tool calls in this trace</p>;
-    }
-
-    return (
-        <div className="space-y-3">
-            {allToolCalls.map(({ iteration, toolCall }) => {
-                const isExpanded = expandedTools.has(toolCall.tool_use_id);
-                const hasProgress = toolCall.progress_events && toolCall.progress_events.length > 0;
-
-                return (
-                    <div key={toolCall.tool_use_id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        {/* Tool header */}
-                        <button
-                            onClick={() => toggleTool(toolCall.tool_use_id)}
-                            className="w-full p-3 flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
-                        >
-                            {isExpanded ? (
-                                <ChevronDownIcon className="h-4 w-4 text-gray-400 shrink-0" />
-                            ) : (
-                                <ChevronRightIcon className="h-4 w-4 text-gray-400 shrink-0" />
-                            )}
-                            <span className="text-xs text-gray-400 shrink-0">#{iteration}</span>
-                            <span className="font-mono text-sm text-blue-700 dark:text-blue-300 font-medium shrink-0">
-                                {toolCall.tool_name}
-                            </span>
-                            <span className={`px-1.5 py-0.5 rounded text-xs shrink-0 ${
-                                toolCall.output_type === 'error'
-                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'
-                            }`}>
-                                {toolCall.output_type}
-                            </span>
-                            {hasProgress && (
-                                <span className="px-1.5 py-0.5 rounded text-xs shrink-0 bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                                    {toolCall.progress_events!.length} steps
-                                </span>
-                            )}
-                            {toolCall.payload && (
-                                <span className="px-1.5 py-0.5 rounded text-xs shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                                    payload
-                                </span>
-                            )}
-                            <span className="text-xs text-gray-400 shrink-0 ml-auto">{toolCall.execution_ms}ms</span>
-                        </button>
-
-                        {/* Expanded: input, progress events, output, payload */}
-                        {isExpanded && (
-                            <div className="border-t border-gray-200 dark:border-gray-700">
-                                {/* Input */}
-                                <div className="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10 border-b border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <div className="text-xs font-medium text-blue-600 dark:text-blue-400">Input</div>
-                                        <button
-                                            onClick={() => onFullscreen({
-                                                type: 'raw',
-                                                title: `${toolCall.tool_name} — Input`,
-                                                content: JSON.stringify(toolCall.tool_input, null, 2),
-                                            })}
-                                            className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                            title="View fullscreen"
-                                        >
-                                            <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                    <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-48 overflow-auto">
-                                        {JSON.stringify(toolCall.tool_input, null, 2)}
-                                    </pre>
-                                </div>
-
-                                {/* Progress events timeline */}
-                                {hasProgress && (
-                                    <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
-                                        <div className="text-xs font-medium text-teal-600 dark:text-teal-400 mb-2">
-                                            Execution Steps ({toolCall.progress_events!.length})
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            {toolCall.progress_events!.map((evt, i) => {
-                                                const hasRichData = evt.data && (evt.data.result || evt.data.outcome);
-                                                return (
-                                                    <div key={i}>
-                                                        <div className="flex items-start gap-2 text-xs py-0.5">
-                                                            <span className="text-gray-400 font-mono w-14 text-right shrink-0">
-                                                                {evt.elapsed_ms >= 1000
-                                                                    ? `${(evt.elapsed_ms / 1000).toFixed(1)}s`
-                                                                    : `${evt.elapsed_ms}ms`
-                                                                }
-                                                            </span>
-                                                            <StageIcon stage={evt.stage} />
-                                                            <span className="font-medium text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate">
-                                                                {evt.stage}
-                                                            </span>
-                                                            <span className="text-gray-700 dark:text-gray-300 break-words min-w-0">
-                                                                {evt.message}
-                                                            </span>
-                                                        </div>
-                                                        {hasRichData ? <ProgressEventDetail data={evt.data!} /> : null}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Output */}
-                                <div className="px-3 py-2 bg-green-50/50 dark:bg-green-900/10 border-b border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <div className="text-xs font-medium text-green-600 dark:text-green-400">Output</div>
-                                        <button
-                                            onClick={() => onFullscreen({
-                                                type: 'raw',
-                                                title: `${toolCall.tool_name} — Output`,
-                                                content: toolCall.output_to_model,
-                                            })}
-                                            className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                            title="View fullscreen"
-                                        >
-                                            <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                    <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-64 overflow-auto">
-                                        {toolCall.output_to_model}
-                                    </pre>
-                                </div>
-
-                                {/* Payload */}
-                                {toolCall.payload && (
-                                    <div className="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className="text-xs font-medium text-purple-600 dark:text-purple-400">Payload</div>
-                                            <button
-                                                onClick={() => onFullscreen({
-                                                    type: 'raw',
-                                                    title: `${toolCall.tool_name} — Payload`,
-                                                    content: JSON.stringify(toolCall.payload, null, 2),
-                                                })}
-                                                className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                                title="View fullscreen"
-                                            >
-                                                <ArrowsPointingOutIcon className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                        {/* Render research log nicely if this is a data_proposal payload */}
-                                        {toolCall.payload.type === 'data_proposal' && (toolCall.payload.data as DataProposalData)?.research_log ? (
-                                            <ResearchLog log={(toolCall.payload.data as DataProposalData).research_log!} />
-                                        ) : (
-                                            <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-48 overflow-auto">
-                                                {JSON.stringify(toolCall.payload, null, 2)}
-                                            </pre>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
 
 // ============================================================================
 // Config Tab - Model settings, system prompt, and tools

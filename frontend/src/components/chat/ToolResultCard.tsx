@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { ChevronRightIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
-import { ToolHistoryEntry, AgentTrace, ToolCall } from '../../types/chat';
-import { ToolCallCard } from './diagnostics/ToolCallCard';
+import { ToolHistoryEntry, AgentTrace } from '../../types/chat';
+import { ToolCallList } from './diagnostics';
 
 interface ToolResultCardProps {
     tool: ToolHistoryEntry;
@@ -71,26 +70,13 @@ interface ToolHistoryPanelProps {
 }
 
 export function ToolHistoryPanel({ tools, onClose, trace }: ToolHistoryPanelProps) {
-    // Extract rich tool calls with assistant text from trace when available
-    const traceToolCalls = trace?.iterations?.flatMap(iter => {
-        const textBlocks = (iter.response_content || [])
-            .filter((block: Record<string, unknown>) => block.type === 'text')
-            .map((block: Record<string, unknown>) => block.text as string)
-            .join('\n');
-        return (iter.tool_calls || []).map(tc => ({
-            toolCall: tc as ToolCall,
-            assistantText: textBlocks || undefined,
-        }));
-    }) || [];
+    const useRichView = trace && trace.iterations && trace.iterations.length > 0;
 
-    const useRichView = traceToolCalls.length > 0;
-    const count = useRichView ? traceToolCalls.length : tools.length;
-
-    const title = count === 1
-        ? formatToolName(useRichView ? traceToolCalls[0].toolCall.tool_name : tools[0].tool_name)
-        : `Tool Calls (${count})`;
-
-    const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+    const title = useRichView
+        ? `Tool Calls (${trace.iterations.reduce((sum, iter) => sum + (iter.tool_calls?.length || 0), 0)})`
+        : tools.length === 1
+            ? formatToolName(tools[0].tool_name)
+            : `Tool Calls (${tools.length})`;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
@@ -108,20 +94,7 @@ export function ToolHistoryPanel({ tools, onClose, trace }: ToolHistoryPanelProp
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {useRichView ? (
-                        traceToolCalls.map(({ toolCall: tc, assistantText }, idx) => (
-                            <ToolCallCard
-                                key={tc.tool_use_id || idx}
-                                toolCall={tc}
-                                assistantText={assistantText}
-                                isExpanded={expandedTools.has(idx)}
-                                onToggle={() => setExpandedTools(prev => {
-                                    const next = new Set(prev);
-                                    if (next.has(idx)) next.delete(idx);
-                                    else next.add(idx);
-                                    return next;
-                                })}
-                            />
-                        ))
+                        <ToolCallList trace={trace} />
                     ) : (
                         tools.map((tool, idx) => (
                             <ToolResultExpanded key={idx} tool={tool} />

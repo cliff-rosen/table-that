@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/react/24/solid';
-import { MagnifyingGlassIcon, GlobeAltIcon, CalculatorIcon, CheckCircleIcon, ExclamationTriangleIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, GlobeAltIcon, CalculatorIcon, CheckCircleIcon, ExclamationTriangleIcon, BoltIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import { ToolCall, ToolProgressRecord } from '../../../types/chat';
 import { ResearchLog } from '../../table/ProposalWidgets';
 import type { DataProposalData } from '../../../types/dataProposal';
@@ -14,17 +14,21 @@ interface ToolCallCardProps {
     onToggle: () => void;
     /** Optional assistant reasoning text that accompanied this tool call */
     assistantText?: string;
+    /** Optional iteration number badge shown before tool name */
+    iterationNumber?: number;
 }
 
 /** Icon for a progress event stage */
 function StageIcon({ stage }: { stage: string }) {
     const cls = 'h-3.5 w-3.5';
     if (stage.includes('search') || stage.includes('lookup')) return <MagnifyingGlassIcon className={`${cls} text-blue-500`} />;
-    if (stage.includes('fetch')) return <GlobeAltIcon className={`${cls} text-teal-500`} />;
-    if (stage.includes('compute') || stage.includes('formula')) return <CalculatorIcon className={`${cls} text-amber-500`} />;
-    if (stage.includes('complete') || stage.includes('done') || stage.includes('answer')) return <CheckCircleIcon className={`${cls} text-green-500`} />;
+    if (stage.includes('fetch') || stage.includes('read')) return <GlobeAltIcon className={`${cls} text-teal-500`} />;
+    if (stage.includes('comput') || stage.includes('formula')) return <CalculatorIcon className={`${cls} text-amber-500`} />;
+    if (stage.includes('complete') || stage.includes('done') || stage.includes('answer') || stage.includes('row_done')) return <CheckCircleIcon className={`${cls} text-green-500`} />;
     if (stage.includes('error') || stage.includes('fail')) return <ExclamationTriangleIcon className={`${cls} text-red-500`} />;
-    return <BoltIcon className={`${cls} text-gray-400`} />;
+    if (stage.includes('start') || stage.includes('enrich')) return <BoltIcon className={`${cls} text-indigo-500`} />;
+    if (stage.includes('skip')) return <BoltIcon className={`${cls} text-gray-400`} />;
+    return <WrenchScrewdriverIcon className={`${cls} text-gray-400`} />;
 }
 
 /** Collapsible block for search/fetch result text in progress events */
@@ -118,7 +122,7 @@ function ProgressTimeline({ events }: { events: ToolProgressRecord[] }) {
     );
 }
 
-export function ToolCallCard({ toolCall, isExpanded, onToggle, assistantText }: ToolCallCardProps) {
+export function ToolCallCard({ toolCall, isExpanded, onToggle, assistantText, iterationNumber }: ToolCallCardProps) {
     const [showFullscreen, setShowFullscreen] = useState(false);
     const inputPreview = JSON.stringify(toolCall.tool_input);
     const truncatedInput = inputPreview.length > 120 ? inputPreview.slice(0, 120) + '...' : inputPreview;
@@ -137,6 +141,9 @@ export function ToolCallCard({ toolCall, isExpanded, onToggle, assistantText }: 
                                 <ChevronDownIcon className="h-4 w-4 text-gray-400 shrink-0" />
                             ) : (
                                 <ChevronRightIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                            )}
+                            {iterationNumber != null && (
+                                <span className="text-xs text-gray-400 shrink-0">#{iterationNumber}</span>
                             )}
                             <span className="font-mono text-sm text-blue-700 dark:text-blue-300 shrink-0">
                                 {toolCall.tool_name}
