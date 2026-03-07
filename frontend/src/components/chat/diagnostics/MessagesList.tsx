@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/solid';
-import { FullscreenContent, ContentBlock, ROLE_STYLES, normalizeContent, getContentSummary } from './types';
+import { FullscreenContent, ROLE_STYLES, normalizeContent, getContentSummary } from './types';
 import { ContentBlockRenderer } from './ContentBlockRenderer';
 
 interface MessagesListProps {

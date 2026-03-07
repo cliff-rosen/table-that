@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { ToolCall } from '../../../types/chat';
-import { StageIcon, ProgressEventDetail } from './ToolCallShared';
+import { ExpandableStepRow } from './ToolCallShared';
 import { ResearchLog } from '../../table/ProposalWidgets';
 import type { DataProposalData } from '../../../types/dataProposal';
 
@@ -61,12 +61,12 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
             )}
 
             {/* Tab bar */}
-            <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700 px-4">
+            <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700 px-2">
                 {visibleTabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                        className={`px-2 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
                             activeTab === tab.id
                                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -78,28 +78,28 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 min-h-0 overflow-auto p-4">
+            <div className="flex-1 min-h-0 overflow-auto p-2">
                 {activeTab === 'input' && (
-                    <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                    <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                         {JSON.stringify(toolCall.tool_input, null, 2)}
                     </pre>
                 )}
 
                 {activeTab === 'output' && (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                         {toolCall.output_from_executor &&
                          typeof toolCall.output_from_executor === 'string' &&
                          toolCall.output_from_executor !== toolCall.output_to_model ? (
                             <>
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output to model</div>
-                                    <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Output to model</div>
+                                    <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                         {toolCall.output_to_model}
                                     </pre>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Raw from executor</div>
-                                    <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Raw from executor</div>
+                                    <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                         {typeof toolCall.output_from_executor === 'string'
                                             ? toolCall.output_from_executor
                                             : JSON.stringify(toolCall.output_from_executor, null, 2)}
@@ -107,7 +107,7 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
                                 </div>
                             </>
                         ) : (
-                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                 {toolCall.output_to_model}
                             </pre>
                         )}
@@ -127,25 +127,9 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
                                 </tr>
                             </thead>
                             <tbody>
-                                {toolCall.progress_events.map((evt, i) => {
-                                    const hasRichData = evt.data && (evt.data.result || evt.data.outcome);
-                                    return (
-                                        <tr key={i} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                                            <td className="px-3 py-1.5 font-mono text-gray-400">{evt.elapsed_ms}ms</td>
-                                            <td className="px-1 py-1.5"><StageIcon stage={evt.stage} /></td>
-                                            <td className="px-3 py-1.5 font-medium text-gray-700 dark:text-gray-300">{evt.stage}</td>
-                                            <td className="px-3 py-1.5 text-gray-600 dark:text-gray-400">
-                                                <>
-                                                    <div>{evt.message}</div>
-                                                    {hasRichData && <ProgressEventDetail data={evt.data!} />}
-                                                </>
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right font-mono text-gray-400">
-                                                {evt.progress > 0 ? `${Math.round(evt.progress * 100)}%` : ''}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                {toolCall.progress_events.map((evt, i) => (
+                                    <ExpandableStepRow key={i} evt={evt} />
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -156,7 +140,7 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
                         {toolCall.payload.type === 'data_proposal' && (toolCall.payload.data as DataProposalData)?.research_log ? (
                             <ResearchLog log={(toolCall.payload.data as DataProposalData).research_log!} defaultExpanded large />
                         ) : (
-                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                 {JSON.stringify(toolCall.payload, null, 2)}
                             </pre>
                         )}

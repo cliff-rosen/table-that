@@ -146,16 +146,17 @@ export function IterationCard({
                     {/* Tool Calls */}
                     {iteration.tool_calls && iteration.tool_calls.length > 0 && (
                         <div>
-                            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Tool Calls
                             </h5>
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                                 {iteration.tool_calls.map((toolCall) => (
                                     <ToolCallCard
                                         key={toolCall.tool_use_id}
                                         toolCall={toolCall}
                                         isExpanded={expandedToolCalls.has(toolCall.tool_use_id)}
                                         onToggle={() => onToggleToolCall(toolCall.tool_use_id)}
+                                        onFullscreen={onFullscreen}
                                     />
                                 ))}
                             </div>

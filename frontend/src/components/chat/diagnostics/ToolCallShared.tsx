@@ -82,3 +82,117 @@ export function ProgressEventDetail({ data }: { data: Record<string, unknown> })
         </div>
     );
 }
+
+/** Known data keys rendered with special formatting */
+const KNOWN_DATA_KEYS = new Set(['outcome', 'value', 'explanation', 'result', 'query', 'detail', 'url']);
+
+/** Expandable step row for progress events — click to reveal full data */
+export function ExpandableStepRow({ evt }: { evt: { stage: string; message: string; progress: number; data?: Record<string, unknown>; elapsed_ms: number } }) {
+    const [expanded, setExpanded] = useState(false);
+    const hasData = evt.data && Object.keys(evt.data).length > 0;
+
+    // Extra keys not covered by named fields
+    const extraKeys = hasData
+        ? Object.keys(evt.data!).filter(k => !KNOWN_DATA_KEYS.has(k) && evt.data![k] != null)
+        : [];
+
+    const data = evt.data || {};
+    const outcome = data.outcome as string | undefined;
+    const value = data.value as string | undefined;
+
+    // Summary hint shown in collapsed state
+    const hint = outcome
+        ? (outcome === 'found' ? `✓ ${(value || '').slice(0, 60)}` : outcome)
+        : (data.query ? `"${(data.query as string).slice(0, 50)}"` : undefined);
+
+    return (
+        <>
+            <tr
+                className={`border-b border-gray-100 dark:border-gray-800 ${hasData ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50' : ''}`}
+                onClick={hasData ? () => setExpanded(!expanded) : undefined}
+            >
+                <td className="px-3 py-1.5 font-mono text-gray-400">{evt.elapsed_ms}ms</td>
+                <td className="px-1 py-1.5"><StageIcon stage={evt.stage} /></td>
+                <td className="px-3 py-1.5 font-medium text-gray-700 dark:text-gray-300">{evt.stage}</td>
+                <td className="px-3 py-1.5 text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-1.5">
+                        {hasData && (
+                            <span className={`text-gray-400 text-[10px] transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+                        )}
+                        <span>{evt.message}</span>
+                        {!expanded && hint && (
+                            <span className="text-gray-400 text-[11px] truncate ml-1">{hint}</span>
+                        )}
+                    </div>
+                </td>
+                <td className="px-3 py-1.5 text-right font-mono text-gray-400">
+                    {evt.progress > 0 ? `${Math.round(evt.progress * 100)}%` : ''}
+                </td>
+            </tr>
+            {expanded && hasData && (
+                <tr className="border-b border-gray-100 dark:border-gray-800">
+                    <td colSpan={5} className="px-3 py-2 bg-gray-50/50 dark:bg-gray-900/30">
+                        <StepDataDetail data={evt.data!} extraKeys={extraKeys} />
+                    </td>
+                </tr>
+            )}
+        </>
+    );
+}
+
+/** Renders the full data payload for an expanded step row */
+function StepDataDetail({ data, extraKeys }: { data: Record<string, unknown>; extraKeys: string[] }) {
+    const query = data.query as string | undefined;
+    const detail = data.detail as string | undefined;
+    const url = data.url as string | undefined;
+    const outcome = data.outcome as string | undefined;
+    const value = data.value as string | undefined;
+    const explanation = data.explanation as string | undefined;
+    const result = data.result as string | undefined;
+
+    return (
+        <div className="space-y-1.5 text-xs">
+            {outcome && (
+                <div className={`flex items-center gap-1.5 ${
+                    outcome === 'found' ? 'text-green-600 dark:text-green-400' :
+                    outcome === 'error' ? 'text-red-600 dark:text-red-400' :
+                    'text-amber-600 dark:text-amber-400'
+                }`}>
+                    {outcome === 'found' ? (
+                        <CheckCircleIcon className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                        <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span className="font-medium">{outcome}</span>
+                    {value && <span className="text-gray-700 dark:text-gray-300">— {value}</span>}
+                </div>
+            )}
+            {explanation && (
+                <div className="text-gray-500 dark:text-gray-400 italic">{explanation}</div>
+            )}
+            {query && (
+                <div>
+                    <span className="text-gray-400">Query: </span>
+                    <span className="text-gray-700 dark:text-gray-300">{query}</span>
+                </div>
+            )}
+            {url && (
+                <div>
+                    <span className="text-gray-400">URL: </span>
+                    <span className="text-gray-700 dark:text-gray-300 break-all">{url}</span>
+                </div>
+            )}
+            {detail && (
+                <div className="text-gray-500 dark:text-gray-400 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
+                    {detail}
+                </div>
+            )}
+            {result && <ResultBlock text={result} />}
+            {extraKeys.length > 0 && (
+                <pre className="text-[11px] font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded p-1.5 whitespace-pre-wrap">
+                    {JSON.stringify(Object.fromEntries(extraKeys.map(k => [k, data[k]])), null, 2)}
+                </pre>
+            )}
+        </div>
+    );
+}

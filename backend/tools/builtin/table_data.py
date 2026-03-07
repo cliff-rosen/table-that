@@ -621,6 +621,7 @@ async def execute_enrich_column(
                         stage="searching",
                         message=f"[{label}] Searching: {query_short}",
                         progress=completed_count / total,
+                        data=step_dict,
                     ))
                 elif step.type == "fetch":
                     url_short = step.detail[:60] + "..." if len(step.detail) > 60 else step.detail
@@ -628,12 +629,14 @@ async def execute_enrich_column(
                         stage="fetching",
                         message=f"[{label}] Reading: {url_short}",
                         progress=completed_count / total,
+                        data=step_dict,
                     ))
                 elif step.type == "compute":
                     await progress_queue.put(ToolProgress(
                         stage="computing",
                         message=f"[{label}] Computing...",
                         progress=completed_count / total,
+                        data=step_dict,
                     ))
                 elif step.type == "answer":
                     # Use structured outcome from strategy
@@ -677,6 +680,7 @@ async def execute_enrich_column(
                 stage="row_done",
                 message=f"{label} → {short_val}",
                 progress=completed_count / total,
+                data={"outcome": "found", "value": enrichment_value, "confidence": confidence},
             ))
             found_log: Dict[str, Any] = {
                 "row_id": row_obj.id,
