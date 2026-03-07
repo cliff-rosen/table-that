@@ -26,6 +26,7 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
     const [activeTab, setActiveTab] = useState<DetailTab>(
         hasProgress ? 'steps' : 'output'
     );
+    const [payloadRaw, setPayloadRaw] = useState(false);
 
     const tabs: { id: DetailTab; label: string; show: boolean }[] = [
         { id: 'input', label: 'Input', show: true },
@@ -135,17 +136,30 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
                     </div>
                 )}
 
-                {activeTab === 'payload' && toolCall.payload && (
-                    <div>
-                        {toolCall.payload.type === 'data_proposal' && (toolCall.payload.data as DataProposalData)?.research_log ? (
-                            <ResearchLog log={(toolCall.payload.data as DataProposalData).research_log!} defaultExpanded large />
-                        ) : (
-                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                {JSON.stringify(toolCall.payload, null, 2)}
-                            </pre>
-                        )}
-                    </div>
-                )}
+                {activeTab === 'payload' && toolCall.payload && (() => {
+                    const hasRendered = toolCall.payload!.type === 'data_proposal' && (toolCall.payload!.data as DataProposalData)?.research_log;
+                    return (
+                        <div>
+                            {hasRendered && (
+                                <div className="flex justify-end mb-1.5">
+                                    <button
+                                        onClick={() => setPayloadRaw(!payloadRaw)}
+                                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        {payloadRaw ? 'Rendered' : 'JSON'}
+                                    </button>
+                                </div>
+                            )}
+                            {hasRendered && !payloadRaw ? (
+                                <ResearchLog log={(toolCall.payload!.data as DataProposalData).research_log!} defaultExpanded large />
+                            ) : (
+                                <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    {JSON.stringify(toolCall.payload, null, 2)}
+                                </pre>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );
