@@ -60,23 +60,23 @@ export function IterationCard({
             {/* Header */}
             <button
                 onClick={onToggle}
-                className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50"
             >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                     {isExpanded ? (
-                        <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                     ) : (
-                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
                     )}
-                    <span className="font-semibold text-gray-900 dark:text-white">
+                    <span className="font-medium text-sm text-gray-900 dark:text-white">
                         Iteration {iteration.iteration}
                     </span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    <span className={`text-xs font-medium ${
                         iteration.stop_reason === 'end_turn'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            ? 'text-green-600 dark:text-green-400'
                             : iteration.stop_reason === 'tool_use'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-yellow-600 dark:text-yellow-400'
                     }`}>
                         {iteration.stop_reason}
                     </span>
@@ -94,7 +94,7 @@ export function IterationCard({
                         </div>
                     )}
                 </div>
-                <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span>{iteration.usage?.input_tokens || 0} in / {iteration.usage?.output_tokens || 0} out</span>
                     <span>{iteration.api_call_ms}ms</span>
                 </div>
@@ -102,7 +102,7 @@ export function IterationCard({
 
             {/* Expanded Content */}
             {isExpanded && (
-                <div className="p-4 space-y-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="px-3 py-2 space-y-3 border-t border-gray-200 dark:border-gray-700">
                     {/* Input to Model */}
                     <CollapsibleSection
                         id={inputSectionId}

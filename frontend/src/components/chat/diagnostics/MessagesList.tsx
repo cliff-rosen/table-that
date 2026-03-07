@@ -36,11 +36,11 @@ function MessageItem({ index, message, onFullscreen }: MessageItemProps) {
     const roleStyle = ROLE_STYLES[role] || { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-400' };
 
     return (
-        <div className="border border-gray-200 dark:border-gray-600 rounded overflow-hidden">
+        <div className="border border-gray-100 dark:border-gray-700 rounded overflow-hidden">
             {/* Header - always visible */}
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                className="w-full flex items-center gap-2 px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
             >
                 {isExpanded ? (
                     <ChevronDownIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -48,11 +48,11 @@ function MessageItem({ index, message, onFullscreen }: MessageItemProps) {
                     <ChevronRightIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 )}
                 <span className="text-xs text-gray-400 w-5 flex-shrink-0">{index}</span>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${roleStyle.bg} ${roleStyle.text}`}>
+                <span className={`px-1.5 py-0 rounded text-[11px] font-medium flex-shrink-0 ${roleStyle.bg} ${roleStyle.text}`}>
                     {role}
                 </span>
                 {summary.badges.map((badge, i) => (
-                    <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 flex-shrink-0">
+                    <span key={i} className="text-[11px] text-orange-600 dark:text-orange-400 flex-shrink-0">
                         {badge}
                     </span>
                 ))}
@@ -63,7 +63,7 @@ function MessageItem({ index, message, onFullscreen }: MessageItemProps) {
 
             {/* Expanded content */}
             {isExpanded && (
-                <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-2 relative">
+                <div className="border-t border-gray-100 dark:border-gray-700 p-1.5 relative">
                     <button
                         onClick={() => onFullscreen({
                             type: 'blocks',
