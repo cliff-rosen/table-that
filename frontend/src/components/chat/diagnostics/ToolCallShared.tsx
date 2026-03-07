@@ -84,7 +84,7 @@ export function ProgressEventDetail({ data }: { data: Record<string, unknown> })
 }
 
 /** Known data keys rendered with special formatting */
-const KNOWN_DATA_KEYS = new Set(['outcome', 'value', 'explanation', 'result', 'query', 'detail', 'url']);
+const KNOWN_DATA_KEYS = new Set(['action', 'outcome', 'value', 'explanation', 'result', 'query', 'detail', 'url']);
 
 /** Expandable step row for progress events — click to reveal full data */
 export function ExpandableStepRow({ evt }: { evt: { stage: string; message: string; progress: number; data?: Record<string, unknown>; elapsed_ms: number } }) {

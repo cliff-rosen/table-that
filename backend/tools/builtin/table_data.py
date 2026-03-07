@@ -707,6 +707,7 @@ async def execute_enrich_column(
                 stage="row_skipped",
                 message=f"No result for {label}",
                 progress=completed_count / total,
+                data={"outcome": "not_found", "explanation": not_found_explanation} if not_found_explanation else None,
             ))
             nf_log: Dict[str, Any] = {
                 "row_id": row_obj.id,
