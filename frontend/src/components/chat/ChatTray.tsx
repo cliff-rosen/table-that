@@ -28,6 +28,10 @@ interface ChatTrayProps {
     maxWidth?: number;
     /** Whether to allow resizing (default: true) */
     resizable?: boolean;
+    /** Called when the user clicks Accept on a pending proposal */
+    onProposalAccept?: () => Promise<void> | void;
+    /** Called when the user clicks Dismiss on a pending proposal */
+    onProposalDismiss?: () => void;
 }
 
 /**
@@ -114,6 +118,8 @@ export default function ChatTray({
     minWidth = 320,
     maxWidth = 600,
     resizable = true,
+    onProposalAccept,
+    onProposalDismiss,
 }: ChatTrayProps) {
 
     // Width state with localStorage persistence
@@ -167,7 +173,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, reset, chatId, context, guestLimitReached } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, reset, chatId, context, guestLimitReached, pendingProposal } = useChatContext();
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -177,6 +183,7 @@ export default function ChatTray({
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
     const [toolsTrace, setToolsTrace] = useState<AgentTrace | undefined>(undefined);
     const [diagnosticsToShow, setDiagnosticsToShow] = useState<AgentTrace | null>(null);
+    const [isApplying, setIsApplying] = useState(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -414,8 +421,8 @@ export default function ChatTray({
                                     </div>
                                 )}
 
-                                {/* Suggested Values */}
-                                {message.suggested_values && message.suggested_values.length > 0 && (
+                                {/* Suggested Values — hidden while a proposal is active */}
+                                {!pendingProposal && message.suggested_values && message.suggested_values.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_values.map((suggestion, sIdx) => (
                                             <button
@@ -431,8 +438,8 @@ export default function ChatTray({
                                     </div>
                                 )}
 
-                                {/* Suggested Actions */}
-                                {message.suggested_actions && message.suggested_actions.length > 0 && (
+                                {/* Suggested Actions — hidden while a proposal is active */}
+                                {!pendingProposal && message.suggested_actions && message.suggested_actions.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_actions.map((action, aIdx) => (
                                             <button
@@ -579,53 +586,108 @@ export default function ChatTray({
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input */}
-                    <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                        {guestLimitReached && isGuest ? (
-                            <div className="text-center space-y-2">
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    You&rsquo;ve used all your free messages.
-                                </p>
+                    {/* Bottom area: proposal controls OR chat input */}
+                    {pendingProposal ? (
+                        <div className="flex-shrink-0 border-t border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/40">
+                            {/* Recording light + description */}
+                            <div className="px-4 pt-3 pb-2">
+                                <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+                                    <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                                    </span>
+                                    <span className="font-medium">
+                                        {pendingProposal.kind === 'schema'
+                                            ? 'Schema changes proposed — review in the table'
+                                            : pendingProposal.kind === 'schema_create'
+                                                ? 'New table proposed — review the preview'
+                                                : 'Data changes proposed — review in the table'}
+                                    </span>
+                                </div>
+                            </div>
+                            {/* Accept / Dismiss buttons */}
+                            <div className="px-4 pb-3 flex gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => setShowRegistrationModal(true)}
-                                    className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                                    onClick={onProposalDismiss}
+                                    disabled={isApplying}
+                                    className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
                                 >
-                                    Register to continue
+                                    Dismiss
                                 </button>
-                            </div>
-                        ) : (
-                            <form onSubmit={handleSubmit} className="flex items-end gap-2">
-                                <textarea
-                                    ref={inputRef}
-                                    value={input}
-                                    onChange={(e) => {
-                                        setInput(e.target.value);
-                                        // Auto-resize
-                                        e.target.style.height = 'auto';
-                                        e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleSubmit(e);
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (!onProposalAccept) return;
+                                        setIsApplying(true);
+                                        try {
+                                            await onProposalAccept();
+                                        } finally {
+                                            setIsApplying(false);
                                         }
                                     }}
-                                    placeholder="Type your message..."
-                                    rows={1}
-                                    className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
-                                    style={{ minHeight: '36px', maxHeight: '150px' }}
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!input.trim() || isLoading}
-                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                    disabled={isApplying || !onProposalAccept}
+                                    className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
                                 >
-                                    <PaperAirplaneIcon className="h-4 w-4" />
+                                    {isApplying ? (
+                                        <>
+                                            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Applying...
+                                        </>
+                                    ) : (
+                                        pendingProposal.kind === 'schema_create' ? 'Create Table' : 'Accept'
+                                    )}
                                 </button>
-                            </form>
-                        )}
-                    </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                            {guestLimitReached && isGuest ? (
+                                <div className="text-center space-y-2">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        You&rsquo;ve used all your free messages.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRegistrationModal(true)}
+                                        className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                                    >
+                                        Register to continue
+                                    </button>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleSubmit} className="flex items-end gap-2">
+                                    <textarea
+                                        ref={inputRef}
+                                        value={input}
+                                        onChange={(e) => {
+                                            setInput(e.target.value);
+                                            // Auto-resize
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSubmit(e);
+                                            }
+                                        }}
+                                        placeholder="Type your message..."
+                                        rows={1}
+                                        className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
+                                        style={{ minHeight: '36px', maxHeight: '150px' }}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!input.trim() || isLoading}
+                                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                    >
+                                        <PaperAirplaneIcon className="h-4 w-4" />
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Resize Handle */}

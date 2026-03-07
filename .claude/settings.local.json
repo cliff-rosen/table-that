@@ -91,7 +91,8 @@
       "mcp__playwright__browser_close",
       "Bash(backend/venv/Scripts/python.exe:*)",
       "Bash(PYTHONPATH=. venv/Scripts/python.exe:*)",
-      "mcp__playwright__browser_press_key"
+      "mcp__playwright__browser_press_key",
+      "Bash(./venv/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": [],

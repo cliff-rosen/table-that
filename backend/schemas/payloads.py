@@ -216,8 +216,8 @@ Rules:
 - The user will see this as a live table preview. For new tables, the preview shows sample data and a Create Table button. For schema updates, it shows as an interactive card in the chat panel."""
 
 
-DATA_PROPOSAL_INSTRUCTIONS = """DATA_PROPOSAL (propose bulk data changes):
-When the user asks you to add multiple rows, update multiple rows, delete multiple rows, or make bulk changes to data, respond with a DATA_PROPOSAL in your message text.
+DATA_PROPOSAL_INSTRUCTIONS = """DATA_PROPOSAL (propose data changes):
+When the user asks you to add, update, or delete rows, respond with a DATA_PROPOSAL in your message text. ALL data changes go through proposals — whether it's one row or many.
 
 Format — write this as TEXT in your message (not a tool call):
 DATA_PROPOSAL: {
@@ -233,12 +233,7 @@ Rules:
 - Use column IDs (from context, e.g. col_xxx) in data values and changes.
 - For updates, only include the columns being changed (not all columns).
 - For adds, include values for all relevant columns.
-- The user will see proposed changes inline in the table: additions (green tint at top), updates (amber-highlighted cells with hover tooltips showing old values), and deletions (red tint with strikethrough). Each proposed row has a checkbox. An action bar above the table lets them click **Apply** to execute or **Dismiss** to cancel.
-
-When to use DATA_PROPOSAL vs direct tools:
-- Single row + explicit user request → use create_row/update_row/delete_row tools directly
-- Multiple rows, or user says "add some sample data", "update all X", "mark these as Y" → use DATA_PROPOSAL
-- When in doubt, prefer DATA_PROPOSAL so the user can review before changes are applied."""
+- The user will see proposed changes inline in the table: additions (green tint at top), updates (amber-highlighted cells with hover tooltips showing old values), and deletions (red tint with strikethrough). Each proposed row has a checkbox. The user clicks **Accept** to apply or **Dismiss** to cancel."""
 
 
 # -- Schema for a column definition inside a schema_proposal add operation

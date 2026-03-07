@@ -12,6 +12,18 @@ export interface ActiveToolProgress {
     updates: ToolProgressEvent[];
 }
 
+/** A proposal that the AI has sent and the user hasn't yet accepted or dismissed. */
+export interface PendingProposal {
+    /** 'data' for DATA_PROPOSAL, 'schema' for SCHEMA_PROPOSAL update, 'schema_create' for SCHEMA_PROPOSAL create */
+    kind: 'data' | 'schema' | 'schema_create';
+    /** The payload type string from custom_payload.type */
+    payloadType: string;
+    /** The proposal data from custom_payload.data */
+    data: unknown;
+    /** Index of the message in the messages array that carries this proposal */
+    messageIndex: number;
+}
+
 interface ChatContextType {
     // Chat state
     messages: ChatMessage[];
@@ -23,10 +35,12 @@ interface ChatContextType {
     activeToolProgress: ActiveToolProgress | null;
     chatId: number | null;
     guestLimitReached: boolean;
+    pendingProposal: PendingProposal | null;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
     resetGuestLimit: () => void;
     cancelRequest: () => void;
+    resolveProposal: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
     reset: () => void;
@@ -54,6 +68,8 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const chatIdRef = useRef<number | null>(null);
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
     const [guestLimitReached, setGuestLimitReached] = useState(false);
+    const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
+    const pendingProposalRef = useRef<PendingProposal | null>(null);
 
     // Track what context we last loaded for, to avoid redundant loads
     const lastLoadedPageRef = useRef<string | null>(null);
@@ -65,6 +81,24 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     }, []);
 
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    /** Classify a custom_payload into a PendingProposal kind, or null if not a proposal. */
+    const classifyProposal = useCallback((payload: { type: string; data: any }): PendingProposal['kind'] | null => {
+        if (payload.type === 'data_proposal') return 'data';
+        if (payload.type === 'schema_proposal') {
+            return payload.data?.mode === 'create' ? 'schema_create' : 'schema';
+        }
+        return null;
+    }, []);
+
+    const setProposal = useCallback((p: PendingProposal | null) => {
+        pendingProposalRef.current = p;
+        setPendingProposal(p);
+    }, []);
+
+    const resolveProposal = useCallback(() => {
+        setProposal(null);
+    }, [setProposal]);
 
     const sendMessage = useCallback(async (
         content: string,
@@ -153,7 +187,22 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                             warning: responsePayload.warning,
                             diagnostics: responsePayload.diagnostics
                         };
-                        setMessages(prev => [...prev, assistantMessage]);
+                        setMessages(prev => {
+                            const next = [...prev, assistantMessage];
+                            // Detect proposal payloads — only set if no proposal is already pending
+                            if (responsePayload.custom_payload?.type && responsePayload.custom_payload.data) {
+                                const kind = classifyProposal(responsePayload.custom_payload);
+                                if (kind && !pendingProposalRef.current) {
+                                    setProposal({
+                                        kind,
+                                        payloadType: responsePayload.custom_payload.type,
+                                        data: responsePayload.custom_payload.data,
+                                        messageIndex: next.length - 1,
+                                    });
+                                }
+                            }
+                            return next;
+                        });
                         setStreamingText('');
                         setStatusText(null);
                         setIsLoading(false);
@@ -254,9 +303,10 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         setMessages([]);
         setError(null);
         setChatId(null);
+        setProposal(null);
         lastLoadedPageRef.current = null;
         lastLoadedTableIdRef.current = undefined;
-    }, []);
+    }, [setProposal]);
 
     const loadForContext = useCallback(async (currentPage: string, tableId?: number) => {
         // Skip if we've already queried for this context (even if no conversation was found)
@@ -291,6 +341,11 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             lastLoadedPageRef.current = currentPage;
             lastLoadedTableIdRef.current = tableId;
             setError(null);
+            // Clear any pending proposal — loaded history may contain resolved proposals
+            // that we can't distinguish from pending ones. Proposals are ephemeral UI
+            // state; only live streaming responses should set them.
+            setProposal(null);
+
             return true;
         } catch (err) {
             console.error('Failed to load chat for context:', currentPage, tableId, err);
@@ -301,11 +356,12 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             // Start fresh
             setMessages([]);
             setChatId(null);
+            setProposal(null);
             lastLoadedPageRef.current = currentPage;
             lastLoadedTableIdRef.current = tableId;
             return false;
         }
-    }, [app, setChatId]);
+    }, [app, setChatId, setProposal]);
 
     return (
         <ChatContext.Provider value={{
@@ -318,9 +374,11 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             activeToolProgress,
             chatId,
             guestLimitReached,
+            pendingProposal,
             sendMessage,
             resetGuestLimit,
             cancelRequest,
+            resolveProposal,
             updateContext,
             setContext: replaceContext,
             reset,

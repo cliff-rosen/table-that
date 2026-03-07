@@ -26,6 +26,36 @@ from tools.builtin.table_data import MAX_ROWS_PER_TABLE
 
 logger = logging.getLogger(__name__)
 
+
+def _remap_column_keys(data: dict, columns: list) -> dict:
+    """Remap column names to column IDs in row data.
+
+    The LLM sometimes uses column names (or fabricated col_<name> patterns)
+    instead of actual column IDs. This maps them back to real IDs so data
+    is stored correctly.
+    """
+    valid_ids = {col["id"] for col in columns}
+    # Build name → id lookup (case-insensitive)
+    name_to_id = {}
+    for col in columns:
+        name_to_id[col["name"].lower()] = col["id"]
+        # Also handle "col_<name>" fabrication pattern
+        name_to_id[f"col_{col['name'].lower()}"] = col["id"]
+        # Handle underscore-separated lowercase: "col_license_type" for "License Type"
+        slug = col["name"].lower().replace(" ", "_")
+        name_to_id[f"col_{slug}"] = col["id"]
+
+    remapped = {}
+    for key, val in data.items():
+        if key in valid_ids:
+            remapped[key] = val
+        elif key.lower() in name_to_id:
+            remapped[name_to_id[key.lower()]] = val
+        else:
+            # Unknown key — keep as-is rather than silently dropping
+            remapped[key] = val
+    return remapped
+
 router = APIRouter(prefix="/api/tables", tags=["tables"])
 
 
@@ -160,7 +190,7 @@ async def create_row(
     row_service: RowService = Depends(get_row_service),
 ):
     """Create a new row in a table."""
-    await table_service.get(table_id, current_user.user_id)
+    table = await table_service.get(table_id, current_user.user_id)
 
     # Enforce row limit
     current_count = await table_service.get_row_count(table_id)
@@ -169,6 +199,9 @@ async def create_row(
             status_code=400,
             detail=f"Table has reached the maximum of {MAX_ROWS_PER_TABLE} rows.",
         )
+
+    # Defensive: remap column names to IDs in case LLM used names
+    data.data = _remap_column_keys(data.data, table.columns)
 
     row = await row_service.create(table_id, data)
     return TableRowSchema.model_validate(row)
@@ -198,7 +231,9 @@ async def update_row(
     row_service: RowService = Depends(get_row_service),
 ):
     """Update a row's data."""
-    await table_service.get(table_id, current_user.user_id)
+    table = await table_service.get(table_id, current_user.user_id)
+    # Defensive: remap column names to IDs in case LLM used names
+    data.data = _remap_column_keys(data.data, table.columns)
     row = await row_service.update(table_id, row_id, data)
     return TableRowSchema.model_validate(row)
 

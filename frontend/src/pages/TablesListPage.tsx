@@ -148,7 +148,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { setContext, updateContext, sendMessage, chatId, messages, loadForContext } = useChatContext();
+  const { setContext, updateContext, sendMessage, loadForContext, pendingProposal, resolveProposal } = useChatContext();
   const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
@@ -161,9 +161,11 @@ export default function TablesListPage() {
     return stored !== null ? stored === 'true' : false;
   });
   useEffect(() => { sessionStorage.setItem('chatOpen:tables_list', String(chatOpen)); }, [chatOpen]);
-  const [activeProposal, setActiveProposal] = useState<SchemaProposalData | null>(null);
-  // Start from current length so we only react to NEW messages, not history
-  const lastCheckedIndexRef = useRef(messages.length);
+  // Derive activeProposal from ChatContext's pendingProposal
+  const activeProposal: SchemaProposalData | null =
+    pendingProposal?.kind === 'schema_create'
+      ? (pendingProposal.data as SchemaProposalData)
+      : null;
 
   // Set base context for this page (wipes stale context from previous page)
   useEffect(() => {
@@ -210,16 +212,7 @@ export default function TablesListPage() {
     fetchTables();
   }, [fetchTables]);
 
-  // When conversation changes: clear proposal and skip scanning historical messages.
-  // Must be declared BEFORE the scanning effect (React runs effects in declaration order).
-  useEffect(() => {
-    if (chatId === null) {
-      setActiveProposal(null);
-    }
-    lastCheckedIndexRef.current = messages.length;
-  }, [chatId]);
-
-  // Push context to chat whenever tables list or active proposal changes
+  // Push context to chat whenever tables list changes
   useEffect(() => {
     updateContext({
       current_page: 'tables_list',
@@ -229,11 +222,8 @@ export default function TablesListPage() {
         column_count: t.column_count,
         row_count: t.row_count,
       })),
-      pending_proposal: activeProposal
-        ? { kind: 'schema_create', table_name: activeProposal.table_name }
-        : undefined,
     });
-  }, [tables, activeProposal, updateContext]);
+  }, [tables, updateContext]);
 
   async function handleCreate(data: {
     name: string;
@@ -262,22 +252,6 @@ export default function TablesListPage() {
       showErrorToast(error, 'Failed to delete table');
     }
   }
-
-  // Detect create-mode schema proposals from chat messages (new messages only, not history)
-  useEffect(() => {
-    if (messages.length < lastCheckedIndexRef.current) {
-      lastCheckedIndexRef.current = 0;
-    }
-    if (messages.length <= lastCheckedIndexRef.current) return;
-
-    for (let i = lastCheckedIndexRef.current; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg?.role === 'assistant' && msg.custom_payload?.type === 'schema_proposal' && (msg.custom_payload.data as SchemaProposalData)?.mode === 'create') {
-        setActiveProposal(msg.custom_payload.data as SchemaProposalData);
-      }
-    }
-    lastCheckedIndexRef.current = messages.length;
-  }, [messages]);
 
   // Handle accept from ProposedTablePreview (supports optional sample data insertion)
   const handleProposalAcceptFromPreview = useCallback(async (proposal: SchemaProposalData, includeSampleData: boolean) => {
@@ -308,14 +282,20 @@ export default function TablesListPage() {
         }));
       }
 
-      setActiveProposal(null);
+      resolveProposal();
       navigate(`/tables/${created.id}`, {
         state: { justCreated: true, tableName: created.name, includedSampleData: includeSampleData },
       });
     } catch (error) {
       showErrorToast(error, 'Failed to create table');
     }
-  }, [navigate]);
+  }, [navigate, resolveProposal]);
+
+  // Simplified accept for ChatTray button (includes sample data by default)
+  const handleProposalAcceptFromChat = useCallback(async () => {
+    if (!activeProposal) return;
+    await handleProposalAcceptFromPreview(activeProposal, true);
+  }, [activeProposal, handleProposalAcceptFromPreview]);
 
   // Loading skeleton
   if (isLoading) {
@@ -347,6 +327,8 @@ export default function TablesListPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
+        onProposalAccept={activeProposal ? handleProposalAcceptFromChat : undefined}
+        onProposalDismiss={resolveProposal}
       />
       {showPromptHero ? (
         <PromptHero
@@ -393,7 +375,7 @@ export default function TablesListPage() {
               <ProposedTablePreview
                 proposal={activeProposal}
                 onAccept={handleProposalAcceptFromPreview}
-                onDismiss={() => setActiveProposal(null)}
+                onDismiss={resolveProposal}
               />
             ) : tables.length === 0 ? (
               /* Empty state — "your table will appear here" */

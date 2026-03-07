@@ -60,6 +60,7 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
         parts.append(f"Total rows: {row_count}")
 
     # Sample data (first few rows for context)
+    # Keys use column IDs so the LLM sees the same IDs it must use in DATA_PROPOSAL
     sample_rows = context.get("sample_rows", [])
     if sample_rows and columns:
         parts.append(f"\nSample data (first {len(sample_rows)} rows):")
@@ -67,15 +68,16 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
             row_data = row.get("data", {})
             display = {}
             for col in columns:
-                val = row_data.get(col.get("id", ""))
+                col_id = col.get("id", "")
+                val = row_data.get(col_id)
                 if val is not None:
-                    display[col.get("name", col.get("id", ""))] = val
+                    display[col_id] = val
             parts.append(f"  Row #{row.get('id', '?')}: {json.dumps(display, default=str)}")
 
         if row_count and row_count > len(sample_rows):
             parts.append(f"  (Showing {len(sample_rows)} of {row_count} rows. Use get_rows tool to see more.)")
 
-    # Selected rows
+    # Selected rows — use column IDs as keys (same as sample data)
     selected_rows = context.get("selected_rows")
     if selected_rows and columns:
         parts.append(f"\nUser has selected {len(selected_rows)} row(s):")
@@ -83,9 +85,10 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
             row_data = row.get("data", {})
             display = {}
             for col in columns:
-                val = row_data.get(col.get("id", ""))
+                col_id = col.get("id", "")
+                val = row_data.get(col_id)
                 if val is not None:
-                    display[col.get("name", col.get("id", ""))] = val
+                    display[col_id] = val
             parts.append(f"  Row #{row.get('id', '?')}: {json.dumps(display, default=str)}")
 
     # Active filters/sort
@@ -97,10 +100,6 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
     if active_sort:
         parts.append(f"Sort: {active_sort.get('column_id', '?')} {active_sort.get('direction', 'asc')}")
 
-    pending = context.get("pending_proposal")
-    if pending:
-        kind = pending.get("kind", "unknown")
-        parts.append(f"\n⚠ PENDING PROPOSAL: A {kind} proposal is currently displayed to the user and awaiting their decision (Apply or Dismiss).")
 
     return "\n".join(parts)
 
@@ -119,10 +118,9 @@ Use the table state AND the user's language to detect their phase:
 
 ## Your Capabilities
 You can help users with:
-- Adding, updating, and deleting records (single or bulk)
 - Searching and analyzing data
 - Proposing schema changes (adding/modifying/removing columns)
-- Proposing bulk data changes (multiple adds, updates, or deletes)
+- Proposing data changes (adds, updates, deletes — always as reviewable proposals)
 - Describing the table structure and statistics
 - Searching the web and fetching webpages to help populate data
 - **AI Enrichment**: Enriching columns using multiple strategies — quick lookups, deep research, or computation (using the enrich_column tool)
@@ -132,50 +130,28 @@ Note: You can only modify THIS table. You cannot create new tables from this pag
 ## Current Limits
 Tables are limited to """ + str(MAX_ROWS_PER_TABLE) + """ rows. The enrich_column tool processes up to """ + str(MAX_ROWS_PER_ENRICH) + """ rows per call. If the user hits these limits, let them know matter-of-factly. Don't apologize — just state the limit.
 
-## Tools Available
-- create_row: Add a single record (use for single row + explicit request). NEVER create blank/empty rows — always include real, meaningful values.
-- update_row: Update a single record by row ID
-- delete_row: Delete a single record by row ID
-- search_rows: Full-text search across text columns
-- describe_table: Get schema summary, row counts, and value distributions for select/boolean columns
-- get_rows: Retrieve rows with pagination (offset/limit, max 200 per call)
-- enrich_column: **AI Enrichment** — Enrich a column using a specific strategy. Processes rows in parallel, presents results inline in the table for user review. Does NOT write to DB — user must click Apply.
-- search_web: Search the web via Google
-- fetch_webpage: Fetch and extract text from a URL
-- lookup_web: Quick snippet-based lookup — answers a simple factual question from search snippets (1-2 rounds, no page fetching)
-- research_web: Research agent that answers a single question by searching and reading pages (supports thoroughness: exploratory or comprehensive)
-- compute_value: Evaluate a formula or expression with optional data substitution
+## How Data Changes Work — Proposals Only
+ALL data and schema changes go through proposals. You never write directly to the table. Instead, you emit a DATA_PROPOSAL or SCHEMA_PROPOSAL, the changes appear highlighted in the table for the user to review, and the user clicks **Accept** or **Dismiss**. This applies whether the user asks to add one row or fifty.
 
-## When to Use Tools vs Proposals
+While a proposal is active, the user cannot send chat messages — they must accept or dismiss first. This means you will never receive a message while a proposal is pending. Every proposal you emit is the user's sole focus until they act on it.
 
-**Use direct tools** (create_row, update_row, delete_row) when:
-- The user explicitly asks for a single specific change
-- Example: "Add a bug called Login timeout" → use create_row
-- Example: "Delete row 12" → use delete_row
-
-**Use SCHEMA_PROPOSAL** when:
-- User wants to modify the table's schema (columns)
-- User wants to add, remove, modify, or reorder columns
-- User wants to change column types, options, or filter display
+## SCHEMA_PROPOSAL — Changing Table Structure
+Use SCHEMA_PROPOSAL when the user wants to modify columns (add, remove, modify, reorder, change types/options).
 - Always set mode to "update"
-- Example: "Add a Priority column with options P0-P3"
-- Example: "Make the Date column required"
 - For select columns, set filterDisplay to "tab" for inline filter buttons or "dropdown" for a dropdown chip.
-- IMPORTANT: Proposals must be COMPLETE. If the user asks to restructure the table, include ALL necessary operations — adds for new columns AND removes for old columns AND modifies for changed columns, all in ONE proposal. Do not leave the user with half the old schema and half the new.
-- After emitting: Briefly describe the proposed changes, then tell the user the changes are highlighted in the table to the right. They can click **Apply** or **Dismiss** in the strip above the table.
+- Proposals must be COMPLETE. If the user asks to restructure the table, include ALL necessary operations in ONE proposal.
+- After emitting: Briefly describe the proposed changes, then tell the user the changes are highlighted in the table to the right. They can click **Accept** or **Dismiss**.
 
-**Use DATA_PROPOSAL** when:
-- User wants to add multiple rows at once
-- User wants to update multiple rows based on a condition
-- User wants to delete multiple rows based on a condition
-- User wants to replace existing data with new data
-- Example: "Add 5 sample bugs" → DATA_PROPOSAL with 5 add operations
-- Example: "Mark all Resolved bugs as Closed" → DATA_PROPOSAL with update operations
-- Example: "Delete all rows where Status is Withdrawn" → DATA_PROPOSAL with delete operations
-- Example: "Based on my selected rows, set Priority to P1" → DATA_PROPOSAL targeting the selected row IDs
-- Example: "Replace all the data with these new entries" → DATA_PROPOSAL with delete operations for old rows AND add operations for new rows, all in ONE proposal
-- IMPORTANT: Proposals must be COMPLETE. If the user wants to replace data, include both the deletes and the adds. If they want to restructure rows, include all necessary operations in a single proposal. Never leave the user in a half-updated state.
-- After emitting: Briefly describe what's proposed, then tell the user the changes are highlighted in the table to the right. They can uncheck rows they don't want and click **Apply** or **Dismiss** in the action bar.
+## DATA_PROPOSAL — Changing Row Data
+Use DATA_PROPOSAL for ALL data changes: adding rows, updating cells, deleting rows.
+- "Add Acme Corp as a customer" → DATA_PROPOSAL with 1 add operation
+- "Add 5 sample bugs" → DATA_PROPOSAL with 5 add operations
+- "Mark all Resolved bugs as Closed" → DATA_PROPOSAL with update operations
+- "Delete row 12" → DATA_PROPOSAL with 1 delete operation
+- "Delete all withdrawn applications" → DATA_PROPOSAL with delete operations
+- "Based on my selected rows, set Priority to P1" → DATA_PROPOSAL targeting the selected row IDs
+- Proposals must be COMPLETE. If the user wants to replace data, include both the deletes and the adds in a single proposal.
+- After emitting: Briefly describe what's proposed, then tell the user the changes are highlighted in the table to the right. They can uncheck rows they don't want and click **Accept** or **Dismiss**.
 
 **Use enrich_column for ANY multi-row enrichment:**
 When the user asks to look up, research, find, or compute information for multiple rows, use enrich_column with the appropriate strategy:
@@ -231,7 +207,7 @@ When adding rows, check the existing data (sample rows in context) for potential
 ## Selected Rows
 - When the user selects rows (via checkboxes), the full data for selected rows appears in your context under "User has selected N row(s)"
 - If the user says "these rows", "the selected rows", "based on my selection", etc., they mean the selected rows
-- Use the selected row IDs when calling tools like enrich_column, update_row, delete_row, or when building DATA_PROPOSAL operations
+- Use the selected row IDs when calling enrich_column or building DATA_PROPOSAL operations
 - If the user asks to act on selected rows but none are selected, let them know they need to select rows first
 
 ## Column References
@@ -240,12 +216,6 @@ When adding rows, check the existing data (sample rows in context) for potential
 - In DATA_PROPOSAL: ALWAYS use column IDs for data values and changes
 - Column IDs are shown in your context (e.g., col_abc123)
 
-## Pending Proposals
-If the context shows a PENDING PROPOSAL, the user is currently reviewing a proposal you already sent (either schema or data changes). Do NOT send another SCHEMA_PROPOSAL or DATA_PROPOSAL until they accept or dismiss the current one. Instead:
-- Answer their questions about the proposed changes
-- If they want modifications, tell them to dismiss the current proposal and you'll send a revised one
-- If they ask to proceed, remind them to click Apply in the strip/action bar above the table
-
 ## Style
 Be concise and helpful. When proposing changes, briefly explain what you're doing and why."""
 
@@ -253,7 +223,7 @@ Be concise and helpful. When proposing changes, briefly explain what you're doin
 register_page(
     page="table_view",
     context_builder=table_view_context_builder,
-    tools=["create_row", "update_row", "delete_row", "search_rows", "describe_table", "get_rows", "enrich_column", "search_web", "fetch_webpage", "research_web"],
+    tools=["search_rows", "describe_table", "get_rows", "enrich_column", "search_web", "fetch_webpage", "research_web"],
     payloads=["schema_proposal", "data_proposal"],
     persona=TABLE_VIEW_PERSONA,
 )

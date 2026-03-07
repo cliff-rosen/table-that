@@ -43,7 +43,7 @@ export default function TableViewPage() {
   const [loading, setLoading] = useState(true);
 
   // Chat context
-  const { setContext, updateContext, sendMessage, messages, loadForContext, chatId } = useChatContext();
+  const { setContext, updateContext, sendMessage, messages, loadForContext, chatId, pendingProposal, resolveProposal } = useChatContext();
   const { isGuest } = useAuth();
 
   // UI state
@@ -70,10 +70,9 @@ export default function TableViewPage() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedRef = useRef(false);
 
-  // Track which messages we've already scanned (data-tools and payloads).
+  // Track which messages we've already scanned (data-tools).
   // Initialized to current length so we skip messages already in context on mount.
   const lastCheckedIndexRef = useRef(messages.length);
-  const lastPayloadIndexRef = useRef(messages.length);
 
   // -----------------------------------------------------------------------
   // Fetch table definition
@@ -203,11 +202,8 @@ export default function TableViewPage() {
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
 
   // When a conversation is loaded from DB, skip scanning its historical messages.
-  // Resets BOTH scanning refs. Must be declared BEFORE both scanning effects
-  // (React runs effects in declaration order).
   useEffect(() => {
     lastCheckedIndexRef.current = messages.length;
-    lastPayloadIndexRef.current = messages.length;
   }, [chatId]);
 
   // Auto-refresh rows when chat executes data-modifying tools
@@ -386,40 +382,48 @@ export default function TableViewPage() {
     executeSingleDataOperation,
     handleApplySchema,
     fetchRows,
-    sendMessage,
   );
 
-  // Detect incoming payloads for inline proposal rendering
-  // (Must be after useTableProposal so proposal.handlePayload is defined)
+  // Wrap apply handlers to notify chat after the proposal is fully dismissed.
+  // This keeps sendMessage out of the proposal lifecycle, avoiding race conditions.
+  const handleApplyData = useCallback(async () => {
+    await proposal.dataBar?.apply();
+    resolveProposal();
+    sendMessage('[User accepted the data proposal and applied all changes.]');
+  }, [proposal.dataBar, sendMessage, resolveProposal]);
+
+  const handleApplySchemaProposal = useCallback(async () => {
+    await proposal.schemaBar?.apply();
+    resolveProposal();
+    sendMessage('[User accepted the schema proposal and applied changes.]');
+  }, [proposal.schemaBar, sendMessage, resolveProposal]);
+
+  const handleDismissProposal = useCallback(() => {
+    proposal.dismiss();
+    resolveProposal();
+  }, [proposal.dismiss, resolveProposal]);
+
+  // Bridge ChatContext's pendingProposal into useTableProposal.
+  // When ChatContext detects a new proposal, feed it to the hook.
+  // When ChatContext clears the proposal (conversation change), dismiss locally.
+  const prevPendingRef = useRef(pendingProposal);
   useEffect(() => {
-    // Reset ref when messages shrink (e.g. new conversation started)
-    if (messages.length < lastPayloadIndexRef.current) {
-      lastPayloadIndexRef.current = 0;
+    const prev = prevPendingRef.current;
+    prevPendingRef.current = pendingProposal;
+
+    // New proposal arrived
+    if (pendingProposal && pendingProposal !== prev && !proposal.active) {
+      proposal.handlePayload({
+        type: pendingProposal.payloadType,
+        data: pendingProposal.data,
+        messageIndex: pendingProposal.messageIndex,
+      });
     }
-    if (messages.length <= lastPayloadIndexRef.current) return;
-
-    for (let i = lastPayloadIndexRef.current; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg?.role === 'assistant' && msg.custom_payload?.type && msg.custom_payload.data) {
-        proposal.handlePayload({
-          type: msg.custom_payload.type,
-          data: msg.custom_payload.data,
-          messageIndex: i,
-        });
-      }
+    // Proposal cleared externally (e.g. conversation switch)
+    if (!pendingProposal && prev && proposal.active) {
+      proposal.dismiss();
     }
-
-    lastPayloadIndexRef.current = messages.length;
-  }, [messages, proposal.handlePayload]);
-
-  // Push pending proposal state to chat context
-  useEffect(() => {
-    updateContext({
-      pending_proposal: proposal.active
-        ? { kind: proposal.kind }
-        : undefined,
-    });
-  }, [proposal.active, proposal.kind, updateContext]);
+  }, [pendingProposal, proposal.active, proposal.handlePayload, proposal.dismiss]);
 
   // -----------------------------------------------------------------------
   // Render: loading state
@@ -462,6 +466,8 @@ export default function TableViewPage() {
       <ChatTray
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
+        onProposalAccept={proposal.schemaBar ? handleApplySchemaProposal : proposal.dataBar ? handleApplyData : undefined}
+        onProposalDismiss={handleDismissProposal}
       />
 
       {/* Main content */}
@@ -510,8 +516,8 @@ export default function TableViewPage() {
           <SchemaProposalStrip
             data={proposal.schemaBar.data}
             applying={proposal.schemaBar.applying}
-            onApply={proposal.schemaBar.apply}
-            onDismiss={proposal.dismiss}
+            onApply={handleApplySchemaProposal}
+            onDismiss={handleDismissProposal}
           />
         )}
 
@@ -525,8 +531,8 @@ export default function TableViewPage() {
             successCount={proposal.dataBar.successCount}
             errorCount={proposal.dataBar.errorCount}
             onToggleAll={proposal.dataBar.toggleAll}
-            onApply={proposal.dataBar.apply}
-            onDismiss={proposal.dismiss}
+            onApply={handleApplyData}
+            onDismiss={handleDismissProposal}
           />
         )}
 

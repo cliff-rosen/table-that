@@ -22,7 +22,6 @@ export function useTableProposal(
   onExecuteDataOp: (op: DataOperation) => Promise<void>,
   onApplySchema: (data: SchemaProposalData) => Promise<void>,
   fetchRows: () => Promise<void>,
-  sendMessage: (msg: string) => void,
 ) {
   // One slot — discriminated union
   const [proposal, setProposal] = useState<ProposalData>(null);
@@ -63,6 +62,10 @@ export function useTableProposal(
   }, [resetDataState, resetSchemaState]);
 
   const handlePayload = useCallback((payload: { type: string; data: any; messageIndex: number }): boolean => {
+    // Don't replace an active proposal — the user must accept or dismiss it first.
+    // This prevents chat messages (and their AI responses) from clobbering pending changes.
+    if (proposal !== null) return false;
+
     if (payload.type === 'data_proposal') {
       resetSchemaState();
       resetDataState();
@@ -79,7 +82,7 @@ export function useTableProposal(
       return true;
     }
     return false;
-  }, [resetDataState, resetSchemaState]);
+  }, [proposal, resetDataState, resetSchemaState]);
 
   // Data actions
   const toggleOp = useCallback(
@@ -151,18 +154,14 @@ export function useTableProposal(
       await fetchRows();
     }
 
-    // Auto-dismiss after a brief pause so user sees the result
     const total = successes + errors;
     if (errors === 0) {
       showSuccessToast(`All ${successes} changes applied`);
     } else {
       showSuccessToast(`Applied ${successes} of ${total} — ${errors} failed`);
     }
-    sendMessage(`[User accepted the data proposal and applied all changes.]`);
-    // Short delay so the toast is visible before the bar disappears
-    await new Promise((r) => setTimeout(r, 600));
     dismiss();
-  }, [dataProposal, checkedOps, onExecuteDataOp, fetchRows, sendMessage, dismiss]);
+  }, [dataProposal, checkedOps, onExecuteDataOp, fetchRows, dismiss]);
 
   // Schema actions
   const applySchema = useCallback(async () => {
@@ -172,12 +171,11 @@ export function useTableProposal(
     try {
       await onApplySchema(schemaData);
       await fetchRows();
-      sendMessage(`[User accepted the schema proposal and applied changes.]`);
       dismiss();
     } catch {
       setApplying(false);
     }
-  }, [schemaData, onApplySchema, fetchRows, sendMessage, dismiss]);
+  }, [schemaData, onApplySchema, fetchRows, dismiss]);
 
   // ---------------------------------------------------------------------------
   // Build return value

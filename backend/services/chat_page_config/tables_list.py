@@ -29,13 +29,6 @@ def tables_list_context_builder(context: Dict[str, Any]) -> str:
     else:
         parts.append("The user has no tables yet.")
 
-    pending = context.get("pending_proposal")
-    if pending:
-        kind = pending.get("kind", "unknown")
-        table_name = pending.get("table_name", "")
-        name_str = f" for \"{table_name}\"" if table_name else ""
-        parts.append(f"\n⚠ PENDING PROPOSAL: A {kind} proposal{name_str} is currently displayed to the user and awaiting their decision (Apply or Dismiss).")
-
     return "\n".join(parts)
 
 
@@ -75,12 +68,6 @@ This separation is important because the table creation UI shows sample rows wit
   - "select" for fields with a known set of values (include the options list)
 - For select columns, set filterDisplay to "tab" for inline filter buttons or "dropdown" for a dropdown chip.
 - If the request sounds like it duplicates an existing table, warn the user
-
-## Pending Proposals
-If the context shows a PENDING PROPOSAL, the user is currently reviewing a schema proposal you already sent. Do NOT send another SCHEMA_PROPOSAL until they accept or dismiss the current one. Instead:
-- Answer their questions about the proposed schema
-- If they want changes, tell them to dismiss the current proposal and you'll send a revised one
-- If they ask to proceed, remind them to click Apply
 
 ## Important
 - You can ONLY create new tables on this page — there is no active table to modify

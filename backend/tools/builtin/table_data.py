@@ -200,14 +200,15 @@ async def execute_search_rows(
     if not rows:
         return f"No rows found matching '{query}'."
 
-    # Format results
+    # Format results — use column IDs as keys so the LLM sees consistent IDs
     lines = [f"Found {len(rows)} row(s) matching '{query}':\n"]
     for row in rows:
         display = {}
         for col in table.columns:
-            val = row.data.get(col["id"])
+            col_id = col["id"]
+            val = row.data.get(col_id)
             if val is not None:
-                display[col["name"]] = val
+                display[col_id] = val
         lines.append(f"  Row #{row.id}: {json.dumps(display, default=str)}")
 
     return "\n".join(lines)
@@ -287,6 +288,7 @@ register_tool(ToolConfig(
     },
     executor=execute_create_row,
     category="table_data",
+    is_global=False,
 ))
 
 # update_row tool: update an existing row by ID with new column values
@@ -309,6 +311,7 @@ register_tool(ToolConfig(
     },
     executor=execute_update_row,
     category="table_data",
+    is_global=False,
 ))
 
 # delete_row tool: delete a row by ID
@@ -327,6 +330,7 @@ register_tool(ToolConfig(
     },
     executor=execute_delete_row,
     category="table_data",
+    is_global=False,
 ))
 
 # search_rows tool: search for rows matching a text query across all text columns
@@ -390,14 +394,15 @@ async def execute_get_rows(
             return f"No rows found at offset {offset}. Table has {total} total rows."
         return "The table is empty (0 rows)."
 
-    # Format results
+    # Format results — use column IDs as keys so the LLM sees consistent IDs
     lines = [f"Rows {offset + 1}-{offset + len(rows)} of {total} total:\n"]
     for row in rows:
         display = {}
         for col in table.columns:
-            val = row.data.get(col["id"])
+            col_id = col["id"]
+            val = row.data.get(col_id)
             if val is not None:
-                display[col["name"]] = val
+                display[col_id] = val
         lines.append(f"  Row #{row.id}: {json.dumps(display, default=str)}")
 
     if offset + len(rows) < total:
