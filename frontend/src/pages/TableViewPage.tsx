@@ -131,6 +131,7 @@ export default function TableViewPage() {
   // Effects
   // -----------------------------------------------------------------------
 
+  // Initial load: fetch table and rows in parallel. Show loading state until both are done.
   useEffect(() => {
     if (!hasLoadedRef.current) setLoading(true);
     Promise.all([fetchTable(), fetchRows()]).finally(() => {

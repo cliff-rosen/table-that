@@ -104,38 +104,40 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
                     ))}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
-                    {activeTab === 'messages' && (
-                        <MessagesTab
-                            diagnostics={diagnostics}
-                            expandedIterations={expandedIterations}
-                            expandedToolCalls={expandedToolCalls}
-                            expandedSections={expandedSections}
-                            toggleIteration={toggleIteration}
-                            toggleToolCall={toggleToolCall}
-                            toggleSection={toggleSection}
-                            onFullscreen={setFullscreenContent}
-                        />
-                    )}
+                {/* Content — tools tab fills height for list-detail layout, others scroll */}
+                {activeTab === 'tools' ? (
+                    <div className="flex-1 min-h-0">
+                        <ToolCallList trace={diagnostics} emptyMessage="No tool calls in this trace" />
+                    </div>
+                ) : (
+                    <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+                        {activeTab === 'messages' && (
+                            <MessagesTab
+                                diagnostics={diagnostics}
+                                expandedIterations={expandedIterations}
+                                expandedToolCalls={expandedToolCalls}
+                                expandedSections={expandedSections}
+                                toggleIteration={toggleIteration}
+                                toggleToolCall={toggleToolCall}
+                                toggleSection={toggleSection}
+                                onFullscreen={setFullscreenContent}
+                            />
+                        )}
 
-                    {activeTab === 'tools' && (
-                        <ToolCallList trace={diagnostics} autoExpandWithProgress emptyMessage="No tool calls in this trace" />
-                    )}
+                        {activeTab === 'config' && (
+                            <ConfigTab
+                                diagnostics={diagnostics}
+                                expandedSections={expandedSections}
+                                toggleSection={toggleSection}
+                                onFullscreen={setFullscreenContent}
+                            />
+                        )}
 
-                    {activeTab === 'config' && (
-                        <ConfigTab
-                            diagnostics={diagnostics}
-                            expandedSections={expandedSections}
-                            toggleSection={toggleSection}
-                            onFullscreen={setFullscreenContent}
-                        />
-                    )}
-
-                    {activeTab === 'metrics' && (
-                        <MetricsTab diagnostics={diagnostics} onFullscreen={setFullscreenContent} />
-                    )}
-                </div>
+                        {activeTab === 'metrics' && (
+                            <MetricsTab diagnostics={diagnostics} onFullscreen={setFullscreenContent} />
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Fullscreen content viewer */}

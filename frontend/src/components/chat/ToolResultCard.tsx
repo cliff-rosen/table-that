@@ -92,15 +92,17 @@ export function ToolHistoryPanel({ tools, onClose, trace }: ToolHistoryPanelProp
                         &times;
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {useRichView ? (
+                {useRichView ? (
+                    <div className="flex-1 min-h-0">
                         <ToolCallList trace={trace} />
-                    ) : (
-                        tools.map((tool, idx) => (
+                    </div>
+                ) : (
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {tools.map((tool, idx) => (
                             <ToolResultExpanded key={idx} tool={tool} />
-                        ))
-                    )}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

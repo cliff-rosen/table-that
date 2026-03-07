@@ -17,6 +17,8 @@ export { ContentBlockRenderer } from './ContentBlockRenderer';
 export { MessagesList } from './MessagesList';
 export { ToolCallCard } from './ToolCallCard';
 export { ToolCallList } from './ToolCallList';
+export { ToolCallDetail } from './ToolCallDetail';
+export { StageIcon, ResultBlock, ProgressEventDetail } from './ToolCallShared';
 export { IterationCard } from './IterationCard';
 export type { IterationCardProps } from './IterationCard';
 export { AgentResponseCard } from './AgentResponseCard';
