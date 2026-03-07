@@ -223,14 +223,14 @@ Format — write this as TEXT in your message (not a tool call):
 DATA_PROPOSAL: {
   "reasoning": "Brief explanation of what data changes you're proposing",
   "operations": [
-    { "action": "add", "data": { "col_xxx": "value", "col_yyy": 42 } },
-    { "action": "update", "row_id": 5, "changes": { "col_xxx": "new value" } },
+    { "action": "add", "data": { "col_a1b2c3d4": "value", "col_e5f6g7h8": 42 } },
+    { "action": "update", "row_id": 5, "changes": { "col_a1b2c3d4": "new value" } },
     { "action": "delete", "row_id": 12 }
   ]
 }
 
 Rules:
-- Use column IDs (from context, e.g. col_xxx) in data values and changes.
+- CRITICAL: Use the exact column IDs from your context (they look like col_ixvgowhd — random alphanumeric strings). Do NOT fabricate IDs from column names. Copy the IDs exactly as they appear in the "Columns" section or sample data.
 - For updates, only include the columns being changed (not all columns).
 - For adds, include values for all relevant columns.
 - The user will see proposed changes inline in the table: additions (green tint at top), updates (amber-highlighted cells with hover tooltips showing old values), and deletions (red tint with strikethrough). Each proposed row has a checkbox. The user clicks **Accept** to apply or **Dismiss** to cancel."""

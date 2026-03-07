@@ -213,8 +213,7 @@ When adding rows, check the existing data (sample rows in context) for potential
 ## Column References
 - When using tools: use column NAMES (the tools map names to IDs automatically)
 - In SCHEMA_PROPOSAL: use column NAMES for new columns, column IDs for existing columns
-- In DATA_PROPOSAL: ALWAYS use column IDs for data values and changes
-- Column IDs are shown in your context (e.g., col_abc123)
+- In DATA_PROPOSAL: ALWAYS use the exact column IDs from your context. Column IDs are random strings like col_ixvgowhd — copy them exactly from the "Columns" list or sample data. NEVER guess or fabricate IDs from column names.
 
 ## Style
 Be concise and helpful. When proposing changes, briefly explain what you're doing and why."""
