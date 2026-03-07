@@ -137,25 +137,78 @@ export function ToolCallDetail({ toolCall, assistantText, iterationNumber, hideH
                 )}
 
                 {activeTab === 'payload' && toolCall.payload && (() => {
-                    const hasRendered = toolCall.payload!.type === 'data_proposal' && (toolCall.payload!.data as DataProposalData)?.research_log;
-                    return (
-                        <div>
-                            {hasRendered && (
-                                <div className="flex justify-end mb-1.5">
-                                    <button
-                                        onClick={() => setPayloadRaw(!payloadRaw)}
-                                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        {payloadRaw ? 'Rendered' : 'JSON'}
-                                    </button>
-                                </div>
-                            )}
-                            {hasRendered && !payloadRaw ? (
-                                <ResearchLog log={(toolCall.payload!.data as DataProposalData).research_log!} defaultExpanded large />
-                            ) : (
+                    const isDataProposal = toolCall.payload!.type === 'data_proposal';
+                    const proposalData = isDataProposal ? (toolCall.payload!.data as DataProposalData) : null;
+
+                    if (payloadRaw || !isDataProposal) {
+                        return (
+                            <div>
+                                {isDataProposal && (
+                                    <div className="flex justify-end mb-1.5">
+                                        <button onClick={() => setPayloadRaw(false)} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">Rendered</button>
+                                    </div>
+                                )}
                                 <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                     {JSON.stringify(toolCall.payload, null, 2)}
                                 </pre>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div className="space-y-3">
+                            <div className="flex justify-end">
+                                <button onClick={() => setPayloadRaw(true)} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">JSON</button>
+                            </div>
+
+                            {/* Type */}
+                            <div className="text-xs">
+                                <span className="text-gray-400">Type: </span>
+                                <span className="font-mono text-gray-700 dark:text-gray-300">{String(toolCall.payload!.type)}</span>
+                            </div>
+
+                            {/* Reasoning */}
+                            {proposalData?.reasoning && (
+                                <div>
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Reasoning</div>
+                                    <div className="text-xs text-gray-700 dark:text-gray-300 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
+                                        {proposalData.reasoning}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Operations */}
+                            {proposalData?.operations && proposalData.operations.length > 0 && (
+                                <div>
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                                        Operations ({proposalData.operations.length})
+                                    </div>
+                                    <div className="space-y-1">
+                                        {proposalData.operations.map((op, i) => (
+                                            <div key={i} className="text-xs font-mono bg-gray-50 dark:bg-gray-900 rounded px-2 py-1 border border-gray-200 dark:border-gray-700">
+                                                <span className={`font-medium ${
+                                                    op.action === 'add' ? 'text-green-600 dark:text-green-400' :
+                                                    op.action === 'delete' ? 'text-red-600 dark:text-red-400' :
+                                                    'text-blue-600 dark:text-blue-400'
+                                                }`}>{op.action}</span>
+                                                {' '}
+                                                <span className="text-gray-500 dark:text-gray-400">
+                                                    {'row_id' in op ? `row ${op.row_id}` : ''}
+                                                    {'changes' in op ? ` → ${JSON.stringify(op.changes)}` : ''}
+                                                    {'data' in op ? ` ${JSON.stringify(op.data)}` : ''}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Research Log */}
+                            {proposalData?.research_log && proposalData.research_log.length > 0 && (
+                                <div>
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Research Log</div>
+                                    <ResearchLog log={proposalData.research_log} defaultExpanded large />
+                                </div>
                             )}
                         </div>
                     );
