@@ -247,14 +247,16 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
 
         } catch (err) {
             if (err instanceof Error && err.name === 'AbortError') {
-                if (collectedText) {
-                    const cancelledMessage: ChatMessage = {
-                        role: 'assistant',
-                        content: collectedText + '\n\n*[Response cancelled]*',
-                        timestamp: new Date().toISOString()
-                    };
-                    setMessages(prev => [...prev, cancelledMessage]);
-                }
+                // Always append an assistant message so the frontend stays paired
+                // with the backend (which also persists a cancelled assistant message).
+                const cancelledMessage: ChatMessage = {
+                    role: 'assistant',
+                    content: collectedText
+                        ? collectedText + '\n\n*[Response cancelled]*'
+                        : '*[Response cancelled]*',
+                    timestamp: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, cancelledMessage]);
                 setStreamingText('');
                 setStatusText(null);
                 setActiveToolProgress(null);
