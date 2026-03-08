@@ -247,19 +247,45 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
 
         } catch (err) {
             if (err instanceof Error && err.name === 'AbortError') {
-                // Always append an assistant message so the frontend stays paired
-                // with the backend (which also persists a cancelled assistant message).
-                const cancelledMessage: ChatMessage = {
-                    role: 'assistant',
-                    content: collectedText
-                        ? collectedText + '\n\n*[Response cancelled]*'
-                        : '*[Response cancelled]*',
-                    timestamp: new Date().toISOString()
-                };
-                setMessages(prev => [...prev, cancelledMessage]);
+                // User clicked cancel — abort kills the fetch connection.
+                // The backend detects the disconnect, cancels the agent loop,
+                // and persists the final message in its finally block.
+                // We reload from the backend to get that persisted state.
                 setStreamingText('');
                 setStatusText(null);
                 setActiveToolProgress(null);
+
+                // Clear the load guard so loadForContext actually fires
+                lastLoadedPageRef.current = null;
+                lastLoadedTableIdRef.current = undefined;
+
+                const page = contextRef.current.current_page as string | undefined;
+                const tblId = contextRef.current.table_id as number | undefined;
+                if (page) {
+                    // Give the backend a moment to persist, then sync.
+                    // If the conversation is unbalanced (last message is
+                    // from the user), the backend hasn't finished yet — retry once.
+                    const syncFromBackend = async () => {
+                        await new Promise(r => setTimeout(r, 500));
+                        await loadForContext(page, tblId);
+
+                        // Check if conversation is balanced
+                        // (loadForContext sets messages via setMessages, but we
+                        // can't read state synchronously — re-fetch to check)
+                        const chat = await chatApi.getChatByContext(page, tblId, app);
+                        const msgs = chat.messages.filter(
+                            (m: any) => m.role === 'user' || m.role === 'assistant'
+                        );
+                        if (msgs.length > 0 && msgs[msgs.length - 1].role === 'user') {
+                            // Backend hasn't persisted the assistant message yet — retry
+                            await new Promise(r => setTimeout(r, 1000));
+                            lastLoadedPageRef.current = null;
+                            lastLoadedTableIdRef.current = undefined;
+                            await loadForContext(page, tblId);
+                        }
+                    };
+                    syncFromBackend().catch(console.error);
+                }
                 return;
             }
 

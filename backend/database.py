@@ -84,12 +84,25 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
             result = await db.execute(select(Item))
             return result.scalars().all()
     """
-    async with AsyncSessionLocal() as session:
+    session = AsyncSessionLocal()
+    try:
+        yield session
+    except Exception:
         try:
-            yield session
-        except Exception:
             await session.rollback()
-            raise
+        except Exception:
+            pass  # Connection already dead (SSE disconnect)
+        raise
+    finally:
+        try:
+            await session.close()
+        except Exception:
+            # SSE's cancel_on_finish can kill the DB connection before
+            # FastAPI's dependency cleanup runs. When that happens,
+            # session.close() tries to rollback a dead connection and
+            # raises InterfaceError. This is harmless — the pool
+            # will discard the broken connection regardless.
+            logger.debug("Suppressed DB session cleanup error (likely SSE disconnect)")
 
 
 # =============================================================================

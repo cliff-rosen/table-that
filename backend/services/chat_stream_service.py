@@ -219,7 +219,14 @@ class ChatStreamService:
                     yield ErrorEvent(message=event.error).model_dump_json()
                     return
 
-            # ── Normal completion path ──────────────────────────────────
+            # ── Normal completion path (also handles cancellation) ─────
+
+            # If cancelled, append marker to collected text
+            if was_cancelled:
+                if collected_text.strip():
+                    collected_text += "\n\n*[Response cancelled]*"
+                else:
+                    collected_text = "*[Response cancelled]*"
 
             # Parse response and build final payload
             parsed = self._parse_llm_response(collected_text, request.context)

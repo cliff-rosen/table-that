@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { BugAntIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { BugAntIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
@@ -504,14 +504,6 @@ export default function ChatTray({
                                                     return label;
                                                 })()}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={cancelRequest}
-                                                className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                                title="Cancel"
-                                            >
-                                                ✕
-                                            </button>
                                         </div>
                                         {activeToolProgress.updates.length > 0 && (
                                             <>
@@ -538,14 +530,6 @@ export default function ChatTray({
                                             <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
                                                 {activeToolProgress.toolName.replace(/_/g, ' ')}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={cancelRequest}
-                                                className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                                title="Cancel"
-                                            >
-                                                ✕
-                                            </button>
                                         </div>
                                         {activeToolProgress.updates.length > 0 && (
                                             <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
@@ -570,14 +554,6 @@ export default function ChatTray({
                                         <span className="text-sm text-gray-600 dark:text-gray-400">
                                             {statusText || 'Thinking...'}
                                         </span>
-                                        <button
-                                            type="button"
-                                            onClick={cancelRequest}
-                                            className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                            title="Cancel"
-                                        >
-                                            ✕
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -674,16 +650,28 @@ export default function ChatTray({
                                         }}
                                         placeholder="Type your message..."
                                         rows={1}
-                                        className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50' : ''}`}
+                                        disabled={isLoading}
+                                        className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         style={{ minHeight: '36px', maxHeight: '150px' }}
                                     />
-                                    <button
-                                        type="submit"
-                                        disabled={!input.trim() || isLoading}
-                                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                                    >
-                                        <PaperAirplaneIcon className="h-4 w-4" />
-                                    </button>
+                                    {isLoading ? (
+                                        <button
+                                            type="button"
+                                            onClick={cancelRequest}
+                                            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
+                                            title="Stop generating"
+                                        >
+                                            <StopIcon className="h-4 w-4" />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="submit"
+                                            disabled={!input.trim()}
+                                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                        >
+                                            <PaperAirplaneIcon className="h-4 w-4" />
+                                        </button>
+                                    )}
                                 </form>
                             )}
                         </div>
