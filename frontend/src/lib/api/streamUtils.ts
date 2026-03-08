@@ -128,6 +128,7 @@ export async function* makeStreamRequest(
 
     const decoder = new TextDecoder();
 
+    // We need to read the stream manually to handle SSE parsing and token refresh mid-stream.
     try {
         while (true) {
             let done: boolean, value: Uint8Array | undefined;

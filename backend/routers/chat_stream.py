@@ -18,8 +18,6 @@ from routers.auth import get_current_user
 from schemas.chat import (
     GeneralChatMessage,
     ActionMetadata,
-    StreamEvent,
-    ErrorEvent,
 )
 from services.chat_stream_service import ChatStreamService, get_chat_stream_service_factory
 from agents.agent_loop import CancellationToken
@@ -79,34 +77,14 @@ async def chat_stream(
 
     monitor_task = asyncio.create_task(monitor_disconnect())
 
-    async def event_generator():
-        """Generate SSE events"""
-        try:
-            service = service_factory(current_user.user_id)
-
-            # Inject user_role into context for role-sensitive features (e.g., help docs)
-            request.context["user_role"] = current_user.role.value if current_user.role else "member"
-
-            # Stream typed events from the service
-            async for event_json in service.stream_chat_message(
-                request, cancellation_token=cancellation_token
-            ):
-                yield {
-                    "event": "message",
-                    "data": event_json
-                }
-
-        except Exception as e:
-            logger.error(f"Error in chat stream: {str(e)}")
-            error_event = ErrorEvent(message=str(e))
-            yield {
-                "event": "message",
-                "data": error_event.model_dump_json()
-            }
-        finally:
-            monitor_task.cancel()
+    service = service_factory(current_user.user_id)
 
     return EventSourceResponse(
-        event_generator(),
-        ping=1  # Send ping every 1 second to keep connection alive and flush buffers
+        service.create_sse_stream(
+            request,
+            user_role=current_user.role.value if current_user.role else "member",
+            cancellation_token=cancellation_token,
+            on_cleanup=monitor_task.cancel,
+        ),
+        ping=1,  # Send ping every 1 second to keep connection alive and flush buffers
     )

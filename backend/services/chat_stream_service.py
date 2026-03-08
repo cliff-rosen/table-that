@@ -5,11 +5,12 @@ Handles LLM streaming interaction for the chat system with tool support.
 Uses the agent_loop for agentic processing. Handles chat persistence automatically.
 """
 
-from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple
+from typing import Callable, Dict, Any, AsyncGenerator, List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import anthropic
+import asyncio
 import os
 import logging
 import re
@@ -21,6 +22,7 @@ from schemas.chat import (
     SuggestedValue,
     SuggestedAction,
     CustomPayload,
+    ToolHistoryEntry,
     TextDeltaEvent,
     StatusEvent,
     ToolStartEvent,
@@ -64,6 +66,303 @@ CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
 
 
+class ResponseBuilder:
+    """Accumulates streaming events and builds the final response.
+
+    Used by stream_chat_message to collect data as it streams from the agent
+    loop, then build the final response for both SSE delivery and DB
+    persistence.  The builder is always ready to provide content for
+    persistence — even mid-stream — so the finally block can save whatever
+    was collected if the request is cancelled.
+    """
+
+    def __init__(self, chat_id: int, user_id: int, context: Dict[str, Any]):
+        self.chat_id = chat_id
+        self.user_id = user_id
+        self.context = context
+
+        # ── Raw accumulation (set during streaming) ──
+        self.collected_text: str = ""
+        self.tool_call_history: list = []
+        self.collected_payloads: list = []
+        self.trace: Optional[AgentTrace] = None
+        self.tool_call_index: int = 0
+
+        # ── Built state (set by build()) ──
+        self._built = False
+        self._persisted = False
+        self._persist_lock = asyncio.Lock()
+        self._parsed_message: Optional[str] = None
+        self._extras: Optional[Dict[str, Any]] = None
+        self._complete_event: Optional[CompleteEvent] = None
+
+    # ── Accumulation methods (called during streaming) ──────────────
+
+    def add_text(self, text: str) -> None:
+        """Append a text delta."""
+        self.collected_text += text
+
+    def add_tool_marker(self) -> str:
+        """Register a tool completion and return the marker string."""
+        marker = f"[[tool:{self.tool_call_index}]]"
+        self.collected_text += marker
+        self.tool_call_index += 1
+        return marker
+
+    def set_agent_result(self, event) -> None:
+        """Capture final state from AgentComplete or AgentCancelled."""
+        self.tool_call_history = event.tool_calls
+        self.collected_payloads = event.payloads
+        self.trace = event.trace
+
+    def set_trace(self, trace: Optional[AgentTrace]) -> None:
+        """Capture trace (e.g. from AgentError)."""
+        self.trace = trace
+
+    # ── Build (called on normal completion) ─────────────────────────
+
+    def build(self, parse_fn) -> CompleteEvent:
+        """Parse collected data and build the CompleteEvent.
+
+        Args:
+            parse_fn: Callable(text, context) -> dict with keys
+                      message, suggested_values, suggested_actions, custom_payload
+
+        Returns:
+            CompleteEvent ready to yield as SSE.
+        """
+        parsed = parse_fn(self.collected_text, self.context)
+
+        # ── Merge payloads (tool-emitted take priority over text-parsed) ──
+        all_payloads = list(self.collected_payloads)
+        tool_payload_types = {p.get("type") for p in self.collected_payloads if p}
+
+        if parsed.get("custom_payload"):
+            text_payload_type = parsed["custom_payload"].get("type")
+            if text_payload_type in tool_payload_types:
+                logger.info(
+                    f"SSE: dropping text-parsed {text_payload_type} payload — "
+                    f"tool already emitted one"
+                )
+            else:
+                all_payloads.append(parsed["custom_payload"])
+
+        logger.info(
+            f"SSE complete: collected_payloads={len(self.collected_payloads)}, "
+            f"all_payloads={len(all_payloads)}, "
+            f"types={[p.get('type') for p in all_payloads]}"
+        )
+
+        all_payloads = self._merge_same_type_payloads(all_payloads)
+        payloads_with_ids = self._process_payloads(all_payloads)
+        custom_payload = payloads_with_ids[-1] if payloads_with_ids else None
+
+        # ── Suggested values / actions ──
+        suggested_values = None
+        if parsed.get("suggested_values"):
+            suggested_values = [
+                SuggestedValue(text=sv) if isinstance(sv, str) else SuggestedValue(**sv)
+                for sv in parsed["suggested_values"]
+            ]
+
+        suggested_actions = None
+        if parsed.get("suggested_actions"):
+            suggested_actions = [
+                SuggestedAction(**sa) for sa in parsed["suggested_actions"]
+            ]
+
+        custom_payload_obj = CustomPayload(**custom_payload) if custom_payload else None
+
+        # ── Tool history ──
+        tool_history_entries = None
+        if self.tool_call_history:
+            tool_history_entries = [
+                ToolHistoryEntry(**th) for th in self.tool_call_history
+            ]
+
+        # ── Attach final response to trace ──
+        if self.trace:
+            self.trace.final_response = FinalResponse(
+                message=parsed["message"],
+                suggested_values=suggested_values,
+                suggested_actions=suggested_actions,
+                custom_payload=custom_payload_obj,
+                tool_history=tool_history_entries,
+                conversation_id=self.chat_id,
+            )
+
+        # ── Store for persistence ──
+        self._parsed_message = parsed["message"]
+        extras = {
+            "tool_history": self.tool_call_history or None,
+            "custom_payload": custom_payload,
+            "payloads": payloads_with_ids or None,
+            "trace": self.trace.model_dump() if self.trace else None,
+            "suggested_values": [sv.model_dump() for sv in suggested_values] if suggested_values else None,
+            "suggested_actions": [sa.model_dump() for sa in suggested_actions] if suggested_actions else None,
+        }
+        extras = {k: v for k, v in extras.items() if v is not None}
+        self._extras = extras if extras else None
+        self._built = True
+
+        # ── Context window warning ──
+        context_warning = None
+        if (
+            self.trace
+            and self.trace.peak_input_tokens
+            and self.trace.peak_input_tokens >= CONTEXT_WARNING_THRESHOLD
+        ):
+            pct = int(self.trace.peak_input_tokens / CONTEXT_WINDOW_TOKENS * 100)
+            context_warning = (
+                f"This conversation is using {pct}% of the available context window. "
+                f"Consider starting a new conversation to ensure the best response quality."
+            )
+
+        # ── Build CompleteEvent ──
+        payload = ChatResponsePayload(
+            message=parsed["message"],
+            suggested_values=suggested_values,
+            suggested_actions=suggested_actions,
+            custom_payload=custom_payload_obj,
+            tool_history=self.tool_call_history or None,
+            conversation_id=self.chat_id,
+            warning=context_warning,
+            diagnostics=self.trace,
+        )
+        self._complete_event = CompleteEvent(payload=payload)
+        return self._complete_event
+
+    # ── Persistence ───────────────────────────────────────────────────
+
+    @property
+    def content(self) -> str:
+        """Message content for DB persistence. Rich if built, fallback otherwise."""
+        if self._built and self._parsed_message is not None:
+            return self._parsed_message
+        text = self.collected_text.strip()
+        return text if text else "*[Response cancelled]*"
+
+    @property
+    def extras(self) -> Optional[Dict[str, Any]]:
+        """Extras dict for DB persistence, or None if not built."""
+        return self._extras
+
+    async def persist(self) -> None:
+        """Persist assistant message to DB.
+
+        Idempotent and concurrency-safe — uses a lock to prevent the
+        race between stream_chat_message's finally (asyncio.shield)
+        and create_sse_stream's finally (create_task) from double-writing.
+        """
+        async with self._persist_lock:
+            if self._persisted:
+                return
+
+            from database import AsyncSessionLocal
+
+            logger.info(
+                f"Persisting assistant message "
+                f"(chat_id={self.chat_id}, len={len(self.content)}, "
+                f"has_extras={self._extras is not None})"
+            )
+
+            async with AsyncSessionLocal() as fresh_db:
+                fresh_chat_service = ChatService(fresh_db)
+                await fresh_chat_service.add_message(
+                    chat_id=self.chat_id,
+                    user_id=self.user_id,
+                    role="assistant",
+                    content=self.content,
+                    context=self.context,
+                    extras=self._extras,
+                )
+
+        self._persisted = True
+
+    # ── Internal helpers ────────────────────────────────────────────
+
+    @staticmethod
+    def _merge_same_type_payloads(
+        payloads: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Merge multiple payloads of the same type into one."""
+        from collections import defaultdict
+
+        groups: dict[str, list[Dict[str, Any]]] = defaultdict(list)
+        order: list[str] = []
+        for p in payloads:
+            if not p:
+                continue
+            t = p.get("type", "")
+            if t not in groups:
+                order.append(t)
+            groups[t].append(p)
+
+        merged: list[Dict[str, Any]] = []
+        for t in order:
+            items = groups[t]
+            if len(items) == 1:
+                merged.append(items[0])
+                continue
+
+            if t == "data_proposal":
+                combined_ops: list = []
+                combined_log: list = []
+                reasoning_parts: list[str] = []
+                for item in items:
+                    data = item.get("data", {})
+                    combined_ops.extend(data.get("operations", []))
+                    combined_log.extend(data.get("research_log", []))
+                    if data.get("reasoning"):
+                        reasoning_parts.append(data["reasoning"])
+                merged.append({
+                    "type": "data_proposal",
+                    "data": {
+                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
+                        "operations": combined_ops,
+                        "research_log": combined_log if combined_log else None,
+                    },
+                })
+            elif t == "schema_proposal":
+                combined_ops = []
+                reasoning_parts = []
+                for item in items:
+                    data = item.get("data", {})
+                    combined_ops.extend(data.get("operations", []))
+                    if data.get("reasoning"):
+                        reasoning_parts.append(data["reasoning"])
+                merged.append({
+                    "type": "schema_proposal",
+                    "data": {
+                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
+                        "operations": combined_ops,
+                    },
+                })
+            else:
+                merged.append(items[-1])
+
+        return merged
+
+    @staticmethod
+    def _process_payloads(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Assign unique IDs and summaries to payloads."""
+        processed = []
+        for payload in payloads:
+            if not payload:
+                continue
+            payload_type = payload.get("type", "unknown")
+            payload_data = payload.get("data", {})
+            payload_id = str(uuid.uuid4())[:8]
+            summary = summarize_payload(payload_type, payload_data)
+            processed.append({
+                "payload_id": payload_id,
+                "type": payload_type,
+                "data": payload_data,
+                "summary": summary,
+            })
+        return processed
+
+
 class ChatStreamService:
     """Service for streaming chat interactions with tool support."""
 
@@ -74,10 +373,99 @@ class ChatStreamService:
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
         self.chat_service = ChatService(db)
+        self._builder: Optional[ResponseBuilder] = None
+
+    async def persist_if_needed(self) -> None:
+        """Persist assistant message if not already done.
+
+        Called by create_sse_stream's finally block as a last resort when
+        stream_chat_message's finally doesn't run (streaming cancel case).
+        Handles its own errors since it runs fire-and-forget.
+        """
+        logger.info("[PERSIST_IF_NEEDED] called — builder=%s, persisted=%s",
+                     self._builder is not None,
+                     self._builder._persisted if self._builder else "N/A")
+        if self._builder and not self._builder._persisted:
+            try:
+                await self._builder.persist()
+                logger.info("[PERSIST_IF_NEEDED] persist completed OK")
+            except Exception:
+                logger.warning(
+                    "[PERSIST_IF_NEEDED] persist failed",
+                    exc_info=True,
+                )
+        else:
+            logger.info("[PERSIST_IF_NEEDED] skipped — nothing to persist")
 
     # =========================================================================
     # Public API
     # =========================================================================
+
+    def create_sse_stream(
+        self,
+        request,
+        user_role: str,
+        cancellation_token: CancellationToken,
+        on_cleanup: Optional[Callable[[], None]] = None,
+    ) -> AsyncGenerator[Dict[str, str], None]:
+        """Create the outermost SSE event generator.
+
+        This generator is passed directly to EventSourceResponse.
+        Because it is the outermost generator, its finally block
+        reliably runs on client disconnect — guaranteeing persistence
+        even when the inner stream_chat_message generator can't
+        finalize (due to anyio cancel-scope limitations).
+
+        Args:
+            request: ChatRequest from the router
+            user_role: User's role string for context injection
+            cancellation_token: For cooperative cancellation
+            on_cleanup: Optional sync callback invoked in finally
+                        (e.g. to cancel a monitor task)
+        """
+        service = self
+
+        async def _sse_generator():
+            logger.info("[SSE_GEN] ENTER _sse_generator")
+            try:
+                request.context["user_role"] = user_role
+
+                async for event_json in service.stream_chat_message(
+                    request, cancellation_token=cancellation_token
+                ):
+                    yield {"event": "message", "data": event_json}
+
+                logger.info("[SSE_GEN] Inner generator exhausted normally")
+
+            except Exception as e:
+                logger.error(f"[SSE_GEN] EXCEPTION: {str(e)}")
+                error_event = ErrorEvent(message=str(e))
+                yield {
+                    "event": "message",
+                    "data": error_event.model_dump_json(),
+                }
+
+            finally:
+                logger.info("[SSE_GEN] FINALLY — builder=%s, persisted=%s",
+                            service._builder is not None,
+                            service._builder._persisted if service._builder else "N/A")
+                if on_cleanup:
+                    on_cleanup()
+                # Last-resort persist: handles the streaming-cancel case
+                # where stream_chat_message's finally doesn't run (nested
+                # async generator cleanup limitation).  Fire-and-forget
+                # because we may be inside a cancelled anyio scope.
+                try:
+                    asyncio.get_running_loop().create_task(
+                        service.persist_if_needed()
+                    )
+                    logger.info("[SSE_GEN] Scheduled persist_if_needed task")
+                except Exception:
+                    logger.warning(
+                        "[SSE_GEN] Failed to schedule persist task", exc_info=True
+                    )
+
+        return _sse_generator()
 
     async def stream_chat_message(
         self, request, cancellation_token: Optional[CancellationToken] = None
@@ -94,34 +482,33 @@ class ChatStreamService:
         if cancellation_token is None:
             cancellation_token = CancellationToken()
 
+        logger.info("[STREAM] ENTER stream_chat_message — message=%.40s", request.message)
+
         # Setup chat persistence — shielded from cancellation so the
         # user message is always persisted even on immediate cancel.
-        import asyncio
+        logger.info("[STREAM] Calling _setup_chat (shielded)...")
         chat_id = await asyncio.shield(self._setup_chat(request))
+        logger.info("[STREAM] _setup_chat returned chat_id=%s", chat_id)
         if not chat_id:
+            logger.info("[STREAM] No chat_id — yielding error and returning")
             yield ErrorEvent(
                 message="Failed to initialize chat session."
             ).model_dump_json()
             return
 
         # ── Once _setup_chat commits, we MUST pair it with an assistant message.
-        # Everything below is wrapped in try/finally so the finally block
-        # always persists the assistant message — whether the request completed
-        # normally, was cancelled, or hit an error.  One write path, one place.
-        collected_text = ""
-        tool_call_history: list = []
-        collected_payloads: list = []
-        trace: Optional[AgentTrace] = None
-        tool_call_index = 0
-
-        # Set by the normal completion path with rich parsed data.
-        # If still None when finally runs, we persist raw collected_text.
-        persist_content: Optional[str] = None
-        persist_extras: Optional[dict] = None
+        # The ResponseBuilder accumulates data during streaming, then persist()
+        # writes the message to DB.  persist() is idempotent and called from
+        # three places (normal path, service finally, router finally) to
+        # guarantee the write happens regardless of how the request ends.
+        builder = ResponseBuilder(chat_id, self.user_id, request.context)
+        self._builder = builder
+        logger.info("[STREAM] Builder created, yielding chat_id event")
 
         try:
             # Emit chat_id immediately so the frontend knows it even on cancel
             yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
+            logger.info("[STREAM] chat_id event yielded")
 
             # Check guest turn limit — process this message but signal limit after
             guest_limit_hit = False
@@ -170,6 +557,7 @@ class ChatStreamService:
             # Get configurable max iterations
             max_iterations = await self._get_max_tool_iterations()
 
+            # ── Stream agent loop events ────────────────────────────────
             async for event in run_agent_loop(
                 client=self.async_client,
                 model=CHAT_MODEL,
@@ -189,7 +577,7 @@ class ChatStreamService:
                     yield StatusEvent(message=event.message).model_dump_json()
 
                 elif isinstance(event, AgentTextDelta):
-                    collected_text += event.text
+                    builder.add_text(event.text)
                     yield TextDeltaEvent(text=event.text).model_dump_json()
 
                 elif isinstance(event, AgentToolStart):
@@ -209,154 +597,29 @@ class ChatStreamService:
                     ).model_dump_json()
 
                 elif isinstance(event, AgentToolComplete):
-                    tool_marker = f"[[tool:{tool_call_index}]]"
-                    collected_text += tool_marker
-                    yield TextDeltaEvent(text=tool_marker).model_dump_json()
+                    marker = builder.add_tool_marker()
+                    yield TextDeltaEvent(text=marker).model_dump_json()
                     yield ToolCompleteEvent(
-                        tool=event.tool_name, index=tool_call_index
+                        tool=event.tool_name,
+                        index=builder.tool_call_index - 1,
                     ).model_dump_json()
-                    tool_call_index += 1
 
                 elif isinstance(event, (AgentComplete, AgentCancelled)):
-                    tool_call_history = event.tool_calls
-                    collected_payloads = event.payloads
-                    trace = event.trace  # Get full trace from agent loop
+                    builder.set_agent_result(event)
 
                 elif isinstance(event, AgentError):
-                    trace = event.trace  # Capture trace even on error
+                    builder.set_trace(event.trace)
                     yield ErrorEvent(message=event.error).model_dump_json()
-                    return  # Triggers finally, which persists the fallback message
+                    return  # Triggers finally → router finally persists fallback
 
-            # ── Normal completion path ──────────────────────────────────
-            # Build the rich response data. This sets persist_content and
-            # persist_extras so the finally block saves the full message.
+            # ── Normal completion: build, persist, then emit ────────────
+            logger.info("[STREAM] Normal completion — building response")
+            complete_event = builder.build(self._parse_llm_response)
+            logger.info("[STREAM] Persisting (normal path)...")
+            await builder.persist()
+            logger.info("[STREAM] Persist done, yielding complete event")
+            yield complete_event.model_dump_json()
 
-            # Parse response and build final payload
-            parsed = self._parse_llm_response(collected_text, request.context)
-
-            # Process and merge all payloads (from tools + parsed LLM response)
-            # Tool-emitted payloads take priority over text-parsed ones of the same type.
-            all_payloads = list(collected_payloads)
-            tool_payload_types = {p.get("type") for p in collected_payloads if p}
-
-            if parsed.get("custom_payload"):
-                text_payload_type = parsed["custom_payload"].get("type")
-                if text_payload_type in tool_payload_types:
-                    # A tool already emitted this payload type — skip the text-parsed duplicate.
-                    # This prevents the LLM from overwriting a tool's richer payload
-                    # (e.g., for_each_row's data_proposal with research_log).
-                    logger.info(
-                        f"SSE: dropping text-parsed {text_payload_type} payload — "
-                        f"tool already emitted one"
-                    )
-                else:
-                    all_payloads.append(parsed["custom_payload"])
-
-            logger.info(
-                f"SSE complete: collected_payloads={len(collected_payloads)}, "
-                f"all_payloads={len(all_payloads)}, "
-                f"types={[p.get('type') for p in all_payloads]}"
-            )
-
-            # Merge multiple payloads of the same type (e.g. two for_each_row
-            # calls that each produce a data_proposal).  Operations and
-            # research_log entries are concatenated into one payload so the
-            # user sees a single combined inline proposal.
-            all_payloads = self._merge_same_type_payloads(all_payloads)
-
-            # Assign IDs and summaries to payloads
-            payloads_with_ids = self._process_payloads(all_payloads)
-
-            # The "active" payload for UI rendering (last one, if any)
-            custom_payload = payloads_with_ids[-1] if payloads_with_ids else None
-
-            # Build suggested values/actions from parsed response
-            suggested_values = None
-            if parsed.get("suggested_values"):
-                suggested_values = [
-                    (
-                        SuggestedValue(text=sv)
-                        if isinstance(sv, str)
-                        else SuggestedValue(**sv)
-                    )
-                    for sv in parsed["suggested_values"]
-                ]
-
-            suggested_actions = None
-            if parsed.get("suggested_actions"):
-                suggested_actions = [
-                    SuggestedAction(**sa) for sa in parsed["suggested_actions"]
-                ]
-
-            custom_payload_obj = (
-                CustomPayload(**custom_payload) if custom_payload else None
-            )
-
-            # Build tool history for final response
-            tool_history_entries = None
-            if tool_call_history:
-                from schemas.chat import ToolHistoryEntry
-
-                tool_history_entries = [
-                    ToolHistoryEntry(**th) for th in tool_call_history
-                ]
-
-            # Add final response to trace (what's being sent to frontend)
-            if trace:
-                trace.final_response = FinalResponse(
-                    message=parsed["message"],
-                    suggested_values=suggested_values,
-                    suggested_actions=suggested_actions,
-                    custom_payload=custom_payload_obj,
-                    tool_history=tool_history_entries,
-                    conversation_id=chat_id,
-                )
-
-            # Prepare data for the finally block to persist
-            persist_content = parsed["message"]
-            extras = {
-                "tool_history": tool_call_history if tool_call_history else None,
-                "custom_payload": custom_payload,  # For UI rendering
-                "payloads": (
-                    payloads_with_ids if payloads_with_ids else None
-                ),  # Full list for retrieval
-                "trace": trace.model_dump() if trace else None,  # Full execution trace
-                "suggested_values": [sv.model_dump() for sv in suggested_values] if suggested_values else None,
-                "suggested_actions": [sa.model_dump() for sa in suggested_actions] if suggested_actions else None,
-            }
-            # Remove None values to keep extras clean
-            extras = {k: v for k, v in extras.items() if v is not None}
-            persist_extras = extras if extras else None
-
-            # Check for conversation length warning using peak context window usage
-            context_warning = None
-            if (
-                trace
-                and trace.peak_input_tokens
-                and trace.peak_input_tokens >= CONTEXT_WARNING_THRESHOLD
-            ):
-                pct = int(trace.peak_input_tokens / CONTEXT_WINDOW_TOKENS * 100)
-                context_warning = (
-                    f"This conversation is using {pct}% of the available context window. "
-                    f"Consider starting a new conversation to ensure the best response quality."
-                )
-
-            # Emit complete event
-            final_payload = ChatResponsePayload(
-                message=parsed["message"],
-                suggested_values=suggested_values,
-                suggested_actions=suggested_actions,
-                custom_payload=custom_payload_obj,
-                tool_history=tool_call_history if tool_call_history else None,
-                conversation_id=chat_id,
-                warning=context_warning,
-                diagnostics=trace,  # AgentTrace is aliased as ChatDiagnostics for backwards compat
-            )
-            yield CompleteEvent(payload=final_payload).model_dump_json()
-
-            # Signal guest limit AFTER the response completes so the AI
-            # response is fully delivered before the frontend shows the
-            # registration prompt.
             if guest_limit_hit:
                 logger.info(
                     f"Guest limit: yielding guest_limit event AFTER complete for user={self.user_id}"
@@ -366,168 +629,24 @@ class ChatStreamService:
                 ).model_dump_json()
 
         except Exception as e:
-            logger.error(f"Error in chat service: {str(e)}", exc_info=True)
+            logger.error(f"[STREAM] EXCEPTION in stream_chat_message: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
 
         finally:
-            # ── Close the sandwich ──────────────────────────────────────
-            # Always persist an assistant message so the conversation is
-            # never left with an orphaned user message.
-            #
-            # On normal completion, persist_content/persist_extras are set
-            # with the full parsed response.  On cancellation or error,
-            # they're None and we fall back to raw collected_text.
-            #
-            # Uses asyncio.shield + a fresh DB session because SSE's
-            # cancel_on_finish sends CancelledError through the task.
+            logger.info("[STREAM] FINALLY block entered — persisted=%s, collected_text_len=%d",
+                        builder._persisted, len(builder.collected_text))
+            # Attempt to persist here for the immediate-cancel case
+            # (before streaming starts, where this finally DOES run).
+            # For streaming-cancel, this block doesn't execute — the
+            # create_sse_stream's finally block handles it via persist_if_needed().
             try:
-                from database import AsyncSessionLocal
-                from services.chat_service import ChatService
-
-                content = persist_content
-                if content is None:
-                    content = collected_text.strip() if collected_text else ""
-                    if not content:
-                        content = "*[Response cancelled]*"
-
-                logger.info(
-                    f"Persisting assistant message "
-                    f"(len={len(content)}, has_extras={persist_extras is not None})"
-                )
-
-                async def _persist():
-                    async with AsyncSessionLocal() as fresh_db:
-                        fresh_chat_service = ChatService(fresh_db)
-                        await fresh_chat_service.add_message(
-                            chat_id=chat_id,
-                            user_id=self.user_id,
-                            role="assistant",
-                            content=content,
-                            context=request.context,
-                            extras=persist_extras,
-                        )
-
-                await asyncio.shield(_persist())
-            except BaseException:
+                await asyncio.shield(builder.persist())
+                logger.info("[STREAM] FINALLY persist completed OK")
+            except BaseException as exc:
                 logger.warning(
-                    "Failed to persist assistant message on teardown",
+                    "[STREAM] FINALLY persist failed or interrupted: %s", exc,
                     exc_info=True,
                 )
-
-    # =========================================================================
-    # Payload Processing
-    # =========================================================================
-
-    @staticmethod
-    def _merge_same_type_payloads(
-        payloads: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Merge multiple payloads of the same type into one.
-
-        Currently handles data_proposal and schema_proposal by concatenating
-        their operations (and research_log for data_proposal).  Other types
-        are left as-is.
-        """
-        from collections import defaultdict
-
-        groups: dict[str, list[Dict[str, Any]]] = defaultdict(list)
-        order: list[str] = []
-        for p in payloads:
-            if not p:
-                continue
-            t = p.get("type", "")
-            if t not in groups:
-                order.append(t)
-            groups[t].append(p)
-
-        merged: list[Dict[str, Any]] = []
-        for t in order:
-            items = groups[t]
-            if len(items) == 1:
-                merged.append(items[0])
-                continue
-
-            if t == "data_proposal":
-                combined_ops: list = []
-                combined_log: list = []
-                reasoning_parts: list[str] = []
-                for item in items:
-                    data = item.get("data", {})
-                    combined_ops.extend(data.get("operations", []))
-                    combined_log.extend(data.get("research_log", []))
-                    if data.get("reasoning"):
-                        reasoning_parts.append(data["reasoning"])
-                merged.append(
-                    {
-                        "type": "data_proposal",
-                        "data": {
-                            "reasoning": (
-                                " | ".join(reasoning_parts) if reasoning_parts else None
-                            ),
-                            "operations": combined_ops,
-                            "research_log": combined_log if combined_log else None,
-                        },
-                    }
-                )
-            elif t == "schema_proposal":
-                combined_ops = []
-                reasoning_parts = []
-                for item in items:
-                    data = item.get("data", {})
-                    combined_ops.extend(data.get("operations", []))
-                    if data.get("reasoning"):
-                        reasoning_parts.append(data["reasoning"])
-                merged.append(
-                    {
-                        "type": "schema_proposal",
-                        "data": {
-                            "reasoning": (
-                                " | ".join(reasoning_parts) if reasoning_parts else None
-                            ),
-                            "operations": combined_ops,
-                        },
-                    }
-                )
-            else:
-                # Unknown type — keep last one (original behavior)
-                merged.append(items[-1])
-
-        return merged
-
-    def _process_payloads(self, payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Process payloads by assigning unique IDs and generating summaries.
-
-        Args:
-            payloads: List of raw payloads ({"type": str, "data": dict})
-
-        Returns:
-            List of processed payloads with payload_id and summary added
-        """
-        processed = []
-        for payload in payloads:
-            if not payload:
-                continue
-
-            payload_type = payload.get("type", "unknown")
-            payload_data = payload.get("data", {})
-
-            # Generate a short unique ID (first 8 chars of UUID)
-            payload_id = str(uuid.uuid4())[:8]
-
-            # Generate summary using the registry
-            summary = summarize_payload(payload_type, payload_data)
-
-            processed.append(
-                {
-                    "payload_id": payload_id,
-                    "type": payload_type,
-                    "data": payload_data,
-                    "summary": summary,
-                }
-            )
-
-        return processed
 
     def _build_payload_manifest(
         self, db_messages: Optional[List] = None
@@ -586,6 +705,8 @@ class ChatStreamService:
 
         Returns chat_id or None if persistence fails.
         """
+        logger.info("[SETUP_CHAT] ENTER — conversation_id=%s, message=%.40s",
+                     request.conversation_id, request.message)
         try:
             chat_id = request.conversation_id
             app = self._get_app_from_context(request.context)
@@ -607,6 +728,7 @@ class ChatStreamService:
                     logger.warning(f"No scope derived from context: {request.context}")
                 chat = await self.chat_service.create_chat(self.user_id, app=app, scope=derived_scope)
                 chat_id = chat.id
+                logger.info("[SETUP_CHAT] Created new conversation chat_id=%s", chat_id)
 
             await self.chat_service.add_message(
                 chat_id=chat_id,
@@ -615,33 +737,12 @@ class ChatStreamService:
                 content=request.message,
                 context=request.context,
             )
+            logger.info("[SETUP_CHAT] EXIT OK — chat_id=%s, user message saved", chat_id)
             return chat_id
 
         except Exception as e:
-            logger.warning(f"Failed to persist user message: {e}")
+            logger.warning("[SETUP_CHAT] EXIT ERROR — %s", e)
             return None
-
-    async def _save_assistant_message(
-        self,
-        chat_id: Optional[int],
-        content: str,
-        context: Dict[str, Any],
-        extras: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Save assistant message to chat history (async)."""
-        if not chat_id:
-            return
-        try:
-            await self.chat_service.add_message(
-                chat_id=chat_id,
-                user_id=self.user_id,
-                role="assistant",
-                content=content,
-                context=context,
-                extras=extras,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to persist assistant message: {e}")
 
     # =========================================================================
     # Message Building
