@@ -149,18 +149,6 @@ export default function TableViewPage() {
     loadForContext('table_view', tableId);
   }, [tableId, loadForContext]);
 
-  // Send post-creation message when arriving from TablesListPage proposal accept.
-  // Guard with a ref so React StrictMode's double-invoked effect doesn't send twice.
-  const sentCreationMsgRef = useRef(false);
-  useEffect(() => {
-    const state = location.state as { justCreated?: boolean; tableName?: string; includedSampleData?: boolean } | null;
-    if (state?.justCreated && !sentCreationMsgRef.current) {
-      sentCreationMsgRef.current = true;
-      sendMessage(`[User accepted and created "${state.tableName}"${state.includedSampleData ? ' with sample data' : ''}.]`);
-      window.history.replaceState({}, '', location.pathname);
-    }
-  }, [location.state, sendMessage, location.pathname]);
-
   // Debounced search
   useEffect(() => {
     if (searchTimerRef.current) {
@@ -200,6 +188,20 @@ export default function TableViewPage() {
       });
     }
   }, [table, rows, totalRows, sort, filters, selectedRowIds, updateContext]);
+
+  // Send post-creation message when arriving from TablesListPage proposal accept.
+  // MUST be declared AFTER the context push effect above so that React runs it second.
+  // Otherwise sendMessage fires before the column IDs are in the context and the LLM
+  // fabricates IDs for the follow-up DATA_PROPOSAL.
+  const sentCreationMsgRef = useRef(false);
+  useEffect(() => {
+    const state = location.state as { justCreated?: boolean; tableName?: string; includedSampleData?: boolean } | null;
+    if (state?.justCreated && table && !sentCreationMsgRef.current) {
+      sentCreationMsgRef.current = true;
+      sendMessage(`[User accepted and created "${state.tableName}"${state.includedSampleData ? ' with sample data' : ''}.]`);
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, [location.state, table, sendMessage, location.pathname]);
 
   // When a conversation is loaded from DB, skip scanning its historical messages.
   useEffect(() => {
