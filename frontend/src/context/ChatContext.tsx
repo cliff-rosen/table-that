@@ -36,11 +36,14 @@ interface ChatContextType {
     chatId: number | null;
     guestLimitReached: boolean;
     pendingProposal: PendingProposal | null;
+    /** Message content restored to input after cancel before backend confirmed. */
+    restoredInput: string | null;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
     resetGuestLimit: () => void;
     cancelRequest: () => void;
     resolveProposal: () => void;
+    clearRestoredInput: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
     reset: () => void;
@@ -70,6 +73,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     const [guestLimitReached, setGuestLimitReached] = useState(false);
     const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
     const pendingProposalRef = useRef<PendingProposal | null>(null);
+    const [restoredInput, setRestoredInput] = useState<string | null>(null);
 
     // Track what context we last loaded for, to avoid redundant loads
     const lastLoadedPageRef = useRef<string | null>(null);
@@ -134,6 +138,10 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         abortControllerRef.current = abortController;
 
         let collectedText = '';
+        // Tracks whether the backend confirmed it persisted the message
+        // (by sending a chat_id event). If false on cancel, the backend
+        // may not have written anything — revert the user message.
+        let backendConfirmed = false;
 
         try {
             for await (const event of chatApi.streamMessage({
@@ -229,6 +237,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                     case 'chat_id':
                         if (event.conversation_id) {
                             setChatId(event.conversation_id);
+                            backendConfirmed = true;
                         }
                         break;
 
@@ -247,37 +256,39 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
 
         } catch (err) {
             if (err instanceof Error && err.name === 'AbortError') {
-                // User clicked cancel — abort kills the fetch connection.
-                // The backend detects the disconnect, cancels the agent loop,
-                // and persists the final message in its finally block.
-                // We reload from the backend to get that persisted state.
                 setStreamingText('');
                 setStatusText(null);
                 setActiveToolProgress(null);
 
-                // Clear the load guard so loadForContext actually fires
+                if (!backendConfirmed) {
+                    // Backend never confirmed it persisted — _setup_chat may
+                    // have been interrupted. Remove the optimistic user message
+                    // and restore it to the input field.
+                    setMessages(prev => prev.slice(0, -1));
+                    setRestoredInput(content);
+                    return;
+                }
+
+                // Backend confirmed — it has the user message and will persist
+                // an assistant message. Sync from backend to get that state.
                 lastLoadedPageRef.current = null;
                 lastLoadedTableIdRef.current = undefined;
 
                 const page = contextRef.current.current_page as string | undefined;
                 const tblId = contextRef.current.table_id as number | undefined;
                 if (page) {
-                    // Give the backend a moment to persist, then sync.
-                    // If the conversation is unbalanced (last message is
-                    // from the user), the backend hasn't finished yet — retry once.
                     const syncFromBackend = async () => {
+                        // Give the backend's finally block time to persist
                         await new Promise(r => setTimeout(r, 500));
                         await loadForContext(page, tblId);
 
-                        // Check if conversation is balanced
-                        // (loadForContext sets messages via setMessages, but we
-                        // can't read state synchronously — re-fetch to check)
+                        // If conversation is unbalanced (backend still persisting),
+                        // retry once after a longer delay.
                         const chat = await chatApi.getChatByContext(page, tblId, app);
                         const msgs = chat.messages.filter(
                             (m: any) => m.role === 'user' || m.role === 'assistant'
                         );
                         if (msgs.length > 0 && msgs[msgs.length - 1].role === 'user') {
-                            // Backend hasn't persisted the assistant message yet — retry
                             await new Promise(r => setTimeout(r, 1000));
                             lastLoadedPageRef.current = null;
                             lastLoadedTableIdRef.current = undefined;
@@ -314,6 +325,10 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
 
     const resetGuestLimit = useCallback(() => {
         setGuestLimitReached(false);
+    }, []);
+
+    const clearRestoredInput = useCallback(() => {
+        setRestoredInput(null);
     }, []);
 
     const updateContext = useCallback((updates: Record<string, unknown>) => {
@@ -403,10 +418,12 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             chatId,
             guestLimitReached,
             pendingProposal,
+            restoredInput,
             sendMessage,
             resetGuestLimit,
             cancelRequest,
             resolveProposal,
+            clearRestoredInput,
             updateContext,
             setContext: replaceContext,
             reset,

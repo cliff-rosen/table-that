@@ -94,46 +94,54 @@ class ChatStreamService:
         if cancellation_token is None:
             cancellation_token = CancellationToken()
 
-        # Setup chat persistence
-        chat_id = await self._setup_chat(request)
+        # Setup chat persistence — shielded from cancellation so the
+        # user message is always persisted even on immediate cancel.
+        import asyncio
+        chat_id = await asyncio.shield(self._setup_chat(request))
         if not chat_id:
             yield ErrorEvent(
                 message="Failed to initialize chat session."
             ).model_dump_json()
             return
 
-        # Emit chat_id immediately so the frontend knows it even on cancel
-        yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
-
-        # Check guest turn limit — process this message but signal limit after
-        guest_limit_hit = False
-        from services.user_service import UserService
-
-        user_service = UserService(self.db)
-        user = await user_service.get_user_by_id(self.user_id)
-        if user and user.is_guest:
-            guest_turn_limit = await self.chat_service.get_guest_turn_limit()
-            msg_count = await self.chat_service.count_user_messages(self.user_id)
-            logger.info(
-                f"Guest limit check: user={self.user_id} msg_count={msg_count} limit={guest_turn_limit} over={'YES' if msg_count >= guest_turn_limit else 'no'}"
-            )
-            if msg_count >= guest_turn_limit:
-                guest_limit_hit = True
-        else:
-            logger.info(
-                f"Guest limit check: user={self.user_id} is_guest={user.is_guest if user else 'no user'} — skipping"
-            )
-
-        # State accumulated during streaming — declared outside try so
-        # the finally block can always persist whatever was collected.
+        # ── Once _setup_chat commits, we MUST pair it with an assistant message.
+        # Everything below is wrapped in try/finally so the finally block
+        # always persists the assistant message — whether the request completed
+        # normally, was cancelled, or hit an error.  One write path, one place.
         collected_text = ""
         tool_call_history: list = []
         collected_payloads: list = []
         trace: Optional[AgentTrace] = None
         tool_call_index = 0
-        message_saved = False
+
+        # Set by the normal completion path with rich parsed data.
+        # If still None when finally runs, we persist raw collected_text.
+        persist_content: Optional[str] = None
+        persist_extras: Optional[dict] = None
 
         try:
+            # Emit chat_id immediately so the frontend knows it even on cancel
+            yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
+
+            # Check guest turn limit — process this message but signal limit after
+            guest_limit_hit = False
+            from services.user_service import UserService
+
+            user_service = UserService(self.db)
+            user = await user_service.get_user_by_id(self.user_id)
+            if user and user.is_guest:
+                guest_turn_limit = await self.chat_service.get_guest_turn_limit()
+                msg_count = await self.chat_service.count_user_messages(self.user_id)
+                logger.info(
+                    f"Guest limit check: user={self.user_id} msg_count={msg_count} limit={guest_turn_limit} over={'YES' if msg_count >= guest_turn_limit else 'no'}"
+                )
+                if msg_count >= guest_turn_limit:
+                    guest_limit_hit = True
+            else:
+                logger.info(
+                    f"Guest limit check: user={self.user_id} is_guest={user.is_guest if user else 'no user'} — skipping"
+                )
+
             # Inject conversation_id into context for tools that need it
             context_with_chat = dict(request.context)
             context_with_chat["conversation_id"] = chat_id
@@ -217,16 +225,11 @@ class ChatStreamService:
                 elif isinstance(event, AgentError):
                     trace = event.trace  # Capture trace even on error
                     yield ErrorEvent(message=event.error).model_dump_json()
-                    return
+                    return  # Triggers finally, which persists the fallback message
 
-            # ── Normal completion path (also handles cancellation) ─────
-
-            # If cancelled, append marker to collected text
-            if was_cancelled:
-                if collected_text.strip():
-                    collected_text += "\n\n*[Response cancelled]*"
-                else:
-                    collected_text = "*[Response cancelled]*"
+            # ── Normal completion path ──────────────────────────────────
+            # Build the rich response data. This sets persist_content and
+            # persist_extras so the finally block saves the full message.
 
             # Parse response and build final payload
             parsed = self._parse_llm_response(collected_text, request.context)
@@ -309,7 +312,8 @@ class ChatStreamService:
                     conversation_id=chat_id,
                 )
 
-            # Build extras for persistence
+            # Prepare data for the finally block to persist
+            persist_content = parsed["message"]
             extras = {
                 "tool_history": tool_call_history if tool_call_history else None,
                 "custom_payload": custom_payload,  # For UI rendering
@@ -322,15 +326,7 @@ class ChatStreamService:
             }
             # Remove None values to keep extras clean
             extras = {k: v for k, v in extras.items() if v is not None}
-
-            # Persist assistant message
-            await self._save_assistant_message(
-                chat_id,
-                parsed["message"],
-                request.context,
-                extras=extras if extras else None,
-            )
-            message_saved = True
+            persist_extras = extras if extras else None
 
             # Check for conversation length warning using peak context window usage
             context_warning = None
@@ -374,47 +370,49 @@ class ChatStreamService:
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
 
         finally:
-            # Always persist an assistant message so the conversation is never
-            # left with an orphaned user message.  This runs on:
-            #   - client disconnect (GeneratorExit / aclose)
-            #   - cancellation via CancellationToken
-            #   - unhandled errors
-            # On the normal path message_saved is already True so we skip.
+            # ── Close the sandwich ──────────────────────────────────────
+            # Always persist an assistant message so the conversation is
+            # never left with an orphaned user message.
             #
-            # We use asyncio.shield + a fresh DB session because SSE's
-            # cancel_on_finish sends CancelledError through the entire task,
-            # which would kill any DB operation we try to run here.
-            if not message_saved and chat_id:
-                try:
-                    import asyncio
-                    from database import AsyncSessionLocal
-                    from services.chat_service import ChatService
+            # On normal completion, persist_content/persist_extras are set
+            # with the full parsed response.  On cancellation or error,
+            # they're None and we fall back to raw collected_text.
+            #
+            # Uses asyncio.shield + a fresh DB session because SSE's
+            # cancel_on_finish sends CancelledError through the task.
+            try:
+                from database import AsyncSessionLocal
+                from services.chat_service import ChatService
 
+                content = persist_content
+                if content is None:
                     content = collected_text.strip() if collected_text else ""
                     if not content:
                         content = "*[Response cancelled]*"
-                    logger.info(
-                        f"Persisting partial assistant message on teardown "
-                        f"(len={len(content)})"
-                    )
 
-                    async def _persist():
-                        async with AsyncSessionLocal() as fresh_db:
-                            fresh_chat_service = ChatService(fresh_db)
-                            await fresh_chat_service.add_message(
-                                chat_id=chat_id,
-                                user_id=self.user_id,
-                                role="assistant",
-                                content=content,
-                                context=request.context,
-                            )
+                logger.info(
+                    f"Persisting assistant message "
+                    f"(len={len(content)}, has_extras={persist_extras is not None})"
+                )
 
-                    await asyncio.shield(_persist())
-                except Exception:
-                    logger.warning(
-                        "Failed to persist assistant message on teardown",
-                        exc_info=True,
-                    )
+                async def _persist():
+                    async with AsyncSessionLocal() as fresh_db:
+                        fresh_chat_service = ChatService(fresh_db)
+                        await fresh_chat_service.add_message(
+                            chat_id=chat_id,
+                            user_id=self.user_id,
+                            role="assistant",
+                            content=content,
+                            context=request.context,
+                            extras=persist_extras,
+                        )
+
+                await asyncio.shield(_persist())
+            except BaseException:
+                logger.warning(
+                    "Failed to persist assistant message on teardown",
+                    exc_info=True,
+                )
 
     # =========================================================================
     # Payload Processing

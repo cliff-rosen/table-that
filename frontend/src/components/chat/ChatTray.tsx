@@ -173,7 +173,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, reset, chatId, context, guestLimitReached, pendingProposal } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, reset, chatId, context, guestLimitReached, pendingProposal, restoredInput, clearRestoredInput } = useChatContext();
     const { isGuest } = useAuth();
     const [input, setInput] = useState('');
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -188,6 +188,15 @@ export default function ChatTray({
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
+
+    // Restore input text when a cancel happened before backend confirmed
+    useEffect(() => {
+        if (restoredInput !== null) {
+            setInput(restoredInput);
+            clearRestoredInput();
+            inputRef.current?.focus();
+        }
+    }, [restoredInput, clearRestoredInput]);
 
     useEffect(() => {
         scrollToBottom();
