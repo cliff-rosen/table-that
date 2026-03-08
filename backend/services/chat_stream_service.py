@@ -382,20 +382,14 @@ class ChatStreamService:
         stream_chat_message's finally doesn't run (streaming cancel case).
         Handles its own errors since it runs fire-and-forget.
         """
-        logger.info("[PERSIST_IF_NEEDED] called — builder=%s, persisted=%s",
-                     self._builder is not None,
-                     self._builder._persisted if self._builder else "N/A")
         if self._builder and not self._builder._persisted:
             try:
                 await self._builder.persist()
-                logger.info("[PERSIST_IF_NEEDED] persist completed OK")
             except Exception:
                 logger.warning(
-                    "[PERSIST_IF_NEEDED] persist failed",
+                    "Failed to persist assistant message (sse_generator fallback)",
                     exc_info=True,
                 )
-        else:
-            logger.info("[PERSIST_IF_NEEDED] skipped — nothing to persist")
 
     # =========================================================================
     # Public API
@@ -426,7 +420,6 @@ class ChatStreamService:
         service = self
 
         async def _sse_generator():
-            logger.info("[SSE_GEN] ENTER _sse_generator")
             try:
                 request.context["user_role"] = user_role
 
@@ -435,10 +428,8 @@ class ChatStreamService:
                 ):
                     yield {"event": "message", "data": event_json}
 
-                logger.info("[SSE_GEN] Inner generator exhausted normally")
-
             except Exception as e:
-                logger.error(f"[SSE_GEN] EXCEPTION: {str(e)}")
+                logger.error(f"Error in chat stream: {str(e)}")
                 error_event = ErrorEvent(message=str(e))
                 yield {
                     "event": "message",
@@ -446,9 +437,6 @@ class ChatStreamService:
                 }
 
             finally:
-                logger.info("[SSE_GEN] FINALLY — builder=%s, persisted=%s",
-                            service._builder is not None,
-                            service._builder._persisted if service._builder else "N/A")
                 if on_cleanup:
                     on_cleanup()
                 # Last-resort persist: handles the streaming-cancel case
@@ -459,10 +447,9 @@ class ChatStreamService:
                     asyncio.get_running_loop().create_task(
                         service.persist_if_needed()
                     )
-                    logger.info("[SSE_GEN] Scheduled persist_if_needed task")
                 except Exception:
                     logger.warning(
-                        "[SSE_GEN] Failed to schedule persist task", exc_info=True
+                        "Failed to schedule persist task", exc_info=True
                     )
 
         return _sse_generator()
@@ -482,15 +469,10 @@ class ChatStreamService:
         if cancellation_token is None:
             cancellation_token = CancellationToken()
 
-        logger.info("[STREAM] ENTER stream_chat_message — message=%.40s", request.message)
-
         # Setup chat persistence — shielded from cancellation so the
         # user message is always persisted even on immediate cancel.
-        logger.info("[STREAM] Calling _setup_chat (shielded)...")
         chat_id = await asyncio.shield(self._setup_chat(request))
-        logger.info("[STREAM] _setup_chat returned chat_id=%s", chat_id)
         if not chat_id:
-            logger.info("[STREAM] No chat_id — yielding error and returning")
             yield ErrorEvent(
                 message="Failed to initialize chat session."
             ).model_dump_json()
@@ -503,12 +485,10 @@ class ChatStreamService:
         # guarantee the write happens regardless of how the request ends.
         builder = ResponseBuilder(chat_id, self.user_id, request.context)
         self._builder = builder
-        logger.info("[STREAM] Builder created, yielding chat_id event")
 
         try:
             # Emit chat_id immediately so the frontend knows it even on cancel
             yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
-            logger.info("[STREAM] chat_id event yielded")
 
             # Check guest turn limit — process this message but signal limit after
             guest_limit_hit = False
@@ -613,11 +593,8 @@ class ChatStreamService:
                     return  # Triggers finally → router finally persists fallback
 
             # ── Normal completion: build, persist, then emit ────────────
-            logger.info("[STREAM] Normal completion — building response")
             complete_event = builder.build(self._parse_llm_response)
-            logger.info("[STREAM] Persisting (normal path)...")
             await builder.persist()
-            logger.info("[STREAM] Persist done, yielding complete event")
             yield complete_event.model_dump_json()
 
             if guest_limit_hit:
@@ -629,22 +606,19 @@ class ChatStreamService:
                 ).model_dump_json()
 
         except Exception as e:
-            logger.error(f"[STREAM] EXCEPTION in stream_chat_message: {str(e)}", exc_info=True)
+            logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
 
         finally:
-            logger.info("[STREAM] FINALLY block entered — persisted=%s, collected_text_len=%d",
-                        builder._persisted, len(builder.collected_text))
             # Attempt to persist here for the immediate-cancel case
             # (before streaming starts, where this finally DOES run).
             # For streaming-cancel, this block doesn't execute — the
             # create_sse_stream's finally block handles it via persist_if_needed().
             try:
                 await asyncio.shield(builder.persist())
-                logger.info("[STREAM] FINALLY persist completed OK")
-            except BaseException as exc:
+            except BaseException:
                 logger.warning(
-                    "[STREAM] FINALLY persist failed or interrupted: %s", exc,
+                    "Service finally: persist failed or interrupted",
                     exc_info=True,
                 )
 
@@ -705,8 +679,6 @@ class ChatStreamService:
 
         Returns chat_id or None if persistence fails.
         """
-        logger.info("[SETUP_CHAT] ENTER — conversation_id=%s, message=%.40s",
-                     request.conversation_id, request.message)
         try:
             chat_id = request.conversation_id
             app = self._get_app_from_context(request.context)
@@ -728,7 +700,6 @@ class ChatStreamService:
                     logger.warning(f"No scope derived from context: {request.context}")
                 chat = await self.chat_service.create_chat(self.user_id, app=app, scope=derived_scope)
                 chat_id = chat.id
-                logger.info("[SETUP_CHAT] Created new conversation chat_id=%s", chat_id)
 
             await self.chat_service.add_message(
                 chat_id=chat_id,
@@ -737,11 +708,10 @@ class ChatStreamService:
                 content=request.message,
                 context=request.context,
             )
-            logger.info("[SETUP_CHAT] EXIT OK — chat_id=%s, user message saved", chat_id)
             return chat_id
 
         except Exception as e:
-            logger.warning("[SETUP_CHAT] EXIT ERROR — %s", e)
+            logger.warning(f"Failed to persist user message: {e}")
             return None
 
     # =========================================================================

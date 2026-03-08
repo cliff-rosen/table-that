@@ -87,10 +87,7 @@ export async function* makeStreamRequest(
             }
         );
     } catch (err: any) {
-        if (err?.name === 'AbortError') {
-            // Gracefully end generator on abort
-            return;
-        }
+        // Let AbortError propagate so callers can detect cancellation
         throw err;
     }
 
@@ -135,10 +132,7 @@ export async function* makeStreamRequest(
             try {
                 ({ done, value } = await reader.read());
             } catch (err: any) {
-                if (err?.name === 'AbortError') {
-                    // Abort during read; stop quietly
-                    break;
-                }
+                // Let AbortError propagate so callers can detect cancellation
                 throw err;
             }
             if (done) {
