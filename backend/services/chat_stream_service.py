@@ -6,7 +6,7 @@ Uses the agent_loop for agentic processing. Handles chat persistence automatical
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Any, AsyncGenerator, List, Optional, Tuple
+from typing import Callable, Dict, Any, AsyncGenerator, List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -65,6 +65,23 @@ DEFAULT_GUEST_TURN_LIMIT = 8  # Fallback; actual value loaded from DB via ChatSe
 # Context window for the chat model. Warning fires at 70% usage.
 CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
+
+
+@dataclass
+class PageLocation:
+    """Where the user is in the app. Extracted once from context,
+    passed to anything that needs page-aware behavior."""
+    current_page: str
+    active_tab: Optional[str] = None
+    active_subtab: Optional[str] = None
+
+    @classmethod
+    def from_context(cls, context: Dict[str, Any]) -> "PageLocation":
+        return cls(
+            current_page=context.get("current_page", "unknown"),
+            active_tab=context.get("active_tab"),
+            active_subtab=context.get("active_subtab"),
+        )
 
 
 @dataclass
@@ -603,19 +620,17 @@ class ChatStreamService:
                 "user_role": user_role,
                 "conversation_id": turn.user_message.conversation_id,
             }
+            page = PageLocation.from_context(context)
+
             system_prompt = await self._build_system_prompt(
-                context, db_messages=turn.history.db_messages or None
+                context, page, db_messages=turn.history.db_messages or None
             )
-            messages, _ = self._build_messages_from_history(
+            messages = self._build_messages_from_history(
                 turn.user_message.message, turn.history.db_messages or None
             )
-
-            # Get tools for this page
-            current_page = context.get("current_page", "unknown")
-            active_tab = context.get("active_tab")
-            active_subtab = context.get("active_subtab")
             tools_by_name = get_tools_for_page_dict(
-                current_page, active_tab, active_subtab, user_role=user_role
+                page.current_page, page.active_tab, page.active_subtab,
+                user_role=user_role,
             )
 
             # Send initial status
@@ -701,7 +716,7 @@ class ChatStreamService:
                     return
 
             # ── 4. Normal completion: finalize, commit, deliver ─────────
-            parsed = self._parse_llm_response(response.collected_text, turn.user_message.context)
+            parsed = self._parse_llm_response(response.collected_text, page)
             response.finalize(parsed)
             chat_id = await self._commit_turn()
             logger.info(
@@ -780,9 +795,9 @@ class ChatStreamService:
 
     def _build_messages_from_history(
         self, message: str, db_messages: Optional[List] = None
-    ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    ) -> List[Dict[str, str]]:
         """
-        Build message history for LLM from pre-fetched messages.
+        Build message list for LLM from conversation history + current message.
 
         Note: Context is provided in the system prompt via _build_page_context,
         so user messages are sent as-is without context wrapping.
@@ -790,13 +805,8 @@ class ChatStreamService:
         Args:
             message: The current user message
             db_messages: Pre-fetched messages from the conversation (or None for new chat)
-
-        Returns:
-            tuple: (messages_for_llm, clean_history)
-                - messages_for_llm: Full messages including current message
-                - clean_history: Just the prior conversation (for diagnostics)
         """
-        history = []
+        messages = []
 
         # All db_messages are prior history (write-late: current message
         # hasn't been written to DB yet)
@@ -808,11 +818,10 @@ class ChatStreamService:
                     # LLM doesn't learn to reproduce them as plain text
                     if msg.role == "assistant":
                         content = re.sub(r"\[\[tool:\d+\]\]", "", content)
-                    history.append({"role": msg.role, "content": content})
+                    messages.append({"role": msg.role, "content": content})
 
-        messages_for_llm = history + [{"role": "user", "content": message}]
-
-        return messages_for_llm, history
+        messages.append({"role": "user", "content": message})
+        return messages
 
     def _build_payload_manifest(
         self, db_messages: Optional[List] = None
@@ -860,6 +869,7 @@ class ChatStreamService:
     async def _build_system_prompt(
         self,
         context: Dict[str, Any],
+        page: PageLocation,
         db_messages: Optional[List] = None,
     ) -> str:
         """
@@ -875,12 +885,10 @@ class ChatStreamService:
         7. FORMAT RULES - Technical formatting
 
         Args:
-            context: Page context dict
+            context: Enriched context dict (includes user_role, conversation_id)
+            page: Where the user is in the app
             db_messages: Optional pre-fetched messages (avoids redundant DB call)
         """
-        current_page = context.get("current_page", "unknown")
-        active_tab = context.get("active_tab")
-        active_subtab = context.get("active_subtab")
         user_role = context.get("user_role", "member")
 
         sections = []
@@ -892,7 +900,7 @@ class ChatStreamService:
         sections.append(f"{preamble}\n\nCurrent date and time: {current_time}")
 
         # 2. PAGE INSTRUCTIONS (page-specific guidance)
-        page_instructions = await self._get_page_instructions(current_page)
+        page_instructions = await self._get_page_instructions(page.current_page)
         if page_instructions:
             sections.append(f"== PAGE INSTRUCTIONS ==\n{page_instructions}")
 
@@ -902,7 +910,7 @@ class ChatStreamService:
             sections.append(f"== STREAM CONTEXT ==\n{stream_instructions}")
 
         # 4. CONTEXT (page context + user role + loaded data)
-        page_context = await self._build_page_context(current_page, context)
+        page_context = await self._build_page_context(page.current_page, context)
         if page_context:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
@@ -912,9 +920,7 @@ class ChatStreamService:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
         # 6. CAPABILITIES (tools + payloads + client actions)
-        capabilities = self._build_capabilities_section(
-            current_page, active_tab, active_subtab, user_role=user_role
-        )
+        capabilities = self._build_capabilities_section(page, user_role=user_role)
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
@@ -930,9 +936,7 @@ class ChatStreamService:
 
     def _build_capabilities_section(
         self,
-        current_page: str,
-        active_tab: Optional[str],
-        active_subtab: Optional[str],
+        page: PageLocation,
         user_role: Optional[str] = None,
     ) -> str:
         """Build capabilities section listing available tools, payloads, and client actions."""
@@ -942,7 +946,8 @@ class ChatStreamService:
 
         # Tools
         tools = get_tools_for_page(
-            current_page, active_tab, active_subtab, user_role=user_role
+            page.current_page, page.active_tab, page.active_subtab,
+            user_role=user_role,
         )
         if tools:
             tool_lines = [f"- {t.name}: {t.description}" for t in tools]
@@ -950,7 +955,7 @@ class ChatStreamService:
 
         # LLM Payloads (structured response formats the LLM can generate)
         payload_configs = get_all_payloads_for_page(
-            current_page, active_tab, active_subtab
+            page.current_page, page.active_tab, page.active_subtab
         )
         llm_payloads = [c for c in payload_configs if c.llm_instructions]
         if llm_payloads:
@@ -963,7 +968,7 @@ class ChatStreamService:
             )
 
         # Client Actions
-        client_actions = get_client_actions(current_page)
+        client_actions = get_client_actions(page.current_page)
         if client_actions:
             actions_list = "\n".join(
                 [f"- {a.action}: {a.description}" for a in client_actions]
@@ -1258,15 +1263,11 @@ SUGGESTED_ACTIONS:
     # =========================================================================
 
     def _parse_llm_response(
-        self, response_text: str, context: Dict[str, Any]
+        self, response_text: str, page: PageLocation
     ) -> Dict[str, Any]:
         """Parse LLM response to extract structured components."""
         import json
         import re
-
-        current_page = context.get("current_page", "unknown")
-        active_tab = context.get("active_tab")
-        active_subtab = context.get("active_subtab")
 
         message = response_text.strip()
         result = {
@@ -1333,7 +1334,7 @@ SUGGESTED_ACTIONS:
 
         # Parse custom payloads (page-specific structured responses)
         payload_configs = get_all_payloads_for_page(
-            current_page, active_tab, active_subtab
+            page.current_page, page.active_tab, page.active_subtab
         )
         for config in payload_configs:
             marker = config.parse_marker
