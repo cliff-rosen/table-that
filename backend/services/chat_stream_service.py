@@ -70,7 +70,12 @@ CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
 @dataclass
 class PageLocation:
     """Where the user is in the app. Extracted once from context,
-    passed to anything that needs page-aware behavior."""
+    passed to anything that needs page-aware behavior.
+
+    TODO: The page-aware registries (get_tools_for_page, get_all_payloads_for_page,
+    get_client_actions, get_tools_for_page_dict) still take these as separate args.
+    They should be refactored to accept PageLocation directly.
+    """
     current_page: str
     active_tab: Optional[str] = None
     active_subtab: Optional[str] = None
