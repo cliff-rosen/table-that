@@ -111,11 +111,14 @@ class ResponseBuilder:
         self.trace: Optional[AgentTrace] = None
         self.tool_call_index: int = 0
 
-        # ── Built state (set by build()) ──
-        self._built = False
+        # ── Finalized state (set by finalize()) ──
+        self._finalized = False
         self._parsed_message: Optional[str] = None
         self._extras: Optional[Dict[str, Any]] = None
-        self._complete_event: Optional[CompleteEvent] = None
+        self._suggested_values = None
+        self._suggested_actions = None
+        self._custom_payload_obj = None
+        self._tool_history_entries = None
 
     # ── Accumulation methods (called during streaming) ──────────────
 
@@ -140,17 +143,18 @@ class ResponseBuilder:
         """Capture trace (e.g. from AgentError)."""
         self.trace = trace
 
-    # ── Build (called on normal completion) ─────────────────────────
+    # ── Finalize (called on normal completion) ─────────────────────
 
-    def build(self, parsed: Dict[str, Any], conversation_id: Optional[int] = None) -> CompleteEvent:
-        """Build the CompleteEvent from pre-parsed response data.
+    def finalize(self, parsed: Dict[str, Any]) -> None:
+        """Process raw accumulated data into final form for persistence.
+
+        After this call, .content returns the parsed message and .extras
+        returns the full extras dict.  On cancel paths this is never
+        called, so .content returns raw text and .extras returns None.
 
         Args:
             parsed: Dict with keys message, suggested_values,
                     suggested_actions, custom_payload
-
-        Returns:
-            CompleteEvent ready to yield as SSE.
         """
 
         # ── Merge payloads (tool-emitted take priority over text-parsed) ──
@@ -208,11 +212,15 @@ class ResponseBuilder:
                 suggested_actions=suggested_actions,
                 custom_payload=custom_payload_obj,
                 tool_history=tool_history_entries,
-                conversation_id=conversation_id,
             )
 
-        # ── Store for persistence ──
+        # ── Store finalized data ──
         self._parsed_message = parsed["message"]
+        self._suggested_values = suggested_values
+        self._suggested_actions = suggested_actions
+        self._custom_payload_obj = custom_payload_obj
+        self._tool_history_entries = tool_history_entries
+
         extras = {
             "tool_history": self.tool_call_history or None,
             "custom_payload": custom_payload,
@@ -223,9 +231,24 @@ class ResponseBuilder:
         }
         extras = {k: v for k, v in extras.items() if v is not None}
         self._extras = extras if extras else None
-        self._built = True
+        self._finalized = True
 
-        # ── Context window warning ──
+    # ── Package for delivery (called after commit) ───────────────
+
+    def to_complete_event(self, conversation_id: int) -> CompleteEvent:
+        """Build the CompleteEvent for SSE delivery.
+
+        Must be called after finalize().  Takes conversation_id because
+        that's only known after _commit_turn.
+        """
+        if not self._finalized:
+            raise RuntimeError("to_complete_event called before finalize()")
+
+        # Update trace with conversation_id now that we have it
+        if self.trace and self.trace.final_response:
+            self.trace.final_response.conversation_id = conversation_id
+
+        # Context window warning
         context_warning = None
         if (
             self.trace
@@ -238,19 +261,17 @@ class ResponseBuilder:
                 f"Consider starting a new conversation to ensure the best response quality."
             )
 
-        # ── Build CompleteEvent ──
         payload = ChatResponsePayload(
-            message=parsed["message"],
-            suggested_values=suggested_values,
-            suggested_actions=suggested_actions,
-            custom_payload=custom_payload_obj,
+            message=self._parsed_message,
+            suggested_values=self._suggested_values,
+            suggested_actions=self._suggested_actions,
+            custom_payload=self._custom_payload_obj,
             tool_history=self.tool_call_history or None,
             conversation_id=conversation_id,
             warning=context_warning,
             diagnostics=self.trace,
         )
-        self._complete_event = CompleteEvent(payload=payload)
-        return self._complete_event
+        return CompleteEvent(payload=payload)
 
     # ── Content access (for persistence) ──────────────────────────────
 
@@ -261,8 +282,12 @@ class ResponseBuilder:
 
     @property
     def content(self) -> str:
-        """Message content for DB persistence. Rich if built, raw otherwise."""
-        if self._built and self._parsed_message is not None:
+        """Message content for DB persistence.
+
+        After finalize(): the parsed message (payloads/markers stripped).
+        Before finalize() (cancel path): raw collected text.
+        """
+        if self._finalized and self._parsed_message is not None:
             return self._parsed_message
         return self.collected_text.strip()
 
@@ -683,18 +708,17 @@ class ChatStreamService:
                         )
                     return
 
-            # ── 4. Normal completion: parse, build, commit, emit ──────────
+            # ── 4. Normal completion: finalize, commit, deliver ─────────
             parsed = self._parse_llm_response(response.collected_text, turn.user_message.context)
-            complete_event = response.build(parsed)
+            response.finalize(parsed)
             chat_id = await self._commit_turn(
                 response.content, response.extras,
             )
-            complete_event.payload.conversation_id = chat_id
             logger.info(
                 f"Stream complete: chat_id={chat_id} "
                 f"text={len(response.collected_text)} chars"
             )
-            yield complete_event.model_dump_json()
+            yield response.to_complete_event(chat_id).model_dump_json()
 
             if guest_limit_hit:
                 logger.info(
