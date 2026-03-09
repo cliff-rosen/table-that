@@ -381,6 +381,15 @@ class ChatStreamService:
                         self.user_id, app="table_that", scope=scope
                     )
                     chat_id = chat.id
+                else:
+                    # Migrate scope if context indicates a different entity
+                    table_id = request.context.get("table_id")
+                    if scope and table_id:
+                        chat = await chat_service.get_chat(chat_id, self.user_id)
+                        if chat and chat.scope != scope:
+                            await chat_service.migrate_to_table(
+                                chat_id, self.user_id, table_id
+                            )
 
                 await chat_service.add_message(
                     chat_id=chat_id,
@@ -722,8 +731,7 @@ class ChatStreamService:
         """Resolve conversation without creating or writing anything.
 
         Returns (chat_id, scope).  chat_id is None for new conversations.
-        Scope migration (updating an existing conversation's scope) is
-        the only write that happens here.
+        Read-only: scope migration is deferred to _commit_turn.
         """
         chat_id = request.conversation_id
         derived_scope = derive_scope(request.context)
@@ -731,11 +739,6 @@ class ChatStreamService:
         if chat_id:
             chat = await self.chat_service.get_chat(chat_id, self.user_id)
             if chat:
-                table_id = request.context.get("table_id")
-                if derived_scope and chat.scope != derived_scope and table_id:
-                    await self.chat_service.migrate_to_table(
-                        chat_id, self.user_id, table_id
-                    )
                 return chat_id, derived_scope
 
         return None, derived_scope
