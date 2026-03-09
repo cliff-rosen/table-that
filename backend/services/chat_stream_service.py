@@ -560,7 +560,9 @@ class ChatStreamService:
             cancellation_token = CancellationToken()
 
         # ── 1. Resolve conversation (read-only — no DB writes) ──────────
-        history = await self._resolve_chat(request)
+        history = await self._resolve_chat(
+            request.conversation_id, request.context
+        )
         logger.info(
             f"Stream start: user={self.user_id} chat_id={history.chat_id} "
             f"scope={history.scope} message={request.message[:80]!r}"
@@ -572,26 +574,7 @@ class ChatStreamService:
         self._turn = turn
 
         try:
-            # Check guest turn limit — process this message but signal limit after
-            guest_limit_hit = False
-            from services.user_service import UserService
-
-            user_service = UserService(self.db)
-            user = await user_service.get_user_by_id(self.user_id)
-            if user and user.is_guest:
-                guest_turn_limit = await self.chat_service.get_guest_turn_limit()
-                msg_count = await self.chat_service.count_user_messages(self.user_id)
-                logger.info(
-                    f"Guest limit check: user={self.user_id} msg_count={msg_count} "
-                    f"limit={guest_turn_limit} over={'YES' if msg_count >= guest_turn_limit else 'no'}"
-                )
-                if msg_count >= guest_turn_limit:
-                    guest_limit_hit = True
-            else:
-                logger.info(
-                    f"Guest limit check: user={self.user_id} "
-                    f"is_guest={user.is_guest if user else 'no user'} — skipping"
-                )
+            guest_limit_hit = await self._check_guest_limit()
 
             # Build enriched context (no mutation of turn.user_message.context)
             context = {
@@ -603,7 +586,7 @@ class ChatStreamService:
                 context, db_messages=turn.history.db_messages or None
             )
             messages, _ = self._build_messages_from_history(
-                turn.user_message, turn.history.db_messages or None
+                turn.user_message.message, turn.history.db_messages or None
             )
 
             # Get tools for this page
@@ -738,29 +721,53 @@ class ChatStreamService:
     # Conversation
     # =========================================================================
 
-    async def _resolve_chat(self, request) -> ResolvedConversation:
+    async def _resolve_chat(
+        self, conversation_id: Optional[int], context: Dict[str, Any]
+    ) -> ResolvedConversation:
         """Resolve conversation and load history. Read-only — no DB writes.
 
         Raises ValueError if a conversation_id is provided but not found.
         """
-        chat_id = request.conversation_id
-        scope = derive_scope(request.context)
+        scope = derive_scope(context)
 
-        if chat_id:
-            chat = await self.chat_service.get_chat(chat_id, self.user_id)
+        if conversation_id:
+            chat = await self.chat_service.get_chat(conversation_id, self.user_id)
             if not chat:
                 raise ValueError(
-                    f"Conversation {chat_id} not found for user {self.user_id}"
+                    f"Conversation {conversation_id} not found for user {self.user_id}"
                 )
-            db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
+            db_messages = await self.chat_service.get_messages(conversation_id, self.user_id)
             return ResolvedConversation(
-                chat_id=chat_id, scope=scope, db_messages=db_messages
+                chat_id=conversation_id, scope=scope, db_messages=db_messages
             )
 
         return ResolvedConversation(chat_id=None, scope=scope)
 
+    async def _check_guest_limit(self) -> bool:
+        """Check if the current user is a guest who has hit their turn limit.
+
+        Returns True if the limit has been reached (caller should emit
+        GuestLimitEvent after the response completes).
+        """
+        from services.user_service import UserService
+
+        user_service = UserService(self.db)
+        user = await user_service.get_user_by_id(self.user_id)
+        if not user or not user.is_guest:
+            return False
+
+        guest_turn_limit = await self.chat_service.get_guest_turn_limit()
+        msg_count = await self.chat_service.count_user_messages(self.user_id)
+        over = msg_count >= guest_turn_limit
+        logger.info(
+            f"Guest limit check: user={self.user_id} "
+            f"msg_count={msg_count} limit={guest_turn_limit} "
+            f"over={'YES' if over else 'no'}"
+        )
+        return over
+
     def _build_messages_from_history(
-        self, request, db_messages: Optional[List] = None
+        self, message: str, db_messages: Optional[List] = None
     ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
         """
         Build message history for LLM from pre-fetched messages.
@@ -769,31 +776,29 @@ class ChatStreamService:
         so user messages are sent as-is without context wrapping.
 
         Args:
-            request: The chat request with the current message
+            message: The current user message
             db_messages: Pre-fetched messages from the conversation (or None for new chat)
 
         Returns:
             tuple: (messages_for_llm, clean_history)
-                - messages_for_llm: Full messages including current request
-                - clean_history: Just the prior conversation (for diagnostics display)
+                - messages_for_llm: Full messages including current message
+                - clean_history: Just the prior conversation (for diagnostics)
         """
         history = []
 
-        # Build history from pre-fetched messages
         # All db_messages are prior history (write-late: current message
         # hasn't been written to DB yet)
         if db_messages:
             for msg in db_messages:
                 if msg.role in ("user", "assistant"):
-                    # Strip [[tool:N]] markers from assistant messages so the LLM
-                    # doesn't learn to reproduce them as plain text
                     content = msg.content
+                    # Strip [[tool:N]] markers from assistant messages so the
+                    # LLM doesn't learn to reproduce them as plain text
                     if msg.role == "assistant":
                         content = re.sub(r"\[\[tool:\d+\]\]", "", content)
                     history.append({"role": msg.role, "content": content})
 
-        # User message sent as-is - context is already in system prompt
-        messages_for_llm = history + [{"role": "user", "content": request.message}]
+        messages_for_llm = history + [{"role": "user", "content": message}]
 
         return messages_for_llm, history
 
