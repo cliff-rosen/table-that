@@ -82,13 +82,14 @@ class ResolvedConversation:
 class PendingTurn:
     """In-flight turn state for the write-late pattern.
 
-    Created after _resolve_chat, consumed by _commit_turn.
-    Groups everything needed to commit a turn so it's not scattered
-    across the service instance.
+    Three parts of a turn:
+      history      — prior conversation state from DB
+      user_message — what the user sent (the input extending it)
+      response     — assistant response being assembled
     """
-    conv: ResolvedConversation
-    request: Any  # ChatRequest
-    builder: "ResponseBuilder"
+    history: ResolvedConversation
+    user_message: Any  # ChatRequest
+    response: "ResponseBuilder"
     committed: bool = False
     commit_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -378,7 +379,7 @@ class ChatStreamService:
     ) -> int:
         """Create conversation (if needed) and write user + assistant messages.
 
-        Uses self._turn for conv/request state.  Uses a fresh DB session
+        Uses self._turn for history/user_message state.  Uses a fresh DB session
         so writes survive cancelled request scopes.  Idempotent via
         turn.commit_lock + turn.committed.
 
@@ -390,32 +391,30 @@ class ChatStreamService:
 
         async with turn.commit_lock:
             if turn.committed:
-                return turn.conv.chat_id or 0
+                return turn.history.chat_id or 0
 
             from database import AsyncSessionLocal
 
-            conv = turn.conv
-            request = turn.request
-            chat_id = conv.chat_id
+            chat_id = turn.history.chat_id
 
             async with AsyncSessionLocal() as db:
                 chat_service = ChatService(db)
 
                 if not chat_id:
-                    if not conv.scope:
+                    if not turn.history.scope:
                         logger.warning(
-                            f"No scope derived from context: {request.context}"
+                            f"No scope derived from context: {turn.user_message.context}"
                         )
                     chat = await chat_service.create_chat(
-                        self.user_id, app="table_that", scope=conv.scope
+                        self.user_id, app="table_that", scope=turn.history.scope
                     )
                     chat_id = chat.id
                 else:
                     # Migrate scope if context indicates a different entity
-                    table_id = request.context.get("table_id")
-                    if conv.scope and table_id:
+                    table_id = turn.user_message.context.get("table_id")
+                    if turn.history.scope and table_id:
                         chat = await chat_service.get_chat(chat_id, self.user_id)
-                        if chat and chat.scope != conv.scope:
+                        if chat and chat.scope != turn.history.scope:
                             await chat_service.migrate_to_table(
                                 chat_id, self.user_id, table_id
                             )
@@ -424,20 +423,20 @@ class ChatStreamService:
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="user",
-                    content=request.message,
-                    context=request.context,
+                    content=turn.user_message.message,
+                    context=turn.user_message.context,
                 )
                 await chat_service.add_message(
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="assistant",
                     content=assistant_content,
-                    context=request.context,
+                    context=turn.user_message.context,
                     extras=assistant_extras,
                 )
 
             turn.committed = True
-            conv.chat_id = chat_id
+            turn.history.chat_id = chat_id
             return chat_id
 
     async def commit_if_needed(self) -> None:
@@ -453,20 +452,20 @@ class ChatStreamService:
         if turn.committed:
             logger.debug("commit_if_needed: already committed")
             return
-        if not turn.builder.has_content:
+        if not turn.response.has_content:
             logger.info(
                 f"commit_if_needed: no content to commit "
-                f"(text={len(turn.builder.collected_text)} chars)"
+                f"(text={len(turn.response.collected_text)} chars)"
             )
             return
         logger.info(
             f"commit_if_needed: committing turn "
-            f"(text={len(turn.builder.collected_text)} chars)"
+            f"(text={len(turn.response.collected_text)} chars)"
         )
         try:
             await self._commit_turn(
-                turn.builder.content,
-                turn.builder.extras,
+                turn.response.content,
+                turn.response.extras,
             )
         except Exception:
             logger.warning(
@@ -561,15 +560,16 @@ class ChatStreamService:
             cancellation_token = CancellationToken()
 
         # ── 1. Resolve conversation (read-only — no DB writes) ──────────
-        conv = await self._resolve_chat(request)
+        history = await self._resolve_chat(request)
         logger.info(
-            f"Stream start: user={self.user_id} chat_id={conv.chat_id} "
-            f"scope={conv.scope} message={request.message[:80]!r}"
+            f"Stream start: user={self.user_id} chat_id={history.chat_id} "
+            f"scope={history.scope} message={request.message[:80]!r}"
         )
 
         # ── 2. Set up pending turn (write-late state) ────────────────────
         builder = ResponseBuilder()
-        self._turn = PendingTurn(conv=conv, request=request, builder=builder)
+        turn = PendingTurn(history=history, user_message=request, response=builder)
+        self._turn = turn
 
         try:
             # Check guest turn limit — process this message but signal limit after
@@ -600,9 +600,9 @@ class ChatStreamService:
                 "conversation_id": request.conversation_id,
             }
             system_prompt = await self._build_system_prompt(
-                context, db_messages=conv.db_messages or None
+                context, db_messages=turn.history.db_messages or None
             )
-            messages, _ = self._build_messages_from_history(request, conv.db_messages or None)
+            messages, _ = self._build_messages_from_history(request, turn.history.db_messages or None)
 
             # Get tools for this page
             current_page = context.get("current_page", "unknown")
