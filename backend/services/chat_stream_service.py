@@ -595,20 +595,21 @@ class ChatStreamService:
                 )
 
             # Inject conversation_id into context for tools that need it
-            context_with_chat = dict(request.context)
-            context_with_chat["conversation_id"] = conv.chat_id
+            # (user_role is already injected by create_sse_stream)
+            request.context["conversation_id"] = request.conversation_id
 
             # Build prompts
+            context = request.context
             system_prompt = await self._build_system_prompt(
-                context_with_chat, conv.chat_id, conv.db_messages or None
+                context, db_messages=conv.db_messages or None
             )
             messages, _ = self._build_messages_from_history(request, conv.db_messages or None)
 
             # Get tools for this page
-            current_page = context_with_chat.get("current_page", "unknown")
-            active_tab = context_with_chat.get("active_tab")
-            active_subtab = context_with_chat.get("active_subtab")
-            user_role = context_with_chat.get("user_role")
+            current_page = context.get("current_page", "unknown")
+            active_tab = context.get("active_tab")
+            active_subtab = context.get("active_subtab")
+            user_role = context.get("user_role")
             tools_by_name = get_tools_for_page_dict(
                 current_page, active_tab, active_subtab, user_role=user_role
             )
@@ -630,7 +631,7 @@ class ChatStreamService:
                 tools=tools_by_name,
                 db=self.db,
                 user_id=self.user_id,
-                context=context_with_chat,
+                context=context,
                 cancellation_token=cancellation_token,
                 stream_text=True,
                 temperature=0.0,
@@ -843,7 +844,6 @@ class ChatStreamService:
     async def _build_system_prompt(
         self,
         context: Dict[str, Any],
-        chat_id: Optional[int] = None,
         db_messages: Optional[List] = None,
     ) -> str:
         """
@@ -860,7 +860,6 @@ class ChatStreamService:
 
         Args:
             context: Page context dict
-            chat_id: Optional conversation ID
             db_messages: Optional pre-fetched messages (avoids redundant DB call)
         """
         current_page = context.get("current_page", "unknown")
