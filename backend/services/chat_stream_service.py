@@ -1240,173 +1240,17 @@ SUGGESTED_ACTIONS:
     def _parse_llm_response(
         self, response_text: str, page: PageLocation
     ) -> Dict[str, Any]:
-        """Parse LLM response to extract structured components."""
-        import json
-        import re
+        """Parse LLM response to extract structured components.
 
-        message = response_text.strip()
-        result = {
-            "message": message,
-            "suggested_values": None,
-            "suggested_actions": None,
-            "custom_payload": None,
-        }
-
-        # Parse SUGGESTED_VALUES marker - find marker and everything after it on same/following lines
-        values_marker = "SUGGESTED_VALUES:"
-        if values_marker in message:
-            marker_pos = message.find(values_marker)
-            after_marker = message[marker_pos + len(values_marker) :]
-            # Strip leading whitespace/newlines before the JSON
-            after_marker_stripped = after_marker.lstrip()
-            json_content = self._extract_json_array(after_marker_stripped)
-            if json_content:
-                try:
-                    parsed = json.loads(json_content)
-                    if isinstance(parsed, list):
-                        result["suggested_values"] = parsed
-                        # Calculate whitespace between marker and JSON
-                        whitespace_len = len(after_marker) - len(after_marker_stripped)
-                        # Remove everything from marker through end of JSON
-                        end_pos = (
-                            marker_pos
-                            + len(values_marker)
-                            + whitespace_len
-                            + len(json_content)
-                        )
-                        message = (message[:marker_pos] + message[end_pos:]).strip()
-                        result["message"] = message
-                except json.JSONDecodeError:
-                    logger.warning(
-                        f"Failed to parse SUGGESTED_VALUES JSON: {json_content[:100]}"
-                    )
-
-        # Parse SUGGESTED_ACTIONS marker
-        actions_marker = "SUGGESTED_ACTIONS:"
-        if actions_marker in message:
-            marker_pos = message.find(actions_marker)
-            after_marker = message[marker_pos + len(actions_marker) :]
-            after_marker_stripped = after_marker.lstrip()
-            json_content = self._extract_json_array(after_marker_stripped)
-            if json_content:
-                try:
-                    parsed = json.loads(json_content)
-                    if isinstance(parsed, list):
-                        result["suggested_actions"] = parsed
-                        whitespace_len = len(after_marker) - len(after_marker_stripped)
-                        end_pos = (
-                            marker_pos
-                            + len(actions_marker)
-                            + whitespace_len
-                            + len(json_content)
-                        )
-                        message = (message[:marker_pos] + message[end_pos:]).strip()
-                        result["message"] = message
-                except json.JSONDecodeError:
-                    logger.warning(
-                        f"Failed to parse SUGGESTED_ACTIONS JSON: {json_content[:100]}"
-                    )
-
-        # Parse custom payloads (page-specific structured responses)
-        payload_configs = get_all_payloads_for_page(page)
-        for config in payload_configs:
-            marker = config.parse_marker
-            # Skip payloads without a parse_marker (tool payloads don't need parsing)
-            if not marker:
-                continue
-            # Build regex that handles optional markdown bold/italic around the marker.
-            # e.g. marker "DATA_PROPOSAL:" also matches "**DATA_PROPOSAL**:" or
-            # "*DATA_PROPOSAL*:" which LLMs sometimes produce.
-            marker_text = marker.rstrip(":")
-            marker_pattern = re.compile(
-                r"\*{0,2}" + re.escape(marker_text) + r"\*{0,2}\s*:"
-            )
-            match = marker_pattern.search(message)
-            if match:
-                marker_pos = match.start()
-                after_marker_raw = message[match.end() :]
-                after_marker = after_marker_raw.strip()
-                json_content = self._extract_json_object(after_marker)
-                if json_content:
-                    parsed = config.parser(json_content)
-                    if parsed:
-                        result["custom_payload"] = parsed
-                        # Find where JSON starts in the raw after_marker (preserving whitespace)
-                        json_start_in_raw = after_marker_raw.find(json_content)
-                        # Calculate full payload text: from marker start through end of JSON
-                        end_pos = match.end() + json_start_in_raw + len(json_content)
-                        payload_text = message[marker_pos:end_pos]
-                        message = message.replace(payload_text, "").strip()
-                        result["message"] = message
-                        break
-
-        return result
-
-    def _extract_json_object(self, text: str) -> Optional[str]:
-        """Extract a JSON object from the start of text, handling nested braces."""
-        if not text.startswith("{"):
-            return None
-        return self._extract_balanced(text, "{", "}")
-
-    def _extract_json_array(self, text: str) -> Optional[str]:
-        """Extract a JSON array from the start of text, handling nested brackets."""
-        if not text.startswith("["):
-            return None
-        return self._extract_balanced(text, "[", "]")
-
-    def _extract_balanced(
-        self, text: str, open_char: str, close_char: str
-    ) -> Optional[str]:
-        """Extract balanced content between open and close characters."""
-        if not text or text[0] != open_char:
-            return None
-
-        depth = 0
-        in_string = False
-        escape_next = False
-
-        for i, char in enumerate(text):
-            if escape_next:
-                escape_next = False
-                continue
-
-            if char == "\\":
-                escape_next = True
-                continue
-
-            if char == '"' and not escape_next:
-                in_string = not in_string
-                continue
-
-            if in_string:
-                continue
-
-            if char == open_char:
-                depth += 1
-            elif char == close_char:
-                depth -= 1
-                if depth == 0:
-                    return text[: i + 1]
-
-        return None
+        Delegates to the standalone parse_llm_response function.
+        """
+        from services.response_parser import parse_llm_response
+        return parse_llm_response(response_text, page)
 
 
 # Dependency injection providers
 from fastapi import Depends
 from database import get_async_db
-
-
-async def get_chat_stream_service(
-    db: AsyncSession = Depends(get_async_db),
-) -> ChatStreamService:
-    """
-    Get a ChatStreamService instance with async database session.
-
-    Note: user_id is not available at DI time, so we return a partial service
-    that the endpoint must complete with user_id.
-    """
-    # Return a factory function since we need user_id at call time
-    raise NotImplementedError("Use get_chat_stream_service_factory instead")
 
 
 def get_chat_stream_service_factory(db: AsyncSession = Depends(get_async_db)):

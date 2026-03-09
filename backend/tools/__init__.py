@@ -19,7 +19,6 @@ from tools.registry import (
     tools_to_dict,
     get_tools_for_page,
     get_tools_for_page_dict,
-    get_tools_for_anthropic,
 )
 
 # Import builtin tools to auto-register them
@@ -40,5 +39,4 @@ __all__ = [
     "tools_to_dict",
     "get_tools_for_page",
     "get_tools_for_page_dict",
-    "get_tools_for_anthropic",
 ]

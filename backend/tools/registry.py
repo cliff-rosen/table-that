@@ -193,13 +193,3 @@ def get_tools_for_page_dict(
     return tools_to_dict(get_tools_for_page(location, user_role=user_role))
 
 
-def get_tools_for_anthropic(
-    location: PageLocation,
-    user_role: Optional[str] = None
-) -> List[Dict[str, Any]]:
-    """
-    Get tools in Anthropic API format for a page location.
-
-    Returns: global tools + page tools + tab tools + subtab tools in Anthropic format
-    """
-    return tools_to_anthropic_format(get_tools_for_page(location, user_role=user_role))
