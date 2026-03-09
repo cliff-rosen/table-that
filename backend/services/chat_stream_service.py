@@ -348,28 +348,6 @@ class ChatStreamService:
         self._committed = False
         self._commit_lock = asyncio.Lock()
 
-    async def _resolve_chat(self, request) -> Tuple[Optional[int], Optional[str]]:
-        """Resolve conversation without creating or writing anything.
-
-        Returns (chat_id, scope).  chat_id is None for new conversations.
-        Scope migration (updating an existing conversation's scope) is
-        the only write that happens here.
-        """
-        chat_id = request.conversation_id
-        derived_scope = derive_scope(request.context)
-
-        if chat_id:
-            chat = await self.chat_service.get_chat(chat_id, self.user_id)
-            if chat:
-                table_id = request.context.get("table_id")
-                if derived_scope and chat.scope != derived_scope and table_id:
-                    await self.chat_service.migrate_to_table(
-                        chat_id, self.user_id, table_id
-                    )
-                return chat_id, derived_scope
-
-        return None, derived_scope
-
     async def _commit_turn(
         self,
         chat_id: Optional[int],
@@ -395,13 +373,12 @@ class ChatStreamService:
                 chat_service = ChatService(db)
 
                 if not chat_id:
-                    app = self._get_app_from_context(request.context)
                     if not scope:
                         logger.warning(
                             f"No scope derived from context: {request.context}"
                         )
                     chat = await chat_service.create_chat(
-                        self.user_id, app=app, scope=scope
+                        self.user_id, app="table_that", scope=scope
                     )
                     chat_id = chat.id
 
@@ -737,58 +714,31 @@ class ChatStreamService:
                 except Exception:
                     logger.warning("Failed to commit after error", exc_info=True)
 
-    def _build_payload_manifest(
-        self, db_messages: Optional[List] = None
-    ) -> Optional[str]:
+    # =========================================================================
+    # Conversation
+    # =========================================================================
+
+    async def _resolve_chat(self, request) -> Tuple[Optional[int], Optional[str]]:
+        """Resolve conversation without creating or writing anything.
+
+        Returns (chat_id, scope).  chat_id is None for new conversations.
+        Scope migration (updating an existing conversation's scope) is
+        the only write that happens here.
         """
-        Build a manifest of all payloads from the conversation history.
+        chat_id = request.conversation_id
+        derived_scope = derive_scope(request.context)
 
-        The manifest provides brief summaries of all payloads that have been
-        generated during this conversation, allowing the LLM to reference
-        them by ID using the get_payload tool.
+        if chat_id:
+            chat = await self.chat_service.get_chat(chat_id, self.user_id)
+            if chat:
+                table_id = request.context.get("table_id")
+                if derived_scope and chat.scope != derived_scope and table_id:
+                    await self.chat_service.migrate_to_table(
+                        chat_id, self.user_id, table_id
+                    )
+                return chat_id, derived_scope
 
-        Args:
-            db_messages: Pre-fetched messages from the conversation
-
-        Returns:
-            Formatted manifest string, or None if no payloads exist
-        """
-        if not db_messages:
-            return None
-
-        manifest_entries = []
-        for msg in db_messages:
-            if msg.role != "assistant" or not msg.extras:
-                continue
-
-            payloads = msg.extras.get("payloads", [])
-            for payload in payloads:
-                payload_id = payload.get("payload_id")
-                summary = payload.get("summary")
-                if payload_id and summary:
-                    manifest_entries.append(f"- [{payload_id}] {summary}")
-
-        if not manifest_entries:
-            return None
-
-        return (
-            "AVAILABLE PAYLOADS (use get_payload tool to retrieve full data):\n"
-            + "\n".join(manifest_entries)
-        )
-
-    # =========================================================================
-    # Chat Persistence Helpers
-    # =========================================================================
-
-    def _get_app_from_context(self, context: Dict[str, Any]) -> str:
-        """Derive app identifier from context."""
-        return "table_that"
-
-    # _setup_chat removed — replaced by _resolve_chat + _commit_turn (write-late pattern)
-
-    # =========================================================================
-    # Message Building
-    # =========================================================================
+        return None, derived_scope
 
     def _build_messages_from_history(
         self, request, db_messages: Optional[List] = None
@@ -827,6 +777,45 @@ class ChatStreamService:
         messages_for_llm = history + [{"role": "user", "content": request.message}]
 
         return messages_for_llm, history
+
+    def _build_payload_manifest(
+        self, db_messages: Optional[List] = None
+    ) -> Optional[str]:
+        """
+        Build a manifest of all payloads from the conversation history.
+
+        The manifest provides brief summaries of all payloads that have been
+        generated during this conversation, allowing the LLM to reference
+        them by ID using the get_payload tool.
+
+        Args:
+            db_messages: Pre-fetched messages from the conversation
+
+        Returns:
+            Formatted manifest string, or None if no payloads exist
+        """
+        if not db_messages:
+            return None
+
+        manifest_entries = []
+        for msg in db_messages:
+            if msg.role != "assistant" or not msg.extras:
+                continue
+
+            payloads = msg.extras.get("payloads", [])
+            for payload in payloads:
+                payload_id = payload.get("payload_id")
+                summary = payload.get("summary")
+                if payload_id and summary:
+                    manifest_entries.append(f"- [{payload_id}] {summary}")
+
+        if not manifest_entries:
+            return None
+
+        return (
+            "AVAILABLE PAYLOADS (use get_payload tool to retrieve full data):\n"
+            + "\n".join(manifest_entries)
+        )
 
     # =========================================================================
     # System Prompt Building
