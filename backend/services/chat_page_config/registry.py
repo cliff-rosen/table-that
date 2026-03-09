@@ -19,6 +19,28 @@ Pages reference tools and payloads BY NAME. Resolution logic:
 from typing import Dict, List, Any, Callable, Optional
 from dataclasses import dataclass, field
 
+# ── Shared data types ────────────────────────────────────────────────────
+
+
+@dataclass
+class PageLocation:
+    """Where the user is in the app.
+
+    Extracted once from context, passed to anything that needs
+    page-aware behavior (tool resolution, payload resolution, etc.).
+    """
+    current_page: str
+    active_tab: Optional[str] = None
+    active_subtab: Optional[str] = None
+
+    @classmethod
+    def from_context(cls, context: Dict[str, Any]) -> "PageLocation":
+        return cls(
+            current_page=context.get("current_page", "unknown"),
+            active_tab=context.get("active_tab"),
+            active_subtab=context.get("active_subtab"),
+        )
+
 
 @dataclass
 class SubTabConfig:
@@ -107,54 +129,46 @@ def has_page(page: str) -> bool:
 # Resolution Functions
 # =============================================================================
 
-def get_tool_names_for_page_tab(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None
-) -> List[str]:
+def get_tool_names_for_page_tab(location: PageLocation) -> List[str]:
     """
-    Get tool names for a page, optional tab, and optional subtab.
+    Get tool names for a page location (page + optional tab/subtab).
     Returns: page-wide tools + tab-specific tools + subtab-specific tools
     Note: Caller should combine with global tools.
     """
-    config = _page_registry.get(page)
+    config = _page_registry.get(location.current_page)
     if not config:
         return []
 
     tools = list(config.tools)  # Page-wide tools
 
-    if tab and tab in config.tabs:
-        tab_config = config.tabs[tab]
+    if location.active_tab and location.active_tab in config.tabs:
+        tab_config = config.tabs[location.active_tab]
         tools.extend(tab_config.tools)  # Tab-wide tools
 
-        if subtab and subtab in tab_config.subtabs:
-            tools.extend(tab_config.subtabs[subtab].tools)  # Subtab-specific tools
+        if location.active_subtab and location.active_subtab in tab_config.subtabs:
+            tools.extend(tab_config.subtabs[location.active_subtab].tools)  # Subtab-specific tools
 
     return tools
 
 
-def get_payload_names_for_page_tab(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None
-) -> List[str]:
+def get_payload_names_for_page_tab(location: PageLocation) -> List[str]:
     """
-    Get payload names for a page, optional tab, and optional subtab.
+    Get payload names for a page location (page + optional tab/subtab).
     Returns: page-wide payloads + tab-specific payloads + subtab-specific payloads
     Note: Caller should combine with global payloads.
     """
-    config = _page_registry.get(page)
+    config = _page_registry.get(location.current_page)
     if not config:
         return []
 
     payloads = list(config.payloads)  # Page-wide payloads
 
-    if tab and tab in config.tabs:
-        tab_config = config.tabs[tab]
+    if location.active_tab and location.active_tab in config.tabs:
+        tab_config = config.tabs[location.active_tab]
         payloads.extend(tab_config.payloads)  # Tab-wide payloads
 
-        if subtab and subtab in tab_config.subtabs:
-            payloads.extend(tab_config.subtabs[subtab].payloads)  # Subtab-specific payloads
+        if location.active_subtab and location.active_subtab in tab_config.subtabs:
+            payloads.extend(tab_config.subtabs[location.active_subtab].payloads)  # Subtab-specific payloads
 
     return payloads
 

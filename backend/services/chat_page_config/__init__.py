@@ -15,9 +15,9 @@ by name in page configs. The system resolves:
 Import this package to automatically register all page configurations.
 """
 
-from typing import List, Optional
 
 from .registry import (
+    PageLocation,
     SubTabConfig,
     TabConfig,
     ClientAction,
@@ -42,12 +42,8 @@ from . import tables_list
 # Payload Resolution Helper Functions
 # =============================================================================
 
-def has_page_payloads(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None
-) -> bool:
-    """Check if a page (and optional tab/subtab) has any payloads available."""
+def has_page_payloads(location: PageLocation) -> bool:
+    """Check if a page location has any payloads available."""
     from schemas.payloads import get_global_payload_types
 
     # Check for global payloads
@@ -55,17 +51,13 @@ def has_page_payloads(
         return True
 
     # Check for page/tab/subtab payloads
-    payload_names = get_payload_names_for_page_tab(page, tab, subtab)
+    payload_names = get_payload_names_for_page_tab(location)
     return len(payload_names) > 0
 
 
-def get_all_payloads_for_page(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None
-):
+def get_all_payloads_for_page(location: PageLocation):
     """
-    Get all PayloadType objects for a page and optional tab/subtab.
+    Get all PayloadType objects for a page location.
 
     Returns: global payloads + page payloads + tab payloads + subtab payloads
     """
@@ -75,7 +67,7 @@ def get_all_payloads_for_page(
     payloads = list(get_global_payload_types())
 
     # Get page/tab/subtab-specific payload names
-    payload_names = get_payload_names_for_page_tab(page, tab, subtab)
+    payload_names = get_payload_names_for_page_tab(location)
 
     # Add those payloads (avoid duplicates)
     global_names = {p.name for p in payloads}
@@ -86,12 +78,8 @@ def get_all_payloads_for_page(
     return payloads
 
 
-# Legacy aliases for backwards compatibility
-get_page_context_builder = get_context_builder
-get_page_client_actions = get_client_actions
-
-
 __all__ = [
+    'PageLocation',
     'SubTabConfig',
     'TabConfig',
     'ClientAction',
@@ -107,7 +95,4 @@ __all__ = [
     # Payload resolution helpers
     'has_page_payloads',
     'get_all_payloads_for_page',
-    # Legacy aliases
-    'get_page_context_builder',
-    'get_page_client_actions',
 ]

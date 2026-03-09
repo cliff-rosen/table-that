@@ -36,9 +36,9 @@ from schemas.chat import (
 )
 from schemas.payloads import summarize_payload
 from services.chat_page_config import (
+    PageLocation,
     get_context_builder,
     get_client_actions,
-    has_page_payloads,
     get_all_payloads_for_page,
 )
 from tools.registry import get_tools_for_page_dict
@@ -65,28 +65,6 @@ DEFAULT_GUEST_TURN_LIMIT = 8  # Fallback; actual value loaded from DB via ChatSe
 # Context window for the chat model. Warning fires at 70% usage.
 CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
-
-
-@dataclass
-class PageLocation:
-    """Where the user is in the app. Extracted once from context,
-    passed to anything that needs page-aware behavior.
-
-    TODO: The page-aware registries (get_tools_for_page, get_all_payloads_for_page,
-    get_client_actions, get_tools_for_page_dict) still take these as separate args.
-    They should be refactored to accept PageLocation directly.
-    """
-    current_page: str
-    active_tab: Optional[str] = None
-    active_subtab: Optional[str] = None
-
-    @classmethod
-    def from_context(cls, context: Dict[str, Any]) -> "PageLocation":
-        return cls(
-            current_page=context.get("current_page", "unknown"),
-            active_tab=context.get("active_tab"),
-            active_subtab=context.get("active_subtab"),
-        )
 
 
 @dataclass
@@ -633,10 +611,7 @@ class ChatStreamService:
             messages = self._build_messages_from_history(
                 turn.user_message.message, turn.history.db_messages or None
             )
-            tools_by_name = get_tools_for_page_dict(
-                page.current_page, page.active_tab, page.active_subtab,
-                user_role=user_role,
-            )
+            tools_by_name = get_tools_for_page_dict(page, user_role=user_role)
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
@@ -950,18 +925,13 @@ class ChatStreamService:
         parts = []
 
         # Tools
-        tools = get_tools_for_page(
-            page.current_page, page.active_tab, page.active_subtab,
-            user_role=user_role,
-        )
+        tools = get_tools_for_page(page, user_role=user_role)
         if tools:
             tool_lines = [f"- {t.name}: {t.description}" for t in tools]
             parts.append("TOOLS:\n" + "\n".join(tool_lines))
 
         # LLM Payloads (structured response formats the LLM can generate)
-        payload_configs = get_all_payloads_for_page(
-            page.current_page, page.active_tab, page.active_subtab
-        )
+        payload_configs = get_all_payloads_for_page(page)
         llm_payloads = [c for c in payload_configs if c.llm_instructions]
         if llm_payloads:
             payload_instructions = "\n\n".join(
@@ -1338,9 +1308,7 @@ SUGGESTED_ACTIONS:
                     )
 
         # Parse custom payloads (page-specific structured responses)
-        payload_configs = get_all_payloads_for_page(
-            page.current_page, page.active_tab, page.active_subtab
-        )
+        payload_configs = get_all_payloads_for_page(page)
         for config in payload_configs:
             marker = config.parse_marker
             # Skip payloads without a parse_marker (tool payloads don't need parsing)

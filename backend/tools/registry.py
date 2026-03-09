@@ -15,9 +15,14 @@ Supports streaming tools that yield ToolProgress updates before returning ToolRe
 Payload types are defined in schemas/payloads.py - tools reference them by name.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Generator, List, Optional, Union
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Dict, Generator, List, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from services.chat_page_config.registry import PageLocation
 
 
 @dataclass
@@ -144,13 +149,11 @@ def tools_to_dict(tools: List[ToolConfig]) -> Dict[str, ToolConfig]:
 # =============================================================================
 
 def get_tools_for_page(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None,
+    location: PageLocation,
     user_role: Optional[str] = None
 ) -> List[ToolConfig]:
     """
-    Get all tools for a page, optional tab, and optional subtab.
+    Get all tools for a page location.
 
     Returns: global tools + page tools + tab tools + subtab tools (via page config registry)
     Filters out tools that require a role the user doesn't have.
@@ -161,7 +164,7 @@ def get_tools_for_page(
     tools = get_global_tools()
 
     # Get page/tab/subtab-specific tool names from page config
-    page_tool_names = get_tool_names_for_page_tab(page, tab, subtab)
+    page_tool_names = get_tool_names_for_page_tab(location)
 
     # Add those tools (avoid duplicates)
     global_names = {t.name for t in tools}
@@ -179,28 +182,24 @@ def get_tools_for_page(
 
 
 def get_tools_for_page_dict(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None,
+    location: PageLocation,
     user_role: Optional[str] = None
 ) -> Dict[str, ToolConfig]:
     """
-    Get all tools for a page as a dict mapping name to config.
+    Get all tools for a page location as a dict mapping name to config.
 
     Returns: global tools + page tools + tab tools + subtab tools
     """
-    return tools_to_dict(get_tools_for_page(page, tab, subtab, user_role=user_role))
+    return tools_to_dict(get_tools_for_page(location, user_role=user_role))
 
 
 def get_tools_for_anthropic(
-    page: str,
-    tab: Optional[str] = None,
-    subtab: Optional[str] = None,
+    location: PageLocation,
     user_role: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    Get tools in Anthropic API format for a page.
+    Get tools in Anthropic API format for a page location.
 
     Returns: global tools + page tools + tab tools + subtab tools in Anthropic format
     """
-    return tools_to_anthropic_format(get_tools_for_page(page, tab, subtab, user_role=user_role))
+    return tools_to_anthropic_format(get_tools_for_page(location, user_role=user_role))
