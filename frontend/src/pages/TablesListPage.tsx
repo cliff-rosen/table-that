@@ -166,6 +166,9 @@ export default function TablesListPage() {
     pendingProposal?.kind === 'schema_create'
       ? (pendingProposal.data as SchemaProposalData)
       : null;
+  // Shared state for the "include sample data" checkbox — owned here so both
+  // the ProposedTablePreview button and the ChatTray button honor the same value.
+  const [includeSampleData, setIncludeSampleData] = useState(false);
 
   // Set base context for this page (wipes stale context from previous page)
   useEffect(() => {
@@ -291,11 +294,11 @@ export default function TablesListPage() {
     }
   }, [navigate, resolveProposal]);
 
-  // Simplified accept for ChatTray button (includes sample data by default)
+  // Chat pane accept button — honors the same includeSampleData checkbox as the preview
   const handleProposalAcceptFromChat = useCallback(async () => {
     if (!activeProposal) return;
-    await handleProposalAcceptFromPreview(activeProposal, true);
-  }, [activeProposal, handleProposalAcceptFromPreview]);
+    await handleProposalAcceptFromPreview(activeProposal, includeSampleData);
+  }, [activeProposal, handleProposalAcceptFromPreview, includeSampleData]);
 
   // Loading skeleton
   if (isLoading) {
@@ -374,6 +377,8 @@ export default function TablesListPage() {
             {activeProposal ? (
               <ProposedTablePreview
                 proposal={activeProposal}
+                includeSampleData={includeSampleData}
+                onIncludeSampleDataChange={setIncludeSampleData}
                 onAccept={handleProposalAcceptFromPreview}
                 onDismiss={resolveProposal}
               />

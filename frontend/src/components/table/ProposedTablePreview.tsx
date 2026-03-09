@@ -12,6 +12,8 @@ import type { ColumnDefinition } from '../../types/table';
 
 interface ProposedTablePreviewProps {
   proposal: SchemaProposalData;
+  includeSampleData: boolean;
+  onIncludeSampleDataChange: (value: boolean) => void;
   onAccept: (proposal: SchemaProposalData, includeSampleData: boolean) => void;
   onDismiss: () => void;
 }
@@ -35,10 +37,11 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function ProposedTablePreview({
   proposal,
+  includeSampleData,
+  onIncludeSampleDataChange,
   onAccept,
   onDismiss,
 }: ProposedTablePreviewProps) {
-  const [includeSampleData, setIncludeSampleData] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   // Generate columns from operations
@@ -170,7 +173,7 @@ export default function ProposedTablePreview({
               <input
                 type="checkbox"
                 checked={includeSampleData}
-                onChange={(e) => setIncludeSampleData(e.target.checked)}
+                onChange={(e) => onIncludeSampleDataChange(e.target.checked)}
                 disabled={!displayRows.length}
                 className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-50"
               />
