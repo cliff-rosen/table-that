@@ -78,6 +78,21 @@ class ResolvedConversation:
     db_messages: List = field(default_factory=list)
 
 
+@dataclass
+class PendingTurn:
+    """In-flight turn state for the write-late pattern.
+
+    Created after _resolve_chat, consumed by _commit_turn.
+    Groups everything needed to commit a turn so it's not scattered
+    across the service instance.
+    """
+    conv: ResolvedConversation
+    request: Any  # ChatRequest
+    builder: "ResponseBuilder"
+    committed: bool = False
+    commit_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
 class ResponseBuilder:
     """Accumulates streaming events and builds the final response.
 
@@ -87,9 +102,7 @@ class ResponseBuilder:
     turn persistence.
     """
 
-    def __init__(self, context: Dict[str, Any]):
-        self.context = context
-
+    def __init__(self):
         # ── Raw accumulation (set during streaming) ──
         self.collected_text: str = ""
         self.tool_call_history: list = []
@@ -350,35 +363,39 @@ class ChatStreamService:
         self.async_client = anthropic.AsyncAnthropic(
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
+        # Read-path ChatService: uses the request-scoped session.
+        # Write-path (_commit_turn) creates its own session + ChatService
+        # so writes survive cancelled request scopes.
         self.chat_service = ChatService(db)
 
-        # ── Turn commit state (for cancel-with-content) ──
-        self._builder: Optional[ResponseBuilder] = None
-        self._pending_conv: Optional[ResolvedConversation] = None
-        self._pending_request = None
-        self._committed = False
-        self._commit_lock = asyncio.Lock()
+        # ── In-flight turn state (write-late pattern) ──
+        self._turn: Optional[PendingTurn] = None
 
     async def _commit_turn(
         self,
-        conv: ResolvedConversation,
-        request,
         assistant_content: str,
         assistant_extras: Optional[Dict[str, Any]] = None,
     ) -> int:
         """Create conversation (if needed) and write user + assistant messages.
 
-        Uses a fresh DB session so it works even after the request's
-        session is closed (e.g. on cancel).  Idempotent via lock + flag.
+        Uses self._turn for conv/request state.  Uses a fresh DB session
+        so writes survive cancelled request scopes.  Idempotent via
+        turn.commit_lock + turn.committed.
 
         Returns the conversation ID.
         """
-        async with self._commit_lock:
-            if self._committed:
-                return conv.chat_id or 0
+        turn = self._turn
+        if not turn:
+            raise RuntimeError("_commit_turn called with no pending turn")
+
+        async with turn.commit_lock:
+            if turn.committed:
+                return turn.conv.chat_id or 0
 
             from database import AsyncSessionLocal
 
+            conv = turn.conv
+            request = turn.request
             chat_id = conv.chat_id
 
             async with AsyncSessionLocal() as db:
@@ -419,7 +436,7 @@ class ChatStreamService:
                     extras=assistant_extras,
                 )
 
-            self._committed = True
+            turn.committed = True
             conv.chat_id = chat_id
             return chat_id
 
@@ -429,29 +446,27 @@ class ChatStreamService:
         Called by create_sse_stream's finally block as a last resort when
         stream_chat_message's finally doesn't run (streaming cancel case).
         """
-        if self._committed:
+        turn = self._turn
+        if not turn:
+            logger.debug("commit_if_needed: no pending turn")
+            return
+        if turn.committed:
             logger.debug("commit_if_needed: already committed")
             return
-        if not self._builder or not self._builder.has_content:
+        if not turn.builder.has_content:
             logger.info(
                 f"commit_if_needed: no content to commit "
-                f"(builder={'set' if self._builder else 'None'}, "
-                f"has_content={self._builder.has_content if self._builder else 'n/a'})"
+                f"(text={len(turn.builder.collected_text)} chars)"
             )
-            return
-        if not self._pending_conv or not self._pending_request:
-            logger.warning("commit_if_needed: no pending conv/request")
             return
         logger.info(
             f"commit_if_needed: committing turn "
-            f"(text={len(self._builder.collected_text)} chars)"
+            f"(text={len(turn.builder.collected_text)} chars)"
         )
         try:
             await self._commit_turn(
-                self._pending_conv,
-                self._pending_request,
-                self._builder.content,
-                self._builder.extras,
+                turn.builder.content,
+                turn.builder.extras,
             )
         except Exception:
             logger.warning(
@@ -553,12 +568,9 @@ class ChatStreamService:
             f"scope={conv.scope} message={request.message[:80]!r}"
         )
 
-        # ── 2. Set up pending state for commit-on-cancel ────────────────
-        self._pending_conv = conv
-        self._pending_request = request
-
-        builder = ResponseBuilder(request.context)
-        self._builder = builder
+        # ── 2. Set up pending turn (write-late state) ────────────────────
+        builder = ResponseBuilder()
+        self._turn = PendingTurn(conv=conv, request=request, builder=builder)
 
         try:
             # Check guest turn limit — process this message but signal limit after
@@ -667,7 +679,6 @@ class ChatStreamService:
                             f"tools={len(builder.tool_call_history)}"
                         )
                         chat_id = await self._commit_turn(
-                            conv, request,
                             builder.content, builder.extras,
                         )
                         # Emit chat_id so frontend can sync later
@@ -684,7 +695,6 @@ class ChatStreamService:
                     # Still commit whatever we have so the error context is saved
                     if builder.has_content:
                         await self._commit_turn(
-                            conv, request,
                             builder.content, builder.extras,
                         )
                     return
@@ -693,7 +703,6 @@ class ChatStreamService:
             parsed = self._parse_llm_response(builder.collected_text, request.context)
             complete_event = builder.build(parsed)
             chat_id = await self._commit_turn(
-                conv, request,
                 builder.content, builder.extras,
             )
             complete_event.payload.conversation_id = chat_id
@@ -716,10 +725,10 @@ class ChatStreamService:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
             # Best-effort commit if we have content
-            if builder.has_content and not self._committed:
+            turn = self._turn
+            if builder.has_content and turn and not turn.committed:
                 try:
                     await self._commit_turn(
-                        conv, request,
                         builder.content, builder.extras,
                     )
                 except Exception:
