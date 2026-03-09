@@ -504,10 +504,8 @@ class ChatStreamService:
 
         async def _sse_generator():
             try:
-                request.context["user_role"] = user_role
-
                 async for event_json in service.stream_chat_message(
-                    request, cancellation_token=cancellation_token
+                    request, user_role=user_role, cancellation_token=cancellation_token
                 ):
                     yield {"event": "message", "data": event_json}
 
@@ -540,7 +538,8 @@ class ChatStreamService:
         return _sse_generator()
 
     async def stream_chat_message(
-        self, request, cancellation_token: Optional[CancellationToken] = None
+        self, request, user_role: str = "member",
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream a chat message response with tool support via SSE.
@@ -594,12 +593,12 @@ class ChatStreamService:
                     f"is_guest={user.is_guest if user else 'no user'} — skipping"
                 )
 
-            # Inject conversation_id into context for tools that need it
-            # (user_role is already injected by create_sse_stream)
-            request.context["conversation_id"] = request.conversation_id
-
-            # Build prompts
-            context = request.context
+            # Build enriched context (no mutation of request.context)
+            context = {
+                **request.context,
+                "user_role": user_role,
+                "conversation_id": request.conversation_id,
+            }
             system_prompt = await self._build_system_prompt(
                 context, db_messages=conv.db_messages or None
             )
