@@ -397,16 +397,15 @@ class ChatStreamService:
         # ── In-flight turn state (write-late pattern) ──
         self._turn: Optional[PendingTurn] = None
 
-    async def _commit_turn(
-        self,
-        assistant_content: str,
-        assistant_extras: Optional[Dict[str, Any]] = None,
-    ) -> int:
-        """Create conversation (if needed) and write user + assistant messages.
+    async def _commit_turn(self) -> int:
+        """Atomically write the pending turn to the database.
 
-        Uses self._turn for history/user_message state.  Uses a fresh DB session
-        so writes survive cancelled request scopes.  Idempotent via
-        turn.commit_lock + turn.committed.
+        Reads everything from self._turn: history (conversation state),
+        user_message (what to save as the user message), and response
+        (.content and .extras for the assistant message).
+
+        Uses a fresh DB session so writes survive cancelled request scopes.
+        Idempotent via turn.commit_lock + turn.committed.
 
         Returns the conversation ID.
         """
@@ -455,9 +454,9 @@ class ChatStreamService:
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="assistant",
-                    content=assistant_content,
+                    content=turn.response.content,
                     context=turn.user_message.context,
-                    extras=assistant_extras,
+                    extras=turn.response.extras,
                 )
 
             turn.committed = True
@@ -488,10 +487,7 @@ class ChatStreamService:
             f"(text={len(turn.response.collected_text)} chars)"
         )
         try:
-            await self._commit_turn(
-                turn.response.content,
-                turn.response.extras,
-            )
+            await self._commit_turn()
         except Exception:
             logger.warning(
                 "Failed to commit turn (sse_generator fallback)",
@@ -687,9 +683,7 @@ class ChatStreamService:
                             f"text={len(response.collected_text)} chars, "
                             f"tools={len(response.tool_call_history)}"
                         )
-                        chat_id = await self._commit_turn(
-                            response.content, response.extras,
-                        )
+                        chat_id = await self._commit_turn()
                         # Emit chat_id so frontend can sync later
                         yield ChatIdEvent(
                             conversation_id=chat_id
@@ -703,17 +697,13 @@ class ChatStreamService:
                     yield ErrorEvent(message=event.error).model_dump_json()
                     # Still commit whatever we have so the error context is saved
                     if response.has_content:
-                        await self._commit_turn(
-                            response.content, response.extras,
-                        )
+                        await self._commit_turn()
                     return
 
             # ── 4. Normal completion: finalize, commit, deliver ─────────
             parsed = self._parse_llm_response(response.collected_text, turn.user_message.context)
             response.finalize(parsed)
-            chat_id = await self._commit_turn(
-                response.content, response.extras,
-            )
+            chat_id = await self._commit_turn()
             logger.info(
                 f"Stream complete: chat_id={chat_id} "
                 f"text={len(response.collected_text)} chars"
@@ -735,9 +725,7 @@ class ChatStreamService:
             # Best-effort commit if we have content
             if response.has_content and not turn.committed:
                 try:
-                    await self._commit_turn(
-                        response.content, response.extras,
-                    )
+                    await self._commit_turn()
                 except Exception:
                     logger.warning("Failed to commit after error", exc_info=True)
 
