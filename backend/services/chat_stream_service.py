@@ -5,6 +5,7 @@ Handles LLM streaming interaction for the chat system with tool support.
 Uses the agent_loop for agentic processing. Handles chat persistence automatically.
 """
 
+from dataclasses import dataclass, field
 from typing import Callable, Dict, Any, AsyncGenerator, List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,6 +65,17 @@ DEFAULT_GUEST_TURN_LIMIT = 8  # Fallback; actual value loaded from DB via ChatSe
 # Context window for the chat model. Warning fires at 70% usage.
 CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
+
+
+@dataclass
+class ResolvedConversation:
+    """The resolved state of the conversation before this turn.
+
+    Produced by _resolve_chat, consumed by _commit_turn and prompt building.
+    """
+    chat_id: Optional[int]
+    scope: Optional[str]
+    db_messages: List = field(default_factory=list)
 
 
 class ResponseBuilder:
@@ -342,16 +354,14 @@ class ChatStreamService:
 
         # ── Turn commit state (for cancel-with-content) ──
         self._builder: Optional[ResponseBuilder] = None
-        self._pending_chat_id: Optional[int] = None
-        self._pending_scope: Optional[str] = None
+        self._pending_conv: Optional[ResolvedConversation] = None
         self._pending_request = None
         self._committed = False
         self._commit_lock = asyncio.Lock()
 
     async def _commit_turn(
         self,
-        chat_id: Optional[int],
-        scope: Optional[str],
+        conv: ResolvedConversation,
         request,
         assistant_content: str,
         assistant_extras: Optional[Dict[str, Any]] = None,
@@ -365,28 +375,30 @@ class ChatStreamService:
         """
         async with self._commit_lock:
             if self._committed:
-                return self._pending_chat_id or 0
+                return conv.chat_id or 0
 
             from database import AsyncSessionLocal
+
+            chat_id = conv.chat_id
 
             async with AsyncSessionLocal() as db:
                 chat_service = ChatService(db)
 
                 if not chat_id:
-                    if not scope:
+                    if not conv.scope:
                         logger.warning(
                             f"No scope derived from context: {request.context}"
                         )
                     chat = await chat_service.create_chat(
-                        self.user_id, app="table_that", scope=scope
+                        self.user_id, app="table_that", scope=conv.scope
                     )
                     chat_id = chat.id
                 else:
                     # Migrate scope if context indicates a different entity
                     table_id = request.context.get("table_id")
-                    if scope and table_id:
+                    if conv.scope and table_id:
                         chat = await chat_service.get_chat(chat_id, self.user_id)
-                        if chat and chat.scope != scope:
+                        if chat and chat.scope != conv.scope:
                             await chat_service.migrate_to_table(
                                 chat_id, self.user_id, table_id
                             )
@@ -408,7 +420,7 @@ class ChatStreamService:
                 )
 
             self._committed = True
-            self._pending_chat_id = chat_id
+            conv.chat_id = chat_id
             return chat_id
 
     async def commit_if_needed(self) -> None:
@@ -427,8 +439,8 @@ class ChatStreamService:
                 f"has_content={self._builder.has_content if self._builder else 'n/a'})"
             )
             return
-        if not self._pending_request:
-            logger.warning("commit_if_needed: no pending request")
+        if not self._pending_conv or not self._pending_request:
+            logger.warning("commit_if_needed: no pending conv/request")
             return
         logger.info(
             f"commit_if_needed: committing turn "
@@ -436,8 +448,7 @@ class ChatStreamService:
         )
         try:
             await self._commit_turn(
-                self._pending_chat_id,
-                self._pending_scope,
+                self._pending_conv,
                 self._pending_request,
                 self._builder.content,
                 self._builder.extras,
@@ -536,15 +547,14 @@ class ChatStreamService:
             cancellation_token = CancellationToken()
 
         # ── 1. Resolve conversation (read-only — no DB writes) ──────────
-        chat_id, scope = await self._resolve_chat(request)
+        conv = await self._resolve_chat(request)
         logger.info(
-            f"Stream start: user={self.user_id} chat_id={chat_id} scope={scope} "
-            f"message={request.message[:80]!r}"
+            f"Stream start: user={self.user_id} chat_id={conv.chat_id} "
+            f"scope={conv.scope} message={request.message[:80]!r}"
         )
 
         # ── 2. Set up pending state for commit-on-cancel ────────────────
-        self._pending_chat_id = chat_id
-        self._pending_scope = scope
+        self._pending_conv = conv
         self._pending_request = request
 
         builder = ResponseBuilder(request.context)
@@ -573,22 +583,14 @@ class ChatStreamService:
                 )
 
             # Inject conversation_id into context for tools that need it
-            # (use existing chat_id or None — tools can cope with None)
             context_with_chat = dict(request.context)
-            context_with_chat["conversation_id"] = chat_id
-
-            # Fetch conversation history (empty for new conversations)
-            db_messages = (
-                await self.chat_service.get_messages(chat_id, self.user_id)
-                if chat_id
-                else []
-            )
+            context_with_chat["conversation_id"] = conv.chat_id
 
             # Build prompts
             system_prompt = await self._build_system_prompt(
-                context_with_chat, chat_id, db_messages or None
+                context_with_chat, conv.chat_id, conv.db_messages or None
             )
-            messages, _ = self._build_messages_from_history(request, db_messages or None)
+            messages, _ = self._build_messages_from_history(request, conv.db_messages or None)
 
             # Get tools for this page
             current_page = context_with_chat.get("current_page", "unknown")
@@ -665,7 +667,7 @@ class ChatStreamService:
                             f"tools={len(builder.tool_call_history)}"
                         )
                         chat_id = await self._commit_turn(
-                            chat_id, scope, request,
+                            conv, request,
                             builder.content, builder.extras,
                         )
                         # Emit chat_id so frontend can sync later
@@ -682,7 +684,7 @@ class ChatStreamService:
                     # Still commit whatever we have so the error context is saved
                     if builder.has_content:
                         await self._commit_turn(
-                            chat_id, scope, request,
+                            conv, request,
                             builder.content, builder.extras,
                         )
                     return
@@ -691,7 +693,7 @@ class ChatStreamService:
             parsed = self._parse_llm_response(builder.collected_text, request.context)
             complete_event = builder.build(parsed)
             chat_id = await self._commit_turn(
-                chat_id, scope, request,
+                conv, request,
                 builder.content, builder.extras,
             )
             complete_event.payload.conversation_id = chat_id
@@ -717,7 +719,7 @@ class ChatStreamService:
             if builder.has_content and not self._committed:
                 try:
                     await self._commit_turn(
-                        chat_id, scope, request,
+                        conv, request,
                         builder.content, builder.extras,
                     )
                 except Exception:
@@ -727,21 +729,26 @@ class ChatStreamService:
     # Conversation
     # =========================================================================
 
-    async def _resolve_chat(self, request) -> Tuple[Optional[int], Optional[str]]:
-        """Resolve conversation without creating or writing anything.
+    async def _resolve_chat(self, request) -> ResolvedConversation:
+        """Resolve conversation and load history. Read-only — no DB writes.
 
-        Returns (chat_id, scope).  chat_id is None for new conversations.
-        Read-only: scope migration is deferred to _commit_turn.
+        Raises ValueError if a conversation_id is provided but not found.
         """
         chat_id = request.conversation_id
-        derived_scope = derive_scope(request.context)
+        scope = derive_scope(request.context)
 
         if chat_id:
             chat = await self.chat_service.get_chat(chat_id, self.user_id)
-            if chat:
-                return chat_id, derived_scope
+            if not chat:
+                raise ValueError(
+                    f"Conversation {chat_id} not found for user {self.user_id}"
+                )
+            db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
+            return ResolvedConversation(
+                chat_id=chat_id, scope=scope, db_messages=db_messages
+            )
 
-        return None, derived_scope
+        return ResolvedConversation(chat_id=None, scope=scope)
 
     def _build_messages_from_history(
         self, request, db_messages: Optional[List] = None

@@ -157,8 +157,9 @@ class TestCancelFlow:
         # Cancel!
         resp.close()
 
-        # Give backend time to commit — SSE scope cleanup can take 4+ seconds
-        time.sleep(6)
+        # Give backend time to commit — SSE scope cleanup can take 20+ seconds
+        # in some cases (sse_starlette cancel scope timing).
+        time.sleep(25)
 
         # Verify DB state: should have a committed turn
         conv = get_conversation_messages(cancel_client, "tables_list")

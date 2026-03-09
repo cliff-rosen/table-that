@@ -26,24 +26,32 @@ def _get_git_version() -> str:
             return v
     # 2. Try git describe (gets latest tag like "v1.0.3")
     try:
-        tag = subprocess.check_output(
-            ["git", "describe", "--tags", "--abbrev=0"],
-            stderr=subprocess.DEVNULL,
-            cwd=str(_backend_dir),
-            timeout=5,
-        ).decode().strip()
+        tag = (
+            subprocess.check_output(
+                ["git", "describe", "--tags", "--abbrev=0"],
+                stderr=subprocess.DEVNULL,
+                cwd=str(_backend_dir),
+                timeout=5,
+            )
+            .decode()
+            .strip()
+        )
         if tag:
             return tag
     except Exception:
         pass
     # 3. Fall back to short SHA
     try:
-        sha = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            cwd=str(_backend_dir),
-            timeout=5,
-        ).decode().strip()
+        sha = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+                cwd=str(_backend_dir),
+                timeout=5,
+            )
+            .decode()
+            .strip()
+        )
         if sha:
             return sha
     except Exception:
@@ -52,9 +60,11 @@ def _get_git_version() -> str:
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "table.that"
+    APP_NAME: str = "TableThat"
     SETTING_VERSION: str = _get_git_version()
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")  # Dev default
+    FRONTEND_URL: str = os.getenv(
+        "FRONTEND_URL", "http://localhost:5173"
+    )  # Dev default
 
     # Database settings
     DB_HOST: str = os.getenv("DB_HOST")
@@ -101,15 +111,28 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "standard"  # Options: "standard" or "json"
     LOG_REQUEST_BODY: bool = False  # Whether to log request bodies
     LOG_RESPONSE_BODY: bool = False  # Whether to log response bodies
-    LOG_SENSITIVE_FIELDS: list[str] = ["password", "token", "secret", "key", "authorization"]
+    LOG_SENSITIVE_FIELDS: list[str] = [
+        "password",
+        "token",
+        "secret",
+        "key",
+        "authorization",
+    ]
     LOG_PERFORMANCE_THRESHOLD_MS: int = 500  # Log slow operations above this threshold
 
-
     # Tool Stubbing Settings
-    TOOL_STUBBING_ENABLED: bool = os.getenv("TOOL_STUBBING_ENABLED", "false").lower() == "true"
-    TOOL_STUBBING_MODE: str = os.getenv("TOOL_STUBBING_MODE", "all")  # Options: "all", "external_only", "none"
-    TOOL_STUBBING_DELAY_MS: int = int(os.getenv("TOOL_STUBBING_DELAY_MS", "500"))  # Simulate realistic delays
-    TOOL_STUBBING_FAILURE_RATE: float = float(os.getenv("TOOL_STUBBING_FAILURE_RATE", "0.0"))  # 0.0-1.0 for testing error handling
+    TOOL_STUBBING_ENABLED: bool = (
+        os.getenv("TOOL_STUBBING_ENABLED", "false").lower() == "true"
+    )
+    TOOL_STUBBING_MODE: str = os.getenv(
+        "TOOL_STUBBING_MODE", "all"
+    )  # Options: "all", "external_only", "none"
+    TOOL_STUBBING_DELAY_MS: int = int(
+        os.getenv("TOOL_STUBBING_DELAY_MS", "500")
+    )  # Simulate realistic delays
+    TOOL_STUBBING_FAILURE_RATE: float = float(
+        os.getenv("TOOL_STUBBING_FAILURE_RATE", "0.0")
+    )  # 0.0-1.0 for testing error handling
 
     @property
     def DATABASE_URL(self) -> str:
@@ -128,7 +151,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
-        env_file_encoding = 'utf-8'
+        env_file_encoding = "utf-8"
         extra = "ignore"
 
     def __init__(self, **kwargs):
