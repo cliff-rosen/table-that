@@ -567,8 +567,8 @@ class ChatStreamService:
         )
 
         # ── 2. Set up pending turn (write-late state) ────────────────────
-        builder = ResponseBuilder()
-        turn = PendingTurn(history=history, user_message=request, response=builder)
+        response = ResponseBuilder()
+        turn = PendingTurn(history=history, user_message=request, response=response)
         self._turn = turn
 
         try:
@@ -593,22 +593,23 @@ class ChatStreamService:
                     f"is_guest={user.is_guest if user else 'no user'} — skipping"
                 )
 
-            # Build enriched context (no mutation of request.context)
+            # Build enriched context (no mutation of turn.user_message.context)
             context = {
-                **request.context,
+                **turn.user_message.context,
                 "user_role": user_role,
-                "conversation_id": request.conversation_id,
+                "conversation_id": turn.user_message.conversation_id,
             }
             system_prompt = await self._build_system_prompt(
                 context, db_messages=turn.history.db_messages or None
             )
-            messages, _ = self._build_messages_from_history(request, turn.history.db_messages or None)
+            messages, _ = self._build_messages_from_history(
+                turn.user_message, turn.history.db_messages or None
+            )
 
             # Get tools for this page
             current_page = context.get("current_page", "unknown")
             active_tab = context.get("active_tab")
             active_subtab = context.get("active_subtab")
-            user_role = context.get("user_role")
             tools_by_name = get_tools_for_page_dict(
                 current_page, active_tab, active_subtab, user_role=user_role
             )
@@ -639,7 +640,7 @@ class ChatStreamService:
                     yield StatusEvent(message=event.message).model_dump_json()
 
                 elif isinstance(event, AgentTextDelta):
-                    builder.add_text(event.text)
+                    response.add_text(event.text)
                     yield TextDeltaEvent(text=event.text).model_dump_json()
 
                 elif isinstance(event, AgentToolStart):
@@ -659,27 +660,27 @@ class ChatStreamService:
                     ).model_dump_json()
 
                 elif isinstance(event, AgentToolComplete):
-                    marker = builder.add_tool_marker()
+                    marker = response.add_tool_marker()
                     yield TextDeltaEvent(text=marker).model_dump_json()
                     yield ToolCompleteEvent(
                         tool=event.tool_name,
-                        index=builder.tool_call_index - 1,
+                        index=response.tool_call_index - 1,
                     ).model_dump_json()
 
                 elif isinstance(event, AgentComplete):
-                    builder.set_agent_result(event)
+                    response.set_agent_result(event)
 
                 elif isinstance(event, AgentCancelled):
-                    builder.set_agent_result(event)
+                    response.set_agent_result(event)
                     # Cooperative cancel: commit partial if we have content
-                    if builder.has_content:
+                    if response.has_content:
                         logger.info(
                             f"Cooperative cancel with content: "
-                            f"text={len(builder.collected_text)} chars, "
-                            f"tools={len(builder.tool_call_history)}"
+                            f"text={len(response.collected_text)} chars, "
+                            f"tools={len(response.tool_call_history)}"
                         )
                         chat_id = await self._commit_turn(
-                            builder.content, builder.extras,
+                            response.content, response.extras,
                         )
                         # Emit chat_id so frontend can sync later
                         yield ChatIdEvent(
@@ -690,25 +691,25 @@ class ChatStreamService:
                     return
 
                 elif isinstance(event, AgentError):
-                    builder.set_trace(event.trace)
+                    response.set_trace(event.trace)
                     yield ErrorEvent(message=event.error).model_dump_json()
                     # Still commit whatever we have so the error context is saved
-                    if builder.has_content:
+                    if response.has_content:
                         await self._commit_turn(
-                            builder.content, builder.extras,
+                            response.content, response.extras,
                         )
                     return
 
             # ── 4. Normal completion: parse, build, commit, emit ──────────
-            parsed = self._parse_llm_response(builder.collected_text, request.context)
-            complete_event = builder.build(parsed)
+            parsed = self._parse_llm_response(response.collected_text, turn.user_message.context)
+            complete_event = response.build(parsed)
             chat_id = await self._commit_turn(
-                builder.content, builder.extras,
+                response.content, response.extras,
             )
             complete_event.payload.conversation_id = chat_id
             logger.info(
                 f"Stream complete: chat_id={chat_id} "
-                f"text={len(builder.collected_text)} chars"
+                f"text={len(response.collected_text)} chars"
             )
             yield complete_event.model_dump_json()
 
@@ -725,11 +726,10 @@ class ChatStreamService:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
             # Best-effort commit if we have content
-            turn = self._turn
-            if builder.has_content and turn and not turn.committed:
+            if response.has_content and not turn.committed:
                 try:
                     await self._commit_turn(
-                        builder.content, builder.extras,
+                        response.content, response.extras,
                     )
                 except Exception:
                     logger.warning("Failed to commit after error", exc_info=True)
