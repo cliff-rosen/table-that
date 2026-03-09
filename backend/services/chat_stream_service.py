@@ -1244,7 +1244,7 @@ SUGGESTED_ACTIONS:
 
         Delegates to the standalone parse_llm_response function.
         """
-        from services.response_parser import parse_llm_response
+        from services._response_parser import parse_llm_response
         return parse_llm_response(response_text, page)
 
 
