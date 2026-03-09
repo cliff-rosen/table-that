@@ -138,10 +138,6 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         abortControllerRef.current = abortController;
 
         let collectedText = '';
-        // Tracks whether the backend confirmed it persisted the message
-        // (by sending a chat_id event). If false on cancel, the backend
-        // may not have written anything — revert the user message.
-        let backendConfirmed = false;
 
         try {
             for await (const event of chatApi.streamMessage({
@@ -237,7 +233,6 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                     case 'chat_id':
                         if (event.conversation_id) {
                             setChatId(event.conversation_id);
-                            backendConfirmed = true;
                         }
                         break;
 
@@ -260,42 +255,22 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                 setStatusText(null);
                 setActiveToolProgress(null);
 
-                if (!backendConfirmed) {
-                    // Backend never confirmed it persisted — _setup_chat may
-                    // have been interrupted. Remove the optimistic user message
-                    // and restore it to the input field.
+                if (collectedText.trim()) {
+                    // Content was streamed — keep it as a finalized message.
+                    // Backend will commit the turn (user + partial assistant)
+                    // atomically; invalidate cache so next load syncs.
+                    const partialMessage: ChatMessage = {
+                        role: 'assistant',
+                        content: collectedText,
+                        timestamp: new Date().toISOString()
+                    };
+                    setMessages(prev => [...prev, partialMessage]);
+                    lastLoadedPageRef.current = null;
+                    lastLoadedTableIdRef.current = undefined;
+                } else {
+                    // Nothing streamed — clean revert. Backend writes nothing.
                     setMessages(prev => prev.slice(0, -1));
                     setRestoredInput(content);
-                    return;
-                }
-
-                // Backend confirmed — it has the user message and will persist
-                // an assistant message. Sync from backend to get that state.
-                lastLoadedPageRef.current = null;
-                lastLoadedTableIdRef.current = undefined;
-
-                const page = contextRef.current.current_page as string | undefined;
-                const tblId = contextRef.current.table_id as number | undefined;
-                if (page) {
-                    const syncFromBackend = async () => {
-                        // Give the backend's finally block time to persist
-                        await new Promise(r => setTimeout(r, 500));
-                        await loadForContext(page, tblId);
-
-                        // If conversation is unbalanced (backend still persisting),
-                        // retry once after a longer delay.
-                        const chat = await chatApi.getChatByContext(page, tblId, app);
-                        const msgs = chat.messages.filter(
-                            (m: any) => m.role === 'user' || m.role === 'assistant'
-                        );
-                        if (msgs.length > 0 && msgs[msgs.length - 1].role === 'user') {
-                            await new Promise(r => setTimeout(r, 1000));
-                            lastLoadedPageRef.current = null;
-                            lastLoadedTableIdRef.current = undefined;
-                            await loadForContext(page, tblId);
-                        }
-                    };
-                    syncFromBackend().catch(console.error);
                 }
                 return;
             }

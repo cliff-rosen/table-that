@@ -2,9 +2,12 @@
 Cancel flow tests.
 
 Verifies that cancelling a streaming chat request at various points
-leaves the database in a valid state:
-- Once a user message is persisted, it MUST be paired with an assistant message.
-- If cancel happens before _setup_chat, nothing is written.
+leaves the database in a valid state (write-late pattern):
+
+- Cancel with no content streamed → nothing written to DB
+- Cancel with content streamed → user + assistant messages committed atomically
+- Normal completion → user + assistant messages committed atomically
+- No orphaned user messages ever
 """
 
 import time
@@ -80,58 +83,50 @@ def get_conversation_messages(client, current_page: str, table_id=None):
 class TestCancelFlow:
     """Test cancellation at different points in the stream."""
 
-    def test_cancel_after_chat_id_event(self, cancel_client):
+    def test_cancel_before_content(self, cancel_client):
         """
-        Cancel immediately after receiving chat_id event.
+        Cancel immediately after first status event (before any text_delta).
 
-        This is the critical timing window: _setup_chat has committed the
-        user message, but the LLM hasn't started yet. The finally block
-        must persist an assistant message.
+        With write-late pattern, nothing should be written to the DB.
         """
         context = {"current_page": "tables_list"}
 
         # Start streaming
         resp = stream_chat(cancel_client, "Say hello", context)
 
-        # Read just until we get the chat_id event
-        events = parse_sse_events(resp, stop_after_type="chat_id")
-
-        chat_id_events = [e for e in events if e.get("type") == "chat_id"]
-        assert len(chat_id_events) > 0, f"Never got chat_id event. Events: {events}"
-
-        conversation_id = chat_id_events[0]["conversation_id"]
+        # Read just the first status event, then cancel
+        events = parse_sse_events(resp, stop_after_type="status")
+        assert len(events) >= 1, f"Expected at least 1 event. Events: {events}"
 
         # Immediately close the connection (cancel!)
         resp.close()
 
-        # Give the backend's finally block time to persist
+        # Give the backend time to process
         time.sleep(2)
 
-        # Verify the DB state: must have both user and assistant messages
+        # Verify nothing was written — no conversation should exist
         conv = get_conversation_messages(cancel_client, "tables_list")
-        assert conv is not None, "Conversation not found after cancel"
 
-        messages = conv.get("messages", [])
-        user_msgs = [m for m in messages if m["role"] == "user"]
-        assistant_msgs = [m for m in messages if m["role"] == "assistant"]
+        if conv is not None:
+            messages = conv.get("messages", [])
+            # If a conversation was created (from a prior run), that's OK.
+            # What matters: no NEW orphaned user message from this test.
+            # The conversation should have 0 messages or balanced pairs.
+            user_msgs = [m for m in messages if m["role"] == "user"]
+            assistant_msgs = [m for m in messages if m["role"] == "assistant"]
+            assert len(user_msgs) == len(assistant_msgs), (
+                f"INVARIANT VIOLATION: unbalanced messages after cancel-before-content! "
+                f"user={len(user_msgs)} assistant={len(assistant_msgs)} "
+                f"messages={[(m['role'], m['content'][:50]) for m in messages]}"
+            )
 
-        assert len(user_msgs) >= 1, f"Expected at least 1 user message, got {len(user_msgs)}"
-        assert len(assistant_msgs) >= 1, (
-            f"INVARIANT VIOLATION: User message persisted but no assistant message! "
-            f"Messages: {[(m['role'], m['content'][:50]) for m in messages]}"
-        )
-
-        print(f"\nPASS Cancel after chat_id: conversation {conversation_id}")
-        print(f"  User messages: {len(user_msgs)}")
-        print(f"  Assistant messages: {len(assistant_msgs)}")
-        print(f"  Last assistant content: {assistant_msgs[-1]['content'][:80]}")
+        print(f"\nPASS Cancel before content: {'no conversation' if conv is None else 'balanced'}")
 
     def test_cancel_during_streaming(self, cancel_client):
         """
         Cancel after some text has streamed back.
 
-        The assistant message should be saved with whatever text was
-        collected up to the cancellation point.
+        The turn (user + partial assistant) should be committed atomically.
         """
         context = {"current_page": "tables_list"}
 
@@ -157,27 +152,29 @@ class TestCancelFlow:
             except json.JSONDecodeError:
                 continue
 
+        assert text_deltas >= 5, f"Only got {text_deltas} text_delta events"
+
         # Cancel!
         resp.close()
 
-        # Give backend time
-        time.sleep(2)
+        # Give backend time to commit — SSE scope cleanup can take 4+ seconds
+        time.sleep(6)
 
-        # Verify DB state
+        # Verify DB state: should have a committed turn
         conv = get_conversation_messages(cancel_client, "tables_list")
-        assert conv is not None
+        assert conv is not None, "Conversation not found after cancel-with-content"
 
         messages = conv.get("messages", [])
         user_msgs = [m for m in messages if m["role"] == "user"]
         assistant_msgs = [m for m in messages if m["role"] == "assistant"]
 
-        # Should have at least the messages from the first test + this test
         last_user = user_msgs[-1] if user_msgs else None
         last_assistant = assistant_msgs[-1] if assistant_msgs else None
 
         assert last_user is not None, "No user messages found"
         assert last_assistant is not None, (
-            f"INVARIANT VIOLATION: User message persisted but no assistant message!"
+            f"INVARIANT VIOLATION: User message persisted but no assistant message! "
+            f"Messages: {[(m['role'], m['content'][:50]) for m in messages]}"
         )
 
         print(f"\nPASS Cancel during streaming:")

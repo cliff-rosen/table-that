@@ -71,14 +71,11 @@ class ResponseBuilder:
 
     Used by stream_chat_message to collect data as it streams from the agent
     loop, then build the final response for both SSE delivery and DB
-    persistence.  The builder is always ready to provide content for
-    persistence — even mid-stream — so the finally block can save whatever
-    was collected if the request is cancelled.
+    persistence.  On cancel, provides raw collected content for partial
+    turn persistence.
     """
 
-    def __init__(self, chat_id: int, user_id: int, context: Dict[str, Any]):
-        self.chat_id = chat_id
-        self.user_id = user_id
+    def __init__(self, context: Dict[str, Any]):
         self.context = context
 
         # ── Raw accumulation (set during streaming) ──
@@ -90,8 +87,6 @@ class ResponseBuilder:
 
         # ── Built state (set by build()) ──
         self._built = False
-        self._persisted = False
-        self._persist_lock = asyncio.Lock()
         self._parsed_message: Optional[str] = None
         self._extras: Optional[Dict[str, Any]] = None
         self._complete_event: Optional[CompleteEvent] = None
@@ -121,17 +116,16 @@ class ResponseBuilder:
 
     # ── Build (called on normal completion) ─────────────────────────
 
-    def build(self, parse_fn) -> CompleteEvent:
-        """Parse collected data and build the CompleteEvent.
+    def build(self, parsed: Dict[str, Any], conversation_id: Optional[int] = None) -> CompleteEvent:
+        """Build the CompleteEvent from pre-parsed response data.
 
         Args:
-            parse_fn: Callable(text, context) -> dict with keys
-                      message, suggested_values, suggested_actions, custom_payload
+            parsed: Dict with keys message, suggested_values,
+                    suggested_actions, custom_payload
 
         Returns:
             CompleteEvent ready to yield as SSE.
         """
-        parsed = parse_fn(self.collected_text, self.context)
 
         # ── Merge payloads (tool-emitted take priority over text-parsed) ──
         all_payloads = list(self.collected_payloads)
@@ -188,7 +182,7 @@ class ResponseBuilder:
                 suggested_actions=suggested_actions,
                 custom_payload=custom_payload_obj,
                 tool_history=tool_history_entries,
-                conversation_id=self.chat_id,
+                conversation_id=conversation_id,
             )
 
         # ── Store for persistence ──
@@ -225,59 +219,31 @@ class ResponseBuilder:
             suggested_actions=suggested_actions,
             custom_payload=custom_payload_obj,
             tool_history=self.tool_call_history or None,
-            conversation_id=self.chat_id,
+            conversation_id=conversation_id,
             warning=context_warning,
             diagnostics=self.trace,
         )
         self._complete_event = CompleteEvent(payload=payload)
         return self._complete_event
 
-    # ── Persistence ───────────────────────────────────────────────────
+    # ── Content access (for persistence) ──────────────────────────────
+
+    @property
+    def has_content(self) -> bool:
+        """True if the builder has content worth persisting."""
+        return bool(self.collected_text.strip()) or bool(self.tool_call_history)
 
     @property
     def content(self) -> str:
-        """Message content for DB persistence. Rich if built, fallback otherwise."""
+        """Message content for DB persistence. Rich if built, raw otherwise."""
         if self._built and self._parsed_message is not None:
             return self._parsed_message
-        text = self.collected_text.strip()
-        return text if text else "*[Response cancelled]*"
+        return self.collected_text.strip()
 
     @property
     def extras(self) -> Optional[Dict[str, Any]]:
         """Extras dict for DB persistence, or None if not built."""
         return self._extras
-
-    async def persist(self) -> None:
-        """Persist assistant message to DB.
-
-        Idempotent and concurrency-safe — uses a lock to prevent the
-        race between stream_chat_message's finally (asyncio.shield)
-        and create_sse_stream's finally (create_task) from double-writing.
-        """
-        async with self._persist_lock:
-            if self._persisted:
-                return
-
-            from database import AsyncSessionLocal
-
-            logger.info(
-                f"Persisting assistant message "
-                f"(chat_id={self.chat_id}, len={len(self.content)}, "
-                f"has_extras={self._extras is not None})"
-            )
-
-            async with AsyncSessionLocal() as fresh_db:
-                fresh_chat_service = ChatService(fresh_db)
-                await fresh_chat_service.add_message(
-                    chat_id=self.chat_id,
-                    user_id=self.user_id,
-                    role="assistant",
-                    content=self.content,
-                    context=self.context,
-                    extras=self._extras,
-                )
-
-        self._persisted = True
 
     # ── Internal helpers ────────────────────────────────────────────
 
@@ -373,23 +339,128 @@ class ChatStreamService:
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
         self.chat_service = ChatService(db)
-        self._builder: Optional[ResponseBuilder] = None
 
-    async def persist_if_needed(self) -> None:
-        """Persist assistant message if not already done.
+        # ── Turn commit state (for cancel-with-content) ──
+        self._builder: Optional[ResponseBuilder] = None
+        self._pending_chat_id: Optional[int] = None
+        self._pending_scope: Optional[str] = None
+        self._pending_request = None
+        self._committed = False
+        self._commit_lock = asyncio.Lock()
+
+    async def _resolve_chat(self, request) -> Tuple[Optional[int], Optional[str]]:
+        """Resolve conversation without creating or writing anything.
+
+        Returns (chat_id, scope).  chat_id is None for new conversations.
+        Scope migration (updating an existing conversation's scope) is
+        the only write that happens here.
+        """
+        chat_id = request.conversation_id
+        derived_scope = derive_scope(request.context)
+
+        if chat_id:
+            chat = await self.chat_service.get_chat(chat_id, self.user_id)
+            if chat:
+                table_id = request.context.get("table_id")
+                if derived_scope and chat.scope != derived_scope and table_id:
+                    await self.chat_service.migrate_to_table(
+                        chat_id, self.user_id, table_id
+                    )
+                return chat_id, derived_scope
+
+        return None, derived_scope
+
+    async def _commit_turn(
+        self,
+        chat_id: Optional[int],
+        scope: Optional[str],
+        request,
+        assistant_content: str,
+        assistant_extras: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """Create conversation (if needed) and write user + assistant messages.
+
+        Uses a fresh DB session so it works even after the request's
+        session is closed (e.g. on cancel).  Idempotent via lock + flag.
+
+        Returns the conversation ID.
+        """
+        async with self._commit_lock:
+            if self._committed:
+                return self._pending_chat_id or 0
+
+            from database import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as db:
+                chat_service = ChatService(db)
+
+                if not chat_id:
+                    app = self._get_app_from_context(request.context)
+                    if not scope:
+                        logger.warning(
+                            f"No scope derived from context: {request.context}"
+                        )
+                    chat = await chat_service.create_chat(
+                        self.user_id, app=app, scope=scope
+                    )
+                    chat_id = chat.id
+
+                await chat_service.add_message(
+                    chat_id=chat_id,
+                    user_id=self.user_id,
+                    role="user",
+                    content=request.message,
+                    context=request.context,
+                )
+                await chat_service.add_message(
+                    chat_id=chat_id,
+                    user_id=self.user_id,
+                    role="assistant",
+                    content=assistant_content,
+                    context=request.context,
+                    extras=assistant_extras,
+                )
+
+            self._committed = True
+            self._pending_chat_id = chat_id
+            return chat_id
+
+    async def commit_if_needed(self) -> None:
+        """Commit turn if there's pending content.  For fire-and-forget use.
 
         Called by create_sse_stream's finally block as a last resort when
         stream_chat_message's finally doesn't run (streaming cancel case).
-        Handles its own errors since it runs fire-and-forget.
         """
-        if self._builder and not self._builder._persisted:
-            try:
-                await self._builder.persist()
-            except Exception:
-                logger.warning(
-                    "Failed to persist assistant message (sse_generator fallback)",
-                    exc_info=True,
-                )
+        if self._committed:
+            logger.debug("commit_if_needed: already committed")
+            return
+        if not self._builder or not self._builder.has_content:
+            logger.info(
+                f"commit_if_needed: no content to commit "
+                f"(builder={'set' if self._builder else 'None'}, "
+                f"has_content={self._builder.has_content if self._builder else 'n/a'})"
+            )
+            return
+        if not self._pending_request:
+            logger.warning("commit_if_needed: no pending request")
+            return
+        logger.info(
+            f"commit_if_needed: committing turn "
+            f"(text={len(self._builder.collected_text)} chars)"
+        )
+        try:
+            await self._commit_turn(
+                self._pending_chat_id,
+                self._pending_scope,
+                self._pending_request,
+                self._builder.content,
+                self._builder.extras,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to commit turn (sse_generator fallback)",
+                exc_info=True,
+            )
 
     # =========================================================================
     # Public API
@@ -437,19 +508,21 @@ class ChatStreamService:
                 }
 
             finally:
+                logger.info("SSE generator finally: cleaning up")
                 if on_cleanup:
                     on_cleanup()
-                # Last-resort persist: handles the streaming-cancel case
+                # Last-resort commit: handles the streaming-cancel case
                 # where stream_chat_message's finally doesn't run (nested
                 # async generator cleanup limitation).  Fire-and-forget
                 # because we may be inside a cancelled anyio scope.
                 try:
                     asyncio.get_running_loop().create_task(
-                        service.persist_if_needed()
+                        service.commit_if_needed()
                     )
+                    logger.info("SSE generator finally: scheduled commit_if_needed task")
                 except Exception:
                     logger.warning(
-                        "Failed to schedule persist task", exc_info=True
+                        "Failed to schedule commit task", exc_info=True
                     )
 
         return _sse_generator()
@@ -460,6 +533,13 @@ class ChatStreamService:
         """
         Stream a chat message response with tool support via SSE.
 
+        Write-late pattern: nothing is written to the DB until the turn is
+        complete (or cancelled with partial content).  Three outcomes:
+
+        1. Normal completion → commit user + assistant messages atomically
+        2. Cancel with content → commit user + partial assistant message
+        3. Cancel with no content → nothing written, frontend reverts
+
         Args:
             request: ChatRequest object (defined in routers.chat_stream)
             cancellation_token: Optional token to check for cancellation
@@ -469,27 +549,22 @@ class ChatStreamService:
         if cancellation_token is None:
             cancellation_token = CancellationToken()
 
-        # Setup chat persistence — shielded from cancellation so the
-        # user message is always persisted even on immediate cancel.
-        chat_id = await asyncio.shield(self._setup_chat(request))
-        if not chat_id:
-            yield ErrorEvent(
-                message="Failed to initialize chat session."
-            ).model_dump_json()
-            return
+        # ── 1. Resolve conversation (read-only — no DB writes) ──────────
+        chat_id, scope = await self._resolve_chat(request)
+        logger.info(
+            f"Stream start: user={self.user_id} chat_id={chat_id} scope={scope} "
+            f"message={request.message[:80]!r}"
+        )
 
-        # ── Once _setup_chat commits, we MUST pair it with an assistant message.
-        # The ResponseBuilder accumulates data during streaming, then persist()
-        # writes the message to DB.  persist() is idempotent and called from
-        # three places (normal path, service finally, router finally) to
-        # guarantee the write happens regardless of how the request ends.
-        builder = ResponseBuilder(chat_id, self.user_id, request.context)
+        # ── 2. Set up pending state for commit-on-cancel ────────────────
+        self._pending_chat_id = chat_id
+        self._pending_scope = scope
+        self._pending_request = request
+
+        builder = ResponseBuilder(request.context)
         self._builder = builder
 
         try:
-            # Emit chat_id immediately so the frontend knows it even on cancel
-            yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
-
             # Check guest turn limit — process this message but signal limit after
             guest_limit_hit = False
             from services.user_service import UserService
@@ -500,29 +575,36 @@ class ChatStreamService:
                 guest_turn_limit = await self.chat_service.get_guest_turn_limit()
                 msg_count = await self.chat_service.count_user_messages(self.user_id)
                 logger.info(
-                    f"Guest limit check: user={self.user_id} msg_count={msg_count} limit={guest_turn_limit} over={'YES' if msg_count >= guest_turn_limit else 'no'}"
+                    f"Guest limit check: user={self.user_id} msg_count={msg_count} "
+                    f"limit={guest_turn_limit} over={'YES' if msg_count >= guest_turn_limit else 'no'}"
                 )
                 if msg_count >= guest_turn_limit:
                     guest_limit_hit = True
             else:
                 logger.info(
-                    f"Guest limit check: user={self.user_id} is_guest={user.is_guest if user else 'no user'} — skipping"
+                    f"Guest limit check: user={self.user_id} "
+                    f"is_guest={user.is_guest if user else 'no user'} — skipping"
                 )
 
             # Inject conversation_id into context for tools that need it
+            # (use existing chat_id or None — tools can cope with None)
             context_with_chat = dict(request.context)
             context_with_chat["conversation_id"] = chat_id
 
-            # Fetch conversation history once (used by both system prompt and message building)
-            db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
-
-            # Build prompts (pass pre-fetched messages to avoid redundant DB calls)
-            system_prompt = await self._build_system_prompt(
-                context_with_chat, chat_id, db_messages
+            # Fetch conversation history (empty for new conversations)
+            db_messages = (
+                await self.chat_service.get_messages(chat_id, self.user_id)
+                if chat_id
+                else []
             )
-            messages, _ = self._build_messages_from_history(request, db_messages)
 
-            # Get tools for this page, tab, and subtab (global + page + tab + subtab)
+            # Build prompts
+            system_prompt = await self._build_system_prompt(
+                context_with_chat, chat_id, db_messages or None
+            )
+            messages, _ = self._build_messages_from_history(request, db_messages or None)
+
+            # Get tools for this page
             current_page = context_with_chat.get("current_page", "unknown")
             active_tab = context_with_chat.get("active_tab")
             active_subtab = context_with_chat.get("active_subtab")
@@ -537,7 +619,7 @@ class ChatStreamService:
             # Get configurable max iterations
             max_iterations = await self._get_max_tool_iterations()
 
-            # ── Stream agent loop events ────────────────────────────────
+            # ── 3. Stream agent loop events ─────────────────────────────
             async for event in run_agent_loop(
                 client=self.async_client,
                 model=CHAT_MODEL,
@@ -584,22 +666,59 @@ class ChatStreamService:
                         index=builder.tool_call_index - 1,
                     ).model_dump_json()
 
-                elif isinstance(event, (AgentComplete, AgentCancelled)):
+                elif isinstance(event, AgentComplete):
                     builder.set_agent_result(event)
+
+                elif isinstance(event, AgentCancelled):
+                    builder.set_agent_result(event)
+                    # Cooperative cancel: commit partial if we have content
+                    if builder.has_content:
+                        logger.info(
+                            f"Cooperative cancel with content: "
+                            f"text={len(builder.collected_text)} chars, "
+                            f"tools={len(builder.tool_call_history)}"
+                        )
+                        chat_id = await self._commit_turn(
+                            chat_id, scope, request,
+                            builder.content, builder.extras,
+                        )
+                        # Emit chat_id so frontend can sync later
+                        yield ChatIdEvent(
+                            conversation_id=chat_id
+                        ).model_dump_json()
+                    else:
+                        logger.info("Cooperative cancel with no content — nothing written")
+                    return
 
                 elif isinstance(event, AgentError):
                     builder.set_trace(event.trace)
                     yield ErrorEvent(message=event.error).model_dump_json()
-                    return  # Triggers finally → router finally persists fallback
+                    # Still commit whatever we have so the error context is saved
+                    if builder.has_content:
+                        await self._commit_turn(
+                            chat_id, scope, request,
+                            builder.content, builder.extras,
+                        )
+                    return
 
-            # ── Normal completion: build, persist, then emit ────────────
-            complete_event = builder.build(self._parse_llm_response)
-            await builder.persist()
+            # ── 4. Normal completion: parse, build, commit, emit ──────────
+            parsed = self._parse_llm_response(builder.collected_text, request.context)
+            complete_event = builder.build(parsed)
+            chat_id = await self._commit_turn(
+                chat_id, scope, request,
+                builder.content, builder.extras,
+            )
+            complete_event.payload.conversation_id = chat_id
+            logger.info(
+                f"Stream complete: chat_id={chat_id} "
+                f"text={len(builder.collected_text)} chars"
+            )
             yield complete_event.model_dump_json()
 
             if guest_limit_hit:
                 logger.info(
-                    f"Guest limit: yielding guest_limit event AFTER complete for user={self.user_id}"
+                    f"Guest limit: yielding guest_limit event AFTER complete "
+                    f"for user={self.user_id}"
                 )
                 yield GuestLimitEvent(
                     message="You've used all your free messages. Register to keep going."
@@ -608,19 +727,15 @@ class ChatStreamService:
         except Exception as e:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
-
-        finally:
-            # Attempt to persist here for the immediate-cancel case
-            # (before streaming starts, where this finally DOES run).
-            # For streaming-cancel, this block doesn't execute — the
-            # create_sse_stream's finally block handles it via persist_if_needed().
-            try:
-                await asyncio.shield(builder.persist())
-            except BaseException:
-                logger.warning(
-                    "Service finally: persist failed or interrupted",
-                    exc_info=True,
-                )
+            # Best-effort commit if we have content
+            if builder.has_content and not self._committed:
+                try:
+                    await self._commit_turn(
+                        chat_id, scope, request,
+                        builder.content, builder.extras,
+                    )
+                except Exception:
+                    logger.warning("Failed to commit after error", exc_info=True)
 
     def _build_payload_manifest(
         self, db_messages: Optional[List] = None
@@ -669,50 +784,7 @@ class ChatStreamService:
         """Derive app identifier from context."""
         return "table_that"
 
-    async def _setup_chat(self, request) -> Optional[int]:
-        """
-        Set up chat persistence and save user message (async).
-
-        If conversation_id is provided, loads it and migrates scope if
-        context indicates a different entity (e.g. tables_list → table:42).
-        Otherwise creates a new conversation with scope derived from context.
-
-        Returns chat_id or None if persistence fails.
-        """
-        try:
-            chat_id = request.conversation_id
-            app = self._get_app_from_context(request.context)
-            derived_scope = derive_scope(request.context)
-
-            if chat_id:
-                chat = await self.chat_service.get_chat(chat_id, self.user_id)
-                if chat:
-                    table_id = request.context.get("table_id")
-                    if derived_scope and chat.scope != derived_scope and table_id:
-                        await self.chat_service.migrate_to_table(
-                            chat_id, self.user_id, table_id
-                        )
-                else:
-                    chat_id = None
-
-            if not chat_id:
-                if not derived_scope:
-                    logger.warning(f"No scope derived from context: {request.context}")
-                chat = await self.chat_service.create_chat(self.user_id, app=app, scope=derived_scope)
-                chat_id = chat.id
-
-            await self.chat_service.add_message(
-                chat_id=chat_id,
-                user_id=self.user_id,
-                role="user",
-                content=request.message,
-                context=request.context,
-            )
-            return chat_id
-
-        except Exception as e:
-            logger.warning(f"Failed to persist user message: {e}")
-            return None
+    # _setup_chat removed — replaced by _resolve_chat + _commit_turn (write-late pattern)
 
     # =========================================================================
     # Message Building
@@ -739,12 +811,10 @@ class ChatStreamService:
         history = []
 
         # Build history from pre-fetched messages
-        # Exclude the last message - it's the current user message we just saved
-        # in _setup_chat, and we'll add it below
+        # All db_messages are prior history (write-late: current message
+        # hasn't been written to DB yet)
         if db_messages:
-            # Skip the last message (the one we just saved)
-            prior_messages = db_messages[:-1] if db_messages else []
-            for msg in prior_messages:
+            for msg in db_messages:
                 if msg.role in ("user", "assistant"):
                     # Strip [[tool:N]] markers from assistant messages so the LLM
                     # doesn't learn to reproduce them as plain text
