@@ -33,7 +33,7 @@ export async function trackEvent(eventType: string, eventData?: TrackEventData):
 }
 
 /**
- * Event types tracked in table.that
+ * Event types tracked in TableThat
  */
 export const EventTypes = {
     // Auth

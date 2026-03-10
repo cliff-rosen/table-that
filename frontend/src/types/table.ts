@@ -1,5 +1,5 @@
 /**
- * Table and Row types for table.that
+ * Table and Row types for TableThat
  */
 
 export type ColumnType = 'text' | 'number' | 'date' | 'boolean' | 'select' | 'url';
