@@ -6,7 +6,10 @@ Uses the agent_loop for agentic processing. Handles chat persistence automatical
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Any, AsyncGenerator, List, Optional
+from typing import Callable, Dict, Any, AsyncGenerator, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services._response_parser import ParsedResponse
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -145,31 +148,26 @@ class ResponseBuilder:
 
     # ── Finalize (called on normal completion) ─────────────────────
 
-    def finalize(self, parsed: Dict[str, Any]) -> None:
+    def finalize(self, parsed: "ParsedResponse") -> None:
         """Process raw accumulated data into final form for persistence.
 
         After this call, .content returns the parsed message and .extras
         returns the full extras dict.  On cancel paths this is never
         called, so .content returns raw text and .extras returns None.
-
-        Args:
-            parsed: Dict with keys message, suggested_values,
-                    suggested_actions, custom_payload
         """
-
         # ── Merge payloads (tool-emitted take priority over text-parsed) ──
         all_payloads = list(self.collected_payloads)
         tool_payload_types = {p.get("type") for p in self.collected_payloads if p}
 
-        if parsed.get("custom_payload"):
-            text_payload_type = parsed["custom_payload"].get("type")
+        if parsed.custom_payload:
+            text_payload_type = parsed.custom_payload.get("type")
             if text_payload_type in tool_payload_types:
                 logger.info(
                     f"SSE: dropping text-parsed {text_payload_type} payload — "
                     f"tool already emitted one"
                 )
             else:
-                all_payloads.append(parsed["custom_payload"])
+                all_payloads.append(parsed.custom_payload)
 
         logger.info(
             f"SSE complete: collected_payloads={len(self.collected_payloads)}, "
@@ -183,16 +181,16 @@ class ResponseBuilder:
 
         # ── Suggested values / actions ──
         suggested_values = None
-        if parsed.get("suggested_values"):
+        if parsed.suggested_values:
             suggested_values = [
                 SuggestedValue(text=sv) if isinstance(sv, str) else SuggestedValue(**sv)
-                for sv in parsed["suggested_values"]
+                for sv in parsed.suggested_values
             ]
 
         suggested_actions = None
-        if parsed.get("suggested_actions"):
+        if parsed.suggested_actions:
             suggested_actions = [
-                SuggestedAction(**sa) for sa in parsed["suggested_actions"]
+                SuggestedAction(**sa) for sa in parsed.suggested_actions
             ]
 
         custom_payload_obj = CustomPayload(**custom_payload) if custom_payload else None
@@ -207,7 +205,7 @@ class ResponseBuilder:
         # ── Attach final response to trace ──
         if self.trace:
             self.trace.final_response = FinalResponse(
-                message=parsed["message"],
+                message=parsed.message,
                 suggested_values=suggested_values,
                 suggested_actions=suggested_actions,
                 custom_payload=custom_payload_obj,
@@ -215,7 +213,7 @@ class ResponseBuilder:
             )
 
         # ── Store finalized data ──
-        self._parsed_message = parsed["message"]
+        self._parsed_message = parsed.message
         self._suggested_values = suggested_values
         self._suggested_actions = suggested_actions
         self._custom_payload_obj = custom_payload_obj

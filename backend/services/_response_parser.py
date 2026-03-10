@@ -13,46 +13,43 @@ All functions are stateless and have no dependency on ChatStreamService.
 import json
 import logging
 import re
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from services.chat_page_config import PageLocation, get_all_payloads_for_page
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ParsedResponse:
+    """Result of parsing structured markers from LLM response text."""
+    message: str
+    suggested_values: Optional[List[Dict[str, Any]]] = None
+    suggested_actions: Optional[List[Dict[str, Any]]] = None
+    custom_payload: Optional[Dict[str, Any]] = None
+
+
 def parse_llm_response(
     response_text: str, page: PageLocation
-) -> Dict[str, Any]:
-    """Parse LLM response to extract structured components.
-
-    Returns a dict with keys:
-      message          — cleaned text with markers stripped
-      suggested_values — parsed JSON array or None
-      suggested_actions — parsed JSON array or None
-      custom_payload   — parsed payload dict or None
-    """
+) -> ParsedResponse:
+    """Parse LLM response to extract structured components."""
     message = response_text.strip()
-    result: Dict[str, Any] = {
-        "message": message,
-        "suggested_values": None,
-        "suggested_actions": None,
-        "custom_payload": None,
-    }
+    result = ParsedResponse(message=message)
 
     # Parse SUGGESTED_VALUES marker
-    message = _extract_marker_array(
-        message, "SUGGESTED_VALUES:", "suggested_values", result
-    )
+    message, values = _extract_marker_array(message, "SUGGESTED_VALUES:")
+    result.suggested_values = values
 
     # Parse SUGGESTED_ACTIONS marker
-    message = _extract_marker_array(
-        message, "SUGGESTED_ACTIONS:", "suggested_actions", result
-    )
+    message, actions = _extract_marker_array(message, "SUGGESTED_ACTIONS:")
+    result.suggested_actions = actions
 
     # Parse custom payloads (page-specific structured responses)
-    message = _extract_custom_payload(message, page, result)
+    message, payload = _extract_custom_payload(message, page)
+    result.custom_payload = payload
 
-    result["message"] = message
+    result.message = message
     return result
 
 
@@ -62,41 +59,40 @@ def parse_llm_response(
 
 
 def _extract_marker_array(
-    message: str, marker: str, result_key: str, result: Dict[str, Any]
-) -> str:
+    message: str, marker: str
+) -> tuple[str, Optional[List[Dict[str, Any]]]]:
     """Find a marker like SUGGESTED_VALUES: [...] in message, extract the
-    JSON array, store it in result[result_key], and return the message
-    with the marker+JSON removed."""
+    JSON array, and return (cleaned_message, parsed_array)."""
     if marker not in message:
-        return message
+        return message, None
 
     marker_pos = message.find(marker)
     after_marker = message[marker_pos + len(marker) :]
     after_marker_stripped = after_marker.lstrip()
     json_content = _extract_json_array(after_marker_stripped)
     if not json_content:
-        return message
+        return message, None
 
     try:
         parsed = json.loads(json_content)
         if isinstance(parsed, list):
-            result[result_key] = parsed
             # Calculate whitespace between marker and JSON
             whitespace_len = len(after_marker) - len(after_marker_stripped)
             # Remove everything from marker through end of JSON
             end_pos = marker_pos + len(marker) + whitespace_len + len(json_content)
-            return (message[:marker_pos] + message[end_pos:]).strip()
+            cleaned = (message[:marker_pos] + message[end_pos:]).strip()
+            return cleaned, parsed
     except json.JSONDecodeError:
         logger.warning(f"Failed to parse {marker} JSON: {json_content[:100]}")
 
-    return message
+    return message, None
 
 
 def _extract_custom_payload(
-    message: str, page: PageLocation, result: Dict[str, Any]
-) -> str:
+    message: str, page: PageLocation
+) -> tuple[str, Optional[Dict[str, Any]]]:
     """Find a custom payload marker (e.g. SCHEMA_PROPOSAL: {...}) in message,
-    parse it via the registered payload config, and return cleaned message."""
+    parse it via the registered payload config, and return (cleaned_message, payload)."""
     payload_configs = get_all_payloads_for_page(page)
     for config in payload_configs:
         marker = config.parse_marker
@@ -119,16 +115,15 @@ def _extract_custom_payload(
             if json_content:
                 parsed = config.parser(json_content)
                 if parsed:
-                    result["custom_payload"] = parsed
                     # Find where JSON starts in the raw after_marker (preserving whitespace)
                     json_start_in_raw = after_marker_raw.find(json_content)
                     # Calculate full payload text: from marker start through end of JSON
                     end_pos = match.end() + json_start_in_raw + len(json_content)
                     payload_text = message[marker_pos:end_pos]
-                    message = message.replace(payload_text, "").strip()
-                    break
+                    cleaned = message.replace(payload_text, "").strip()
+                    return cleaned, parsed
 
-    return message
+    return message, None
 
 
 # ---------------------------------------------------------------------------
