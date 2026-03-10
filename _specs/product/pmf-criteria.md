@@ -1,4 +1,4 @@
-# Product-Market Fit Criteria for table.that
+# Product-Market Fit Criteria for TableThat
 
 ## Target User
 
@@ -99,7 +99,7 @@ The killer insight: the AI doesn't just structure data — it does the research 
 
 ### Sean Ellis test
 
-"How would you feel if you could no longer use table.that?"
+"How would you feel if you could no longer use TableThat?"
 - Target: 40%+ say "very disappointed" among users who have completed the full build-populate-enrich loop at least once.
 
 ## Quality Evaluation Rubric

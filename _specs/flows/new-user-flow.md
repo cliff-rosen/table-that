@@ -6,7 +6,7 @@
 
 ## Overview
 
-A new user arrives at table.that and can either **try it immediately as a guest** or **register first**. Both paths lead to the Tables List, where the first-use experience guides them into the [Core Flow](./core-flow.md) (create table → populate → enrich).
+A new user arrives at TableThat and can either **try it immediately as a guest** or **register first**. Both paths lead to the Tables List, where the first-use experience guides them into the [Core Flow](./core-flow.md) (create table → populate → enrich).
 
 ```
 Landing Page → type prompt → guest session → /tables (chat open) → Core Flow

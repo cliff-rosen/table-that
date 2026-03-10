@@ -1,14 +1,14 @@
-# Competitive Differentiation: table.that vs Generic Chatbots
+# Competitive Differentiation: TableThat vs Generic Chatbots
 
 ## Purpose
 
-This document analyzes why the Build → Populate → Enrich workflow fails when attempted through generic AI chatbots (ChatGPT, Claude, Gemini, etc.) and succeeds through table.that. The goal is to understand — concretely, through specific use cases — where the structural advantages lie and what failure modes the generic tools exhibit.
+This document analyzes why the Build → Populate → Enrich workflow fails when attempted through generic AI chatbots (ChatGPT, Claude, Gemini, etc.) and succeeds through TableThat. The goal is to understand — concretely, through specific use cases — where the structural advantages lie and what failure modes the generic tools exhibit.
 
 ---
 
 ## Our Core Workflows
 
-For reference, table.that's value loop:
+For reference, TableThat's value loop:
 
 1. **Build** — User describes what they need in natural language. AI proposes a typed schema (columns with types, select options, required flags). User reviews and approves.
 2. **Populate** — AI researches real entities from the web and proposes rows as a reviewable data proposal. User selects which to keep, edits values, applies.
@@ -29,7 +29,7 @@ The key structural properties that enable this:
 
 ### Use Case 1: "Build me a list of the 20 best Italian restaurants in Chicago"
 
-**What table.that does:**
+**What TableThat does:**
 1. AI proposes a schema: Name (text), Neighborhood (select), Price Range (select: $, $$, $$$), Cuisine Style (select), Rating (number), Website (text), Phone (text), Michelin Stars (number), Open Since (date)
 2. User reviews schema, adjusts (maybe removes Michelin Stars, adds Vegetarian Options as boolean)
 3. AI uses web search → fetch → extraction to find real restaurants. Proposes 20 rows as a data proposal with real names, real addresses, real ratings pulled from actual sources.
@@ -63,7 +63,7 @@ The user asks the same question. The chatbot generates a numbered list in markdo
 
 ### Use Case 2: "Track my job applications"
 
-**What table.that does:**
+**What TableThat does:**
 1. User says "I need to track my job applications." AI proposes: Company (text), Position (text), Status (select: Applied, Phone Screen, Interview, Offer, Rejected), Date Applied (date), Salary Range (text), Contact Name (text), Notes (text), Follow Up Date (date), Heard Back (boolean)
 2. User applies schema. Starts adding rows manually or via chat.
 3. Over weeks, user updates statuses, adds new applications, filters by Status to see active pipeline.
@@ -92,7 +92,7 @@ User asks "help me track my job applications." The chatbot suggests a spreadshee
 
 ### Use Case 3: "Compare the top 10 project management tools"
 
-**What table.that does:**
+**What TableThat does:**
 1. AI proposes a schema: Name, Category (select: Full PM, Kanban, Hybrid), Pricing (text), Free Tier (boolean), Team Size (text), Key Features (text), Integrations (text), Website (text)
 2. AI researches each tool from the web, proposes 10 rows with real current pricing, real feature lists.
 3. User applies, then says "add a column for whether they have a Gantt chart view."
@@ -119,7 +119,7 @@ User asks "which ones have a Gantt chart?" The chatbot regenerates the whole tab
 
 ### Use Case 4: "Research publishers that accept science fiction short stories"
 
-**What table.that does:**
+**What TableThat does:**
 1. AI proposes: Publication Name, Submission Type (select: Open, Closed, Invite Only), Payment (select: Pro, Semi-Pro, Token, None), Word Count Limit (number), Response Time (text), Website (text), Submission URL (text), Simultaneous Subs (boolean), Last Updated (date)
 2. AI researches real publications from writer databases and market listings. Proposes 20 rows with verified details.
 3. User enriches: "check which ones are currently open for submissions" — AI visits each publication's submissions page, checks real-time status.
@@ -136,13 +136,13 @@ Chatbot produces a list from training data. Some publications have folded. Submi
 | **Can't verify current status** | Accuracy | Publication submission windows change monthly. The chatbot can't check whether Clarkesworld is currently open — it answers from training data. |
 | **No per-row live verification** | Workflow | The fundamental operation ("check each publisher's current status") requires visiting 20 different websites. The chatbot does zero web fetches for this — it generates all 20 answers from memory. |
 | **Outdated payment rates** | Accuracy | Pro rates change. Semi-pro markets upgrade. New markets launch. Training data can't track this. |
-| **No ongoing maintenance** | Persistence | Next month, user wants to recheck. In a chatbot, they start from scratch. In table.that, they re-run enrichment on the existing table. |
+| **No ongoing maintenance** | Persistence | Next month, user wants to recheck. In a chatbot, they start from scratch. In TableThat, they re-run enrichment on the existing table. |
 
 ---
 
 ### Use Case 5: "Find apartments in Brooklyn under $3,000/month"
 
-**What table.that does:**
+**What TableThat does:**
 1. AI proposes: Address, Neighborhood (select), Bedrooms (number), Rent (number), Broker Fee (boolean), Pets Allowed (boolean), Laundry (select: In-Unit, In-Building, None), Transit (text), Listing URL (text)
 2. AI searches real estate listing aggregators (StreetEasy, etc.) and proposes real listings.
 3. User enriches: "check if each building has a doorman" — AI researches each address individually.
@@ -158,7 +158,7 @@ Chatbot cannot access real estate listing sites in real-time. Generates fictiona
 |---------|----------|----------------|
 | **Fictional listings** | Accuracy | The chatbot generates plausible-sounding apartment listings that don't exist. "123 Atlantic Ave, 2BR, $2,400" — maybe that building doesn't have rentals, or the price is wrong, or the building was demolished. |
 | **No live availability** | Accuracy | Apartment listings change daily. A list from training data is guaranteed stale. |
-| **Can't filter numerically** | Structure | "Show me only under $2,800" in a chatbot means regenerating the list. In table.that, it's a column filter. |
+| **Can't filter numerically** | Structure | "Show me only under $2,800" in a chatbot means regenerating the list. In TableThat, it's a column filter. |
 | **No structured comparison** | Workflow | Side-by-side comparison of 15 apartments across 8 dimensions is a table operation. In a chatbot, it's a wall of text. |
 
 ---
@@ -174,12 +174,12 @@ Generic chatbots don't maintain structured state across turns. The "table" is te
 - No incremental updates (every change regenerates everything)
 - Cross-session loss (new conversation = start over)
 
-**table.that advantage:** Persistent database-backed table with typed schema. The AI sees the current state as structured context every turn. Changes are surgical (update one cell, add one column) not generative (regenerate the whole table).
+**TableThat advantage:** Persistent database-backed table with typed schema. The AI sees the current state as structured context every turn. Changes are surgical (update one cell, add one column) not generative (regenerate the whole table).
 
 ### 2. No Real-Time Research Per Entity
 Generic chatbots answer from training data or, at best, a single web search summarized into a response. They don't run a research loop per row — search, fetch, extract, verify — for each entity in a list.
 
-**table.that advantage:** The enrichment pipeline runs a multi-step agentic research loop per row. Each cell value is the result of live web research, not LLM generation. The user gets a research trace showing exactly what sources were consulted.
+**TableThat advantage:** The enrichment pipeline runs a multi-step agentic research loop per row. Each cell value is the result of live web research, not LLM generation. The user gets a research trace showing exactly what sources were consulted.
 
 ### 3. No Typed Structure
 Generic chatbot output is text. Even markdown tables are flat strings with no enforcement of types, options, or consistency. This means:
@@ -188,7 +188,7 @@ Generic chatbot output is text. Even markdown tables are flat strings with no en
 - Inconsistent values (same concept expressed different ways across rows)
 - No validation (nothing prevents nonsense values)
 
-**table.that advantage:** Typed columns (text, number, date, boolean, select with defined options). Value coercion ensures research results fit the column type. Filters and sorts work because the data is structurally consistent.
+**TableThat advantage:** Typed columns (text, number, date, boolean, select with defined options). Value coercion ensures research results fit the column type. Filters and sorts work because the data is structurally consistent.
 
 ### 4. No Selective Review
 Generic chatbots present output as a monolithic block. The user either accepts the whole thing or re-prompts. There's no mechanism to:
@@ -196,12 +196,12 @@ Generic chatbots present output as a monolithic block. The user either accepts t
 - Edit one cell before accepting
 - See what changed between the old and new version
 
-**table.that advantage:** Proposal-and-review pattern with per-row checkboxes, inline editing before apply, and visual diffs (green for additions, amber for updates, red for deletions).
+**TableThat advantage:** Proposal-and-review pattern with per-row checkboxes, inline editing before apply, and visual diffs (green for additions, amber for updates, red for deletions).
 
 ### 5. No Incremental Enrichment
 Generic chatbots can't isolate a column operation. "Add the website for each company" in a chatbot means regenerating the entire table with a new column — and the chatbot may change other values in the process. There's no concept of "hold these 8 columns fixed and research only column 9."
 
-**table.that advantage:** `enrich_column` is a first-class operation. It adds values to one column across existing rows without touching any other data. Each row's enrichment is an independent research task with its own trace.
+**TableThat advantage:** `enrich_column` is a first-class operation. It adds values to one column across existing rows without touching any other data. Each row's enrichment is an independent research task with its own trace.
 
 ---
 
@@ -212,10 +212,10 @@ The individual advantages above compound. Consider the full workflow for "compar
 In a chatbot:
 1. Generate list (from memory, stale) → 2. Copy to spreadsheet → 3. Manually Google each tool's current pricing → 4. Manually check feature pages → 5. Manually update spreadsheet → 6. Re-sort manually → 7. Next month, start over
 
-In table.that:
+In TableThat:
 1. AI proposes schema (user reviews) → 2. AI researches current data (user reviews) → 3. User adds a column → 4. AI researches per row (user reviews) → 5. Filter, sort, export → 6. Next month, re-enrich
 
-The chatbot saves time on step 1 (generating the initial list). table.that saves time on steps 1 through 7 and continues saving time on every subsequent update. The more columns and the more rows, the wider the gap. For a 20-row table with 10 columns, the chatbot saves maybe 10 minutes (the initial list generation). table.that saves hours (the ongoing research, maintenance, and re-verification).
+The chatbot saves time on step 1 (generating the initial list). TableThat saves time on steps 1 through 7 and continues saving time on every subsequent update. The more columns and the more rows, the wider the gap. For a 20-row table with 10 columns, the chatbot saves maybe 10 minutes (the initial list generation). TableThat saves hours (the ongoing research, maintenance, and re-verification).
 
 ---
 
@@ -235,7 +235,7 @@ In the research angle, the chatbot's main failure is **it can't access live data
 
 A procurement manager has 30 vendors to evaluate for a software purchase. They already have names and basic info. They need to systematically assess each one.
 
-**What table.that does:**
+**What TableThat does:**
 1. User creates a table (or imports CSV) with: Vendor Name, Product, Annual Cost, Contract Length.
 2. User says "add a column for Security Compliance — SOC2, ISO 27001, or Neither." AI proposes a select column. Applied.
 3. User says "research each vendor's security certifications." AI enriches per row from live web data. Results are select values (SOC2 / ISO 27001 / Both / Neither), not free text.
@@ -253,7 +253,7 @@ User pastes the 30 vendor names and asks for analysis. The chatbot generates a w
 | Failure | Category | Why it happens |
 |---------|----------|----------------|
 | **Can't apply rules consistently across 30 rows** | Consistency | User says "if cost < $50K and SOC2, mark as High priority." In a chatbot, this is a single generation where the LLM applies the rule to all 30 rows at once. It will make mistakes — misread a number, skip a row, apply the logic inconsistently. There's no mechanical guarantee that the rule was applied the same way to row 1 and row 30. |
-| **Can't re-apply after changes** | Persistence | User eliminates 5 vendors and adds 3 new ones. "Re-score the priorities." The chatbot has to regenerate everything. In table.that, re-enriching the Priority column only processes rows that need updating. |
+| **Can't re-apply after changes** | Persistence | User eliminates 5 vendors and adds 3 new ones. "Re-score the priorities." The chatbot has to regenerate everything. In TableThat, re-enriching the Priority column only processes rows that need updating. |
 | **Can't filter the result** | Structure | "Show me only the High priority vendors with SOC2." In a chatbot, this means asking it to regenerate a filtered sublist. The user can't toggle filters interactively, combine filter criteria, or quickly switch between views. |
 | **Status tracking doesn't work** | Persistence | Vendor evaluations evolve over weeks. Statuses change (Evaluating → Demo Scheduled → Approved → Eliminated). In a chatbot, there's no persistent Status column to update — every change requires restating the entire context. |
 | **Exported snapshots go stale immediately** | Workflow | User copies the chatbot's table to a spreadsheet. Next week, three vendors updated their pricing. The spreadsheet is stale. There's no connection between the chatbot's output and the user's working data. |
@@ -264,7 +264,7 @@ User pastes the 30 vendor names and asks for analysis. The chatbot generates a w
 
 A marketing manager tracks blog posts, social media, and email campaigns. Needs to plan, schedule, tag by theme, track status, and spot gaps.
 
-**What table.that does:**
+**What TableThat does:**
 1. Schema: Title, Channel (select: Blog, Twitter, LinkedIn, Email, Newsletter), Status (select: Idea, Drafting, Review, Scheduled, Published), Theme (select: Product, Culture, Tutorial, Case Study), Author, Publish Date (date), Performance (select: High, Medium, Low, Not Measured)
 2. User adds 40 content items over several weeks via chat and manual entry.
 3. User says "tag the Performance column based on engagement — use High if it was shared more than 50 times." AI enriches using web research (checks share counts on published items) + computation (applies the threshold).
@@ -281,8 +281,8 @@ User describes their content calendar and asks for help organizing it. The chatb
 | Failure | Category | Why it happens |
 |---------|----------|----------------|
 | **Can't accumulate data over time** | Persistence | A content calendar grows week by week. Each new item is a row. In a chatbot, you'd need to paste the entire calendar every time you want to add an item or ask a question about it. After 40 items, you're hitting context limits. |
-| **Can't answer analytical questions about the data** | Structure | "What percentage of my Blog posts are in Drafting status?" requires counting across a structured dataset. The chatbot would need the full dataset in context, and even then it's doing arithmetic on markdown text — error-prone. table.that has the data in a database with typed columns; the AI sees distributions in its context. |
-| **Can't derive columns from existing data** | Workflow | "Flag everything from January without a Performance rating" is a computation across two columns (date + performance). In a chatbot, this is a one-shot LLM generation applied to a text blob. In table.that, it's a per-row computation with type-aware coercion to boolean. |
+| **Can't answer analytical questions about the data** | Structure | "What percentage of my Blog posts are in Drafting status?" requires counting across a structured dataset. The chatbot would need the full dataset in context, and even then it's doing arithmetic on markdown text — error-prone. TableThat has the data in a database with typed columns; the AI sees distributions in its context. |
+| **Can't derive columns from existing data** | Workflow | "Flag everything from January without a Performance rating" is a computation across two columns (date + performance). In a chatbot, this is a one-shot LLM generation applied to a text blob. In TableThat, it's a per-row computation with type-aware coercion to boolean. |
 | **Filters don't exist** | Structure | Switching between views — "show me just the Scheduled items" vs "show me just the Low performers" — is instantaneous with filter chips. In a chatbot, each view is a new request that regenerates a filtered list. |
 | **No visual density** | Presentation | 40 items across 8 columns is a spreadsheet-density problem. A chatbot presents this as a long markdown table or a list — neither supports the information density needed for editorial planning. |
 
@@ -292,7 +292,7 @@ User describes their content calendar and asks for help organizing it. The chatb
 
 A sales rep gets 50 inbound leads per week. Needs to score them and prioritize follow-up.
 
-**What table.that does:**
+**What TableThat does:**
 1. Import CSV from CRM export: Company, Contact Name, Email, Title, Company Size, Source.
 2. User says "add a Lead Score column — Hot, Warm, Cold — based on company size over 100, title contains VP or Director, and source is Referral or Demo Request." AI proposes select column, then enriches using computation. Each row is scored by rule.
 3. User says "research the company website and industry for each lead." AI enriches two columns (Website, Industry) via live web research.
@@ -320,7 +320,7 @@ User pastes 50 leads and asks "score these." Chatbot generates scores — but:
 
 A support lead tracks recurring issues to identify patterns and advocate for fixes.
 
-**What table.that does:**
+**What TableThat does:**
 1. Schema: Issue Description, Customer, Severity (select: Critical, High, Medium, Low), Product Area (select: Auth, Billing, API, Dashboard, Mobile), Status (select: New, Investigating, Escalated, Fixed), First Reported (date), Occurrences (number), Engineering Ticket (text)
 2. User adds issues over time via chat ("add a new issue: customers can't reset passwords, critical, Auth area, 12 reports this week").
 3. User says "re-categorize severity based on occurrences — anything with 10+ is Critical, 5-9 is High." AI enriches Severity using computation against the Occurrences column.
@@ -338,9 +338,9 @@ The support lead tries to use a chatbot as an issue tracker. They describe issue
 |---------|----------|----------------|
 | **Can't accumulate over time** | Persistence | Issues trickle in over weeks. A chatbot conversation that spans weeks is unworkable — context limits, drift, loss. A new conversation means re-entering everything. |
 | **Can't reclassify in bulk** | Workflow | "Re-score severity based on occurrences" requires reading a number column and writing to a select column across all rows. This is an enrichment operation. The chatbot would need the full dataset, apply the rule in one shot, and regenerate the whole table. |
-| **Can't answer aggregate questions** | Structure | "Which Product Area has the most Critical issues?" is a group-by + count query. table.that's context builder sends value distributions to the AI as structured data. A chatbot has to count from a text blob. |
-| **No ongoing canonical state** | Persistence | The "table" in a chatbot is whichever markdown block was generated most recently. Is issue #7 still "Investigating"? Did someone update it? The chatbot doesn't know. table.that has a row that persists and gets updated in place. |
-| **Can't cross-reference with a filter** | Structure | "Show me Critical Auth issues that are still New" is a two-column filter. Instant in table.that. In a chatbot, it's a re-prompt that regenerates a filtered list — and the next question requires a different filter, another re-prompt. |
+| **Can't answer aggregate questions** | Structure | "Which Product Area has the most Critical issues?" is a group-by + count query. TableThat's context builder sends value distributions to the AI as structured data. A chatbot has to count from a text blob. |
+| **No ongoing canonical state** | Persistence | The "table" in a chatbot is whichever markdown block was generated most recently. Is issue #7 still "Investigating"? Did someone update it? The chatbot doesn't know. TableThat has a row that persists and gets updated in place. |
+| **Can't cross-reference with a filter** | Structure | "Show me Critical Auth issues that are still New" is a two-column filter. Instant in TableThat. In a chatbot, it's a re-prompt that regenerates a filtered list — and the next question requires a different filter, another re-prompt. |
 
 ---
 
@@ -355,31 +355,31 @@ When enrichment means "apply this rule to every row" (scoring, categorizing, fla
 - No guarantee of consistency between row 1 and row 50
 - No ability to re-apply after data changes without regenerating everything
 
-**table.that advantage:** The computation strategy applies the rule per row, mechanically. Each row is an independent operation. Re-enrichment runs only on rows that need it. The result is coerced to the column type (select option, boolean, number), not free text.
+**TableThat advantage:** The computation strategy applies the rule per row, mechanically. Each row is an independent operation. Re-enrichment runs only on rows that need it. The result is coerced to the column type (select option, boolean, number), not free text.
 
 ### 7. No Persistent Analytical State
 
 Analytical workflows are inherently temporal — data accumulates, statuses change, new items arrive. The user needs a stable workspace they return to daily or weekly. Chatbots are session-scoped. Even with memory features, they store preferences, not datasets.
 
-**table.that advantage:** Database-backed persistence. The table exists between sessions. The user opens it, sees current state, filters to their view, makes updates, closes it. Next week, it's still there with all their changes.
+**TableThat advantage:** Database-backed persistence. The table exists between sessions. The user opens it, sees current state, filters to their view, makes updates, closes it. Next week, it's still there with all their changes.
 
 ### 8. No Interactive Filtering
 
-The core act of analysis is filtering: show me X where Y. In a spreadsheet or table.that, this is instantaneous and combinable — filter by status AND priority AND date range, then switch to a different combination. In a chatbot, every filter combination is a new prompt that regenerates the view.
+The core act of analysis is filtering: show me X where Y. In a spreadsheet or TableThat, this is instantaneous and combinable — filter by status AND priority AND date range, then switch to a different combination. In a chatbot, every filter combination is a new prompt that regenerates the view.
 
-**table.that advantage:** Typed filter bar with boolean toggles and select dropdowns. Filters compose (AND). Active filters persist across interactions. The AI sees the active filter state and can reason about the filtered subset.
+**TableThat advantage:** Typed filter bar with boolean toggles and select dropdowns. Filters compose (AND). Active filters persist across interactions. The AI sees the active filter state and can reason about the filtered subset.
 
 ### 9. No Column Dependencies
 
-Real analytical workflows have column dependencies: Score depends on Size + Title. Priority depends on Score + Deadline. Status depends on Priority + Last Contact. Chatbots have no concept of these dependencies. table.that doesn't model them explicitly yet either — but the enrichment system allows multi-pass enrichment where later columns can read earlier columns' values.
+Real analytical workflows have column dependencies: Score depends on Size + Title. Priority depends on Score + Deadline. Status depends on Priority + Last Contact. Chatbots have no concept of these dependencies. TableThat doesn't model them explicitly yet either — but the enrichment system allows multi-pass enrichment where later columns can read earlier columns' values.
 
-**table.that advantage:** Enrichment can reference any existing column via `{Column Name}` interpolation. A second enrichment pass can use the output of the first. This enables chained analytical logic: research → categorize → score → prioritize.
+**TableThat advantage:** Enrichment can reference any existing column via `{Column Name}` interpolation. A second enrichment pass can use the output of the first. This enables chained analytical logic: research → categorize → score → prioritize.
 
 ### 10. No Aggregate Awareness
 
-Analytical questions are often about the *distribution* — "how many in each category?" "what's the trend?" "which segment is underperforming?" Chatbots working from text blobs can attempt these but are error-prone. table.that's context builder sends structured value distributions (e.g., `Status: {New: 12, Investigating: 8, Fixed: 23}`) to the AI every turn.
+Analytical questions are often about the *distribution* — "how many in each category?" "what's the trend?" "which segment is underperforming?" Chatbots working from text blobs can attempt these but are error-prone. TableThat's context builder sends structured value distributions (e.g., `Status: {New: 12, Investigating: 8, Fixed: 23}`) to the AI every turn.
 
-**table.that advantage:** The AI receives pre-computed aggregate statistics as structured context. It doesn't need to count rows — it reads the distribution and reasons about it. This makes analytical questions reliable, not approximations.
+**TableThat advantage:** The AI receives pre-computed aggregate statistics as structured context. It doesn't need to count rows — it reads the distribution and reasons about it. This makes analytical questions reliable, not approximations.
 
 ---
 

@@ -55,7 +55,7 @@ The table has a schema. Now it needs data. There are several paths and the AI sh
 
 **Where:** Table View page and Table Edit page (table has data)
 
-This is where table.that's AI really shines. The user has data but wants to make it more useful. Common patterns:
+This is where TableThat's AI really shines. The user has data but wants to make it more useful. Common patterns:
 
 1. **Add categorization columns** — "I want to tag each row as high/medium/low priority." This means going back to Phase 1 briefly (add a select column via schema proposal), then using for_each_row to populate it.
 2. **Add enrichment columns** — "I want to know the founding year of each company." Same pattern: add the column, then research and fill it.

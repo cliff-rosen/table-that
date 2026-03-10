@@ -46,7 +46,7 @@ The roadmap file lives at `_specs/product/ROADMAP.md`. This is the single source
 ### Template for new roadmap file:
 
 ```markdown
-# table.that Roadmap
+# TableThat Roadmap
 
 ## Defects
 

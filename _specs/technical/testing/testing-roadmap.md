@@ -3,7 +3,7 @@
 ## Current State
 
 ### What Exists
-- **1 backend E2E test suite** (`backend/tests/test_multi_tenancy_e2e.py`, ~750 lines) — covers invitation flow, org subscriptions, chat, article notes, stance analysis. Most of this tests old KH flows, not table.that.
+- **1 backend E2E test suite** (`backend/tests/test_multi_tenancy_e2e.py`, ~750 lines) — covers invitation flow, org subscriptions, chat, article notes, stance analysis. Most of this tests old KH flows, not TableThat.
 - **pytest configured** — `pytest.ini` with asyncio support, `conftest.py` with e2e marker
 - **Frontend test tooling installed** — vitest, @testing-library/react, jsdom all in package.json
 - **Frontend tests: zero** — vitest.config.ts exists but `setupTests.ts` is missing and no test files written
@@ -12,7 +12,7 @@
 
 ### What Doesn't Exist
 - Unit tests for any service or model
-- API endpoint tests for table.that (71 endpoints, 0 tested)
+- API endpoint tests for TableThat (71 endpoints, 0 tested)
 - Frontend component tests
 - Browser-based E2E tests
 - Pre-deploy smoke test script

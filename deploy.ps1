@@ -1,5 +1,5 @@
 # =============================================================================
-# table.that - Unified Deploy Script
+# TableThat - Unified Deploy Script
 #
 # Usage:
 #   .\deploy.ps1                  Deploy both frontend + backend

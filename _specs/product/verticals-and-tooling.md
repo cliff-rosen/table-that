@@ -2,7 +2,7 @@
 
 ## Context
 
-Table That's three-step formula (Build, Populate, Enrich) works across many domains, but the quality of results depends heavily on whether the AI can actually *research* real data for a given vertical. The current tooling — Google Custom Search + webpage fetching + a mini research agent — is general-purpose. This document explores which verticals are promising, what makes each one hard, and what tooling abstractions would make them succeed.
+TableThat's three-step formula (Build, Populate, Enrich) works across many domains, but the quality of results depends heavily on whether the AI can actually *research* real data for a given vertical. The current tooling — Google Custom Search + webpage fetching + a mini research agent — is general-purpose. This document explores which verticals are promising, what makes each one hard, and what tooling abstractions would make them succeed.
 
 ---
 

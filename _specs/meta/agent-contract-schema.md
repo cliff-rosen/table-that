@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the standard schema for describing an agent in the table.that development system. Every agent — whether it's a strategy advisor, a QA tester, or a code reviewer — is described using this contract. The contract is the node definition in the agent graph.
+This document defines the standard schema for describing an agent in the TableThat development system. Every agent — whether it's a strategy advisor, a QA tester, or a code reviewer — is described using this contract. The contract is the node definition in the agent graph.
 
 ## The Contract
 

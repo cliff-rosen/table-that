@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A strategic agent responsible for driving table.that to product-market fit. It sits above implementation agents (QA, demo, code) and answers one question: **what should we be working on right now, and why?**
+A strategic agent responsible for driving TableThat to product-market fit. It sits above implementation agents (QA, demo, code) and answers one question: **what should we be working on right now, and why?**
 
 It does not write code. It reads directives, reads reality, and produces prioritized recommendations that trace back to the goal of PMF.
 
@@ -25,7 +25,7 @@ These define what we're building, for whom, and what's in/out. They change infre
 | Document | What it contains |
 |----------|-----------------|
 | `_specs/product/table-that-v1-spec.md` | Full product spec — features, architecture, UX |
-| `_specs/product/pmf-criteria.md` | Definition of PMF for table.that — target user, core value prop, success measures, what "good enough" looks like |
+| `_specs/product/pmf-criteria.md` | Definition of PMF for TableThat — target user, core value prop, success measures, what "good enough" looks like |
 | `_specs/product/design-principles.md` (to create) | What's in and what's out — architectural boundaries, UX philosophy, explicit non-goals |
 | `CLAUDE.md` | Code structure rules, layout patterns, modal guidelines |
 
@@ -51,7 +51,7 @@ Evidence from real usage about what's working and what isn't.
 | User feedback | Bug reports, feature requests, confusion points, support questions |
 | Demo results | What resonates with prospects, what falls flat, which verticals generate interest |
 | QA walkthrough findings | What's broken, what's confusing, rough edges in the UX |
-| Competitive landscape | What comparable tools do, where table.that is differentiated or behind |
+| Competitive landscape | What comparable tools do, where TableThat is differentiated or behind |
 
 ## Output
 

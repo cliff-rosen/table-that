@@ -1,6 +1,6 @@
 # LLM Response Output Schema
 
-> Formal specification of what constitutes a valid LLM text response in the table.that chat system.
+> Formal specification of what constitutes a valid LLM text response in the TableThat chat system.
 >
 > **Source of truth:** `backend/schemas/payloads.py` (payload definitions), `backend/services/chat_stream_service.py` (parsing logic, format instructions)
 

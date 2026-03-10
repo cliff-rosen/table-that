@@ -1,6 +1,6 @@
 # Chat Request-Response Cycle Walkthrough
 
-Full trace of a single user message through the table.that chat system.
+Full trace of a single user message through the TableThat chat system.
 
 ---
 
@@ -100,7 +100,7 @@ User submits input → `handleSubmit()` → calls `sendMessage(text, Interaction
 
 ### 5b. System Prompt Building (lines 118-127)
 Calls `_build_system_prompt()` which assembles sections:
-1. **Global preamble** — defines table.that, user phases, AI role, style
+1. **Global preamble** — defines TableThat, user phases, AI role, style
 2. **Page persona** — from `chat_page_config` registry (e.g. `table_view.py` lines 103-237)
 3. **Context** — calls the page's `context_builder` (formats table schema, sample rows, filters into text)
 4. **Payload manifest** — summaries of prior payloads in conversation

@@ -1,6 +1,6 @@
 # Stress Test: Bug Tracker — Full User Journey
 
-A user wants to create and manage a bug tracker entirely through table.that. This walks through every interaction, testing the full feature set.
+A user wants to create and manage a bug tracker entirely through TableThat. This walks through every interaction, testing the full feature set.
 
 ---
 

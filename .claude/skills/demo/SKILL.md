@@ -121,7 +121,7 @@ Use Playwright MCP to navigate the app (dev URL) and capture each scene:
 
 **Important capture tips:**
 - Use `browser_take_screenshot` with absolute paths in `_demo/frames/`
-- Register a new throwaway account for each video (e.g., `demo-{usecase}@table.that`)
+- Register a new throwaway account for each video (e.g., `demo-{usecase}@TableThat`)
 - After creating the table, hide the chat panel for clean table screenshots (use `browser_run_code` with force click on close button if needed)
 - When showing research in progress, capture with the chat/research panel visible
 - For the hero shots (populated table, enriched table), hide the chat for a clean view

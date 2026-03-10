@@ -1,8 +1,8 @@
-# table.that v1 Product Specification
+# TableThat v1 Product Specification
 
 ## Overview
 
-table.that is a modern data table builder where users define schemas, manage structured data, and interact with an AI chat assistant that understands their tables. The chat assistant is not a bolt-on — it is the primary power interface. Every significant operation flows through chat as a reviewable proposal.
+TableThat is a modern data table builder where users define schemas, manage structured data, and interact with an AI chat assistant that understands their tables. The chat assistant is not a bolt-on — it is the primary power interface. Every significant operation flows through chat as a reviewable proposal.
 
 ---
 
@@ -127,7 +127,7 @@ Tools the LLM calls directly for simple, immediate, single-item operations.
 
 ## 5. Chat Payloads (Proposal System)
 
-Payloads are structured data the LLM emits in its response. They render as interactive cards the user can review, edit, and accept or reject. This is the core UX pattern of table.that.
+Payloads are structured data the LLM emits in its response. They render as interactive cards the user can review, edit, and accept or reject. This is the core UX pattern of TableThat.
 
 **Two payload types:**
 
@@ -259,7 +259,7 @@ The persona instructs the LLM when to use tools vs proposals:
 
 ### 7.1 Global Preamble
 ```
-You are the AI assistant for table.that, a modern data table builder.
+You are the AI assistant for TableThat, a modern data table builder.
 You help users manage their data tables — creating schemas, adding and
 editing records, filtering and analyzing data, and suggesting improvements.
 
@@ -346,7 +346,7 @@ YAML-based. TOC injected into system prompt. Full content via `get_help` tool.
 ### 9.1 Categories and Topics
 
 **general**
-- `getting-started`: What table.that is, navigation, creating your first table
+- `getting-started`: What TableThat is, navigation, creating your first table
 - `column-types`: Each type explained with examples and when to use it
 
 **tables**

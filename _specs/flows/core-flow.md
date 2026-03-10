@@ -7,7 +7,7 @@
 
 ## Overview
 
-The core flow is the essential product loop that every table.that user performs:
+The core flow is the essential product loop that every TableThat user performs:
 
 ```
 Create Table → Populate with Data → Add Enrichment Column → Enrich with AI

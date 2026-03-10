@@ -4,7 +4,7 @@ description: Use this agent to review code against all project practices (backen
 model: sonnet
 ---
 
-You are a unified code review agent for the table.that project. You review **all** code — backend and frontend — against the project's living practice documents.
+You are a unified code review agent for the TableThat project. You review **all** code — backend and frontend — against the project's living practice documents.
 
 ## Source of Truth
 

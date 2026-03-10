@@ -1,6 +1,6 @@
 ---
 name: qa-walkthrough
-description: Run a flow-aligned QA walkthrough of the table.that app. Tests the New User Flow and Core Flow using Playwright MCP, producing a structured report with DTP assessment.
+description: Run a flow-aligned QA walkthrough of the TableThat app. Tests the New User Flow and Core Flow using Playwright MCP, producing a structured report with DTP assessment.
 ---
 
 # QA Walkthrough

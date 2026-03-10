@@ -2,7 +2,7 @@
 
 ## Overview
 
-The enrichment system powers the "Enrich" step of table.that's build-populate-enrich loop. When a user asks AI to fill a column by researching each row, the system dispatches a **strategy** that determines how each cell's value is obtained.
+The enrichment system powers the "Enrich" step of TableThat's build-populate-enrich loop. When a user asks AI to fill a column by researching each row, the system dispatches a **strategy** that determines how each cell's value is obtained.
 
 The architecture has four layers:
 

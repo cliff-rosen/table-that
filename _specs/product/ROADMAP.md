@@ -1,4 +1,4 @@
-# table.that Roadmap
+# TableThat Roadmap
 
 ## Categories
 
@@ -92,7 +92,7 @@ Multi-line row support for long text fields, URL column type with clickable link
 Add "Sign in with Google" as a login option. Starting with Google OAuth2, then can expand to other providers later. Reduces friction for new users who don't want to create yet another password.
 
 ### #6 — Mobile experience
-Make table.that work well on mobile devices. Key challenges: table display on narrow screens, chat tray layout, touch-friendly interactions, responsive navigation. Need to decide between responsive web, PWA, or native — and what the core mobile use case even is (viewing/acting on data vs building tables).
+Make TableThat work well on mobile devices. Key challenges: table display on narrow screens, chat tray layout, touch-friendly interactions, responsive navigation. Need to decide between responsive web, PWA, or native — and what the core mobile use case even is (viewing/acting on data vs building tables).
 
 ### #7 — Email and SMS integration
 Connect to email and text messages as data sources. Users have a wealth of personal information in their inbox and messages that could drive table population and enrichment (e.g., pull contacts from email, extract order details, track conversations). Could work as an import source, an ongoing sync, or an AI-assisted extraction pipeline.
@@ -116,7 +116,7 @@ Create `tests/test_smoke.py` — a fast pytest suite that validates core functio
 After the foundation (#9) is in place, extend test coverage to all remaining routers: chat (5 endpoints), organization (5), admin (14), user (4), help (14), tracking (3). Priority order matches the testing roadmap. Goal: every endpoint has at least a happy-path test and an auth-failure test. 71 endpoints total.
 
 ### #14 — AI-driven development automation
-Use AI automation to drive as much of the product development lifecycle as possible — from roadmap management to implementation to release. The goal is to get a product-market-fit version of table.that into the marketplace with AI automatically populating, processing, and prioritizing the roadmap itself. This is meta: the roadmap should be self-managing via AI, and that capability is itself a milestone toward PMF. Includes: automated roadmap triage and prioritization, AI-generated task breakdowns from user feedback, automated spec writing, CI/CD integration for autonomous implementation cycles, and self-updating roadmap based on what's been shipped.
+Use AI automation to drive as much of the product development lifecycle as possible — from roadmap management to implementation to release. The goal is to get a product-market-fit version of TableThat into the marketplace with AI automatically populating, processing, and prioritizing the roadmap itself. This is meta: the roadmap should be self-managing via AI, and that capability is itself a milestone toward PMF. Includes: automated roadmap triage and prioritization, AI-generated task breakdowns from user feedback, automated spec writing, CI/CD integration for autonomous implementation cycles, and self-updating roadmap based on what's been shipped.
 
 ### #15 — Vertical-specific tooling & prompting
 Research and develop domain-specific tool configurations, data source integrations, and prompt strategies for target verticals (product comparison, lead research, academic research, etc.). Includes new tool abstractions (structured extraction, API adapters, verification) and per-vertical prompt templates. See `_specs/product/verticals-and-tooling.md` for the full analysis of candidate verticals, orchestration challenges, and tooling design requirements.

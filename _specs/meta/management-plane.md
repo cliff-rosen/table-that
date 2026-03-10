@@ -2,11 +2,11 @@
 
 ## What This Is
 
-This document describes how we develop table.that — the methodology, the operational cycle, the agent ecosystem, and how they fit together. It's the entry point for understanding the management layer that sits above the codebase.
+This document describes how we develop TableThat — the methodology, the operational cycle, the agent ecosystem, and how they fit together. It's the entry point for understanding the management layer that sits above the codebase.
 
 ## The Goal
 
-Reach product-market fit for table.that. PMF means real users completing the build-populate-enrich loop, coming back, and telling others about it.
+Reach product-market fit for TableThat. PMF means real users completing the build-populate-enrich loop, coming back, and telling others about it.
 
 ## The Methodology
 
