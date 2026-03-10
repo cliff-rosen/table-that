@@ -1,6 +1,6 @@
 ---
 name: demo
-description: Produce a narrated demo video of table that tailored to a specific audience or use case. Uses Playwright MCP to capture real app screenshots, edge-tts for voice narration, and ffmpeg to assemble the final MP4.
+description: Produce a narrated demo video of TableThat tailored to a specific audience or use case. Uses Playwright MCP to capture real app screenshots, edge-tts for voice narration, and ffmpeg to assemble the final MP4.
 ---
 
 # Demo Video Producer
@@ -14,7 +14,7 @@ $ARGUMENTS — required: a description of who the video is for and what use case
 
 ## Instructions
 
-You are producing a 90-150 second narrated demo video of table that. The video shows real app screenshots with professional voiceover narration, tailored to the audience described in the arguments.
+You are producing a 90-150 second narrated demo video of TableThat. The video shows real app screenshots with professional voiceover narration, tailored to the audience described in the arguments.
 
 ### The Three-Step Formula
 
@@ -79,7 +79,7 @@ Based on the target audience and the three-step formula, write a storyboard JSON
 The standard scene flow:
 
 **Intro (2 scenes):**
-1. Landing page — introduce table that: "Three steps: build, populate, enrich. Let's see how."
+1. Landing page — introduce TableThat: "Three steps: build, populate, enrich. Let's see how."
 2. Dashboard — AI is ready, just start talking. Don't list manual/CSV as equal options.
 
 **Step 1 — Build the Table (2-3 scenes):**
