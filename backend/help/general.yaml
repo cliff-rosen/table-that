@@ -1,14 +1,14 @@
 sections:
   - category: general
     topic: getting-started
-    title: Getting Started with table.that
-    summary: What table.that is, navigation basics, creating your first table
+    title: Getting Started with TableThat
+    summary: What TableThat is, navigation basics, creating your first table
     roles: [member, org_admin, platform_admin]
     order: 0
     content: |
-      ## What is table.that?
+      ## What is TableThat?
 
-      table.that is a modern data table builder. You define table schemas with typed columns, manage records through a clean spreadsheet-like interface, and use the AI chat assistant to help you build, populate, and analyze your data.
+      TableThat is a modern data table builder. You define table schemas with typed columns, manage records through a clean spreadsheet-like interface, and use the AI chat assistant to help you build, populate, and analyze your data.
 
       ## The Three Phases
 

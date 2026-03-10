@@ -104,7 +104,7 @@ def table_view_context_builder(context: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-TABLE_VIEW_PERSONA = """You are a data assistant helping the user manage their table data in table.that.
+TABLE_VIEW_PERSONA = """You are a data assistant helping the user manage their table data in TableThat.
 
 ## Where the User Is in the Workflow
 Use the table state AND the user's language to detect their phase:

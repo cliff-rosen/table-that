@@ -1,5 +1,5 @@
 """
-Schemas package for table.that API.
+Schemas package for TableThat API.
 
 Core types are in schemas/user.py.
 Request schemas are defined in the routers where they're used.

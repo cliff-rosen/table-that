@@ -87,7 +87,7 @@ def resolve_canonical_schema(schema: SchemaType) -> SchemaType:
     Returns:
         Resolved schema with canonical type fields expanded
     """
-    # Canonical types were removed during KH→table.that conversion
+    # Canonical types were removed during KH→TableThat conversion
     return schema
 
 # Pydantic v2 requires this to correctly resolve forward references in models.

@@ -57,7 +57,7 @@ CHROME_USER_AGENT = BROWSER_HEADERS["User-Agent"]
 # Honest bot headers for sites that prefer transparent identification
 # (e.g. Wikipedia/Wikimedia block fake browser UAs but welcome honest bots)
 BOT_HEADERS = {
-    "User-Agent": "TableThat/1.0 (data research tool; https://table.that)",
+    "User-Agent": "TableThat/1.0 (data research tool; https://tablethat.com)",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": _ACCEPT_ENCODING,

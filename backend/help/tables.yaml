@@ -27,7 +27,7 @@ sections:
       ### Via CSV Import
       1. Click "Import CSV" on the Tables List page
       2. Upload a CSV file
-      3. table.that auto-detects column types
+      3. TableThat auto-detects column types
       4. Review the detected schema and adjust if needed
       5. Click Import — a new table is created with the data
 
@@ -85,7 +85,7 @@ sections:
       ### Create New Table from CSV
       1. From the Tables List, click "Import CSV"
       2. Upload your file
-      3. table.that auto-detects:
+      3. TableThat auto-detects:
          - Column names from the CSV header
          - Column types from the data (text, number, date, boolean, select)
          - Select options if a column has few unique values

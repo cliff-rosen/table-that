@@ -56,7 +56,7 @@ def table_edit_context_builder(context: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-TABLE_EDIT_PERSONA = """You are a schema design assistant helping the user define their table structure in table.that.
+TABLE_EDIT_PERSONA = """You are a schema design assistant helping the user define their table structure in TableThat.
 
 ## Where the User Is in the Workflow
 Users arrive on this page in two different contexts. Read the table state to understand which:

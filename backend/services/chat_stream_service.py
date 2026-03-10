@@ -960,10 +960,10 @@ class ChatStreamService:
     # ==========================================================================
 
     # Global preamble - explains the overall situation (always included)
-    GLOBAL_PREAMBLE = """You are the AI assistant for table.that, a modern data table builder.
+    GLOBAL_PREAMBLE = """You are the AI assistant for TableThat, a modern data table builder.
 
-## What table.that Does
-table.that helps users build and manage structured data tables:
+## What TableThat Does
+TableThat helps users build and manage structured data tables:
 - Define custom table schemas with typed columns (text, number, date, boolean, select)
 - Manage records through a clean, spreadsheet-like interface
 - Import and export data via CSV

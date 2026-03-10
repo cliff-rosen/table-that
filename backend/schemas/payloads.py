@@ -138,7 +138,7 @@ def summarize_payload(payload_type: str, data: Dict[str, Any]) -> str:
 
 
 # =============================================================================
-# table.that Payload Registrations
+# TableThat Payload Registrations
 # =============================================================================
 
 
