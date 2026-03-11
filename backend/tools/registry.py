@@ -74,7 +74,6 @@ class ToolConfig:
     description: str                    # Description for LLM
     input_schema: Dict[str, Any]        # JSON schema for parameters
     executor: Union[SyncToolExecutor, AsyncToolExecutor, AsyncStreamingToolExecutor]
-    streaming: bool = False             # If True, executor yields ToolProgress before returning ToolResult
     category: str = "general"           # Tool category for organization
     payload_type: Optional[str] = None  # Payload type from schemas/payloads.py (e.g., "pubmed_search_results")
     is_global: bool = True              # If True, available on all pages by default

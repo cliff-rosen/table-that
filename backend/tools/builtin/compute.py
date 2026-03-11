@@ -178,5 +178,4 @@ register_tool(ToolConfig(
     executor=execute_compute_value,
     category="compute",
     is_global=True,
-    streaming=False,
 ))

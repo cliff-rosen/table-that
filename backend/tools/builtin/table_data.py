@@ -903,7 +903,6 @@ register_tool(ToolConfig(
         "required": ["row_ids", "target_column", "strategy", "params"],
     },
     executor=execute_enrich_column,
-    streaming=True,
     category="table_data",
     payload_type="data_proposal",
 ))

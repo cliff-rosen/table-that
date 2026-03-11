@@ -177,7 +177,6 @@ register_tool(ToolConfig(
     executor=execute_search_web,
     category="web",
     is_global=True,
-    streaming=False,
 ))
 
 
@@ -293,7 +292,6 @@ register_tool(ToolConfig(
     executor=execute_fetch_webpage,
     category="web",
     is_global=True,
-    streaming=False,
 ))
 
 
@@ -732,7 +730,6 @@ register_tool(ToolConfig(
     executor=execute_lookup_web,
     category="web",
     is_global=True,
-    streaming=True,
 ))
 
 
@@ -1038,5 +1035,4 @@ register_tool(ToolConfig(
     executor=execute_research_web,
     category="web",
     is_global=True,
-    streaming=True,
 ))
