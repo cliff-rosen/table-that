@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import anthropic
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools.registry import ToolConfig, ToolResult, ToolProgress
 from schemas.chat import (
@@ -141,6 +141,16 @@ class _ToolsResult:
     tool_records: List[Dict]  # Simplified view for UI
     tool_calls: List[ToolCall]  # Full trace data
     payloads: List[Dict]
+
+
+@dataclass
+class _ToolExecResult:
+    """Result of executing a single tool (output from _execute_tool)."""
+    output_from_executor: Any = None
+    output_type: str = "unknown"
+    tool_result_str: str = ""
+    tool_result_data: Any = None
+    progress_events: List[Dict] = field(default_factory=list)
 
 
 # =============================================================================
@@ -282,7 +292,7 @@ async def run_agent_loop(
     system_prompt: str,
     messages: List[Dict],
     tools: Dict[str, ToolConfig],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Optional[Dict[str, Any]] = None,
     cancellation_token: Optional[CancellationToken] = None,
@@ -590,13 +600,152 @@ async def _call_model(
 
 
 # =============================================================================
+# Helper: Execute Single Tool
+# =============================================================================
+
+async def _execute_tool(
+    tool_config: ToolConfig,
+    tool_name: str,
+    tool_input: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any],
+    cancellation_token: CancellationToken,
+    tool_start_time: float,
+) -> AsyncGenerator[Union[AgentToolProgress, _ToolExecResult], None]:
+    """
+    Execute a single tool and yield progress events + final result.
+
+    Handles all four executor types:
+    - Sync: def executor(...) -> str | ToolResult
+    - Async: async def executor(...) -> str | ToolResult
+    - Sync generator: yields ToolProgress, returns ToolResult via StopIteration
+    - Async generator: yields ToolProgress / ToolResult items
+
+    Yields AgentToolProgress events during streaming, then yields a single
+    _ToolExecResult as the final item.
+    """
+    result = _ToolExecResult()
+
+    if cancellation_token.is_cancelled:
+        raise asyncio.CancelledError(f"Tool {tool_name} cancelled before execution")
+
+    # --- Invoke the executor ---
+    if asyncio.iscoroutinefunction(tool_config.executor):
+        raw_result = await tool_config.executor(tool_input, db, user_id, context)
+    else:
+        raw_result = await asyncio.to_thread(
+            tool_config.executor, tool_input, db, user_id, context
+        )
+
+    result.output_from_executor = raw_result
+
+    # --- Async generator: stream progress in real-time ---
+    if hasattr(raw_result, '__anext__'):
+        result.output_type = "async_generator"
+        final = None
+        async for item in raw_result:
+            if cancellation_token.is_cancelled:
+                raise asyncio.CancelledError(f"Tool {tool_name} cancelled during streaming")
+            if isinstance(item, ToolProgress):
+                result.progress_events.append({
+                    "stage": item.stage,
+                    "message": item.message,
+                    "progress": item.progress,
+                    "data": item.data,
+                    "elapsed_ms": int((time.time() - tool_start_time) * 1000),
+                })
+                yield AgentToolProgress(
+                    tool_name=tool_name,
+                    stage=item.stage,
+                    message=item.message,
+                    progress=item.progress,
+                    data=item.data,
+                )
+            elif isinstance(item, ToolResult):
+                final = item
+                result.tool_result_str = item.text
+                result.tool_result_data = item.payload
+                result.output_type = "ToolResult"
+            elif isinstance(item, str):
+                final = item
+                result.tool_result_str = item
+                result.output_type = "str"
+        result.output_from_executor = final
+
+    # --- Sync generator: collect in thread, then yield progress ---
+    elif hasattr(raw_result, '__next__'):
+        result.output_type = "generator"
+
+        def run_generator(gen):
+            results = []
+            try:
+                while True:
+                    item = next(gen)
+                    results.append(('progress', item))
+            except StopIteration as e:
+                results.append(('result', e.value))
+            return results
+
+        items = await asyncio.to_thread(run_generator, raw_result)
+        final = None
+        for item_type, item_value in items:
+            if item_type == 'progress' and isinstance(item_value, ToolProgress):
+                result.progress_events.append({
+                    "stage": item_value.stage,
+                    "message": item_value.message,
+                    "progress": item_value.progress,
+                    "data": item_value.data,
+                    "elapsed_ms": int((time.time() - tool_start_time) * 1000),
+                })
+                yield AgentToolProgress(
+                    tool_name=tool_name,
+                    stage=item_value.stage,
+                    message=item_value.message,
+                    progress=item_value.progress,
+                    data=item_value.data,
+                )
+            elif item_type == 'result':
+                final = item_value
+                if isinstance(item_value, ToolResult):
+                    result.tool_result_str = item_value.text
+                    result.tool_result_data = item_value.payload
+                    result.output_type = "ToolResult"
+                elif isinstance(item_value, str):
+                    result.tool_result_str = item_value
+                    result.output_type = "str"
+                else:
+                    result.tool_result_str = str(item_value) if item_value else ""
+                    result.output_type = type(item_value).__name__ if item_value else "None"
+        result.output_from_executor = final
+
+    # --- Plain ToolResult ---
+    elif isinstance(raw_result, ToolResult):
+        result.output_type = "ToolResult"
+        result.tool_result_str = raw_result.text
+        result.tool_result_data = raw_result.payload
+
+    # --- Plain string ---
+    elif isinstance(raw_result, str):
+        result.output_type = "str"
+        result.tool_result_str = raw_result
+
+    # --- Other ---
+    else:
+        result.output_type = type(raw_result).__name__
+        result.tool_result_str = str(raw_result)
+
+    yield result
+
+
+# =============================================================================
 # Helper: Process Tools
 # =============================================================================
 
 async def _process_tools(
     tool_use_blocks: List,
     tools: Dict[str, ToolConfig],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any],
     cancellation_token: CancellationToken
@@ -604,14 +753,8 @@ async def _process_tools(
     """
     Process all tool calls and yield events.
 
-    Supports multiple executor types:
-    - Sync executor: def executor(...) -> str | ToolResult
-    - Async executor: async def executor(...) -> str | ToolResult
-    - Sync generator: def executor(...) -> Generator[ToolProgress, None, ToolResult]
-    - Async generator: async def executor(...) -> AsyncGenerator[ToolProgress | ToolResult, None]
-
-    For streaming tools (generators), ToolProgress items are yielded as AgentToolProgress
-    events in real-time. The final ToolResult is captured as the tool output.
+    Delegates execution of each tool to _execute_tool, then collects results
+    into trace records, UI records, and payloads.
 
     Yields:
         AgentToolStart, AgentToolProgress, AgentToolComplete events
@@ -624,160 +767,46 @@ async def _process_tools(
 
     for tool_block in tool_use_blocks:
         tool_name = tool_block.name
-        tool_input_from_model = tool_block.input  # Exact input from model
+        tool_input = tool_block.input
         tool_use_id = tool_block.id
 
         logger.info(f"Agent tool call: {tool_name}")
 
         yield AgentToolStart(
             tool_name=tool_name,
-            tool_input=tool_input_from_model,
-            tool_use_id=tool_use_id
+            tool_input=tool_input,
+            tool_use_id=tool_use_id,
         )
 
-        # Prepare trace data
         tool_start_time = time.time()
-        tool_input = tool_input_from_model  # No transform - same as what model requested
-        output_from_executor: Any = None
-        output_type = "unknown"
-        tool_result_str = ""
-        tool_result_data = None
-        progress_events: list = []  # Collect ToolProgress events for trace
-
-        # Execute tool
         tool_config = tools.get(tool_name)
 
         if not tool_config:
-            tool_result_str = f"Unknown tool: {tool_name}"
-            output_from_executor = tool_result_str
-            output_type = "error"
+            exec_result = _ToolExecResult(
+                output_from_executor=f"Unknown tool: {tool_name}",
+                output_type="error",
+                tool_result_str=f"Unknown tool: {tool_name}",
+            )
         else:
             try:
-                if cancellation_token.is_cancelled:
-                    raise asyncio.CancelledError(f"Tool {tool_name} cancelled before execution")
-
-                # Check if executor is async (coroutine function)
-                if asyncio.iscoroutinefunction(tool_config.executor):
-                    # Async executor - await it directly
-                    raw_result = await tool_config.executor(
-                        tool_input,
-                        db,
-                        user_id,
-                        context
-                    )
-                else:
-                    # Sync executor - run in thread pool
-                    raw_result = await asyncio.to_thread(
-                        tool_config.executor,
-                        tool_input,
-                        db,
-                        user_id,
-                        context
-                    )
-
-                # Capture raw output before any processing
-                output_from_executor = raw_result
-
-                # Check if result is an async generator (streaming async tool)
-                if hasattr(raw_result, '__anext__'):
-                    output_type = "async_generator"
-                    # Async generator - iterate and yield progress in real-time
-                    async_generator_final_result = None
-                    async for item in raw_result:
-                        if cancellation_token.is_cancelled:
-                            raise asyncio.CancelledError(f"Tool {tool_name} cancelled during streaming")
-                        if isinstance(item, ToolProgress):
-                            progress_events.append({
-                                "stage": item.stage,
-                                "message": item.message,
-                                "progress": item.progress,
-                                "data": item.data,
-                                "elapsed_ms": int((time.time() - tool_start_time) * 1000),
-                            })
-                            yield AgentToolProgress(
-                                tool_name=tool_name,
-                                stage=item.stage,
-                                message=item.message,
-                                progress=item.progress,
-                                data=item.data
-                            )
-                        elif isinstance(item, ToolResult):
-                            # Final result from async generator
-                            async_generator_final_result = item
-                            tool_result_str = item.text
-                            tool_result_data = item.payload
-                            output_type = "ToolResult"
-                        elif isinstance(item, str):
-                            # String result (less common)
-                            async_generator_final_result = item
-                            tool_result_str = item
-                            output_type = "str"
-                    output_from_executor = async_generator_final_result
-
-                # Check if result is a sync generator (streaming tool)
-                elif hasattr(raw_result, '__next__'):
-                    output_type = "generator"
-                    # It's a generator - collect progress and result
-                    def run_generator(gen):
-                        results = []
-                        try:
-                            while True:
-                                item = next(gen)
-                                results.append(('progress', item))
-                        except StopIteration as e:
-                            results.append(('result', e.value))
-                        return results
-
-                    items = await asyncio.to_thread(run_generator, raw_result)
-                    generator_final_result = None
-                    for item_type, item_value in items:
-                        if item_type == 'progress' and isinstance(item_value, ToolProgress):
-                            progress_events.append({
-                                "stage": item_value.stage,
-                                "message": item_value.message,
-                                "progress": item_value.progress,
-                                "data": item_value.data,
-                                "elapsed_ms": int((time.time() - tool_start_time) * 1000),
-                            })
-                            yield AgentToolProgress(
-                                tool_name=tool_name,
-                                stage=item_value.stage,
-                                message=item_value.message,
-                                progress=item_value.progress,
-                                data=item_value.data
-                            )
-                        elif item_type == 'result':
-                            generator_final_result = item_value
-                            if isinstance(item_value, ToolResult):
-                                tool_result_str = item_value.text
-                                tool_result_data = item_value.payload
-                                output_type = "ToolResult"
-                            elif isinstance(item_value, str):
-                                tool_result_str = item_value
-                                output_type = "str"
-                            else:
-                                tool_result_str = str(item_value) if item_value else ""
-                                output_type = type(item_value).__name__ if item_value else "None"
-                    # Update output_from_executor with final result from generator
-                    output_from_executor = generator_final_result
-                elif isinstance(raw_result, ToolResult):
-                    output_type = "ToolResult"
-                    tool_result_str = raw_result.text
-                    tool_result_data = raw_result.payload
-                elif isinstance(raw_result, str):
-                    output_type = "str"
-                    tool_result_str = raw_result
-                else:
-                    output_type = type(raw_result).__name__
-                    tool_result_str = str(raw_result)
-
+                exec_result = _ToolExecResult()
+                async for event in _execute_tool(
+                    tool_config, tool_name, tool_input,
+                    db, user_id, context, cancellation_token, tool_start_time,
+                ):
+                    if isinstance(event, AgentToolProgress):
+                        yield event
+                    elif isinstance(event, _ToolExecResult):
+                        exec_result = event
             except asyncio.CancelledError:
                 raise
             except Exception as e:
                 logger.error(f"Tool execution error: {e}", exc_info=True)
-                tool_result_str = f"Error executing tool: {str(e)}"
-                output_from_executor = str(e)
-                output_type = "error"
+                exec_result = _ToolExecResult(
+                    output_from_executor=str(e),
+                    output_type="error",
+                    tool_result_str=f"Error executing tool: {str(e)}",
+                )
 
         if cancellation_token.is_cancelled:
             raise asyncio.CancelledError("Cancelled after tool execution")
@@ -785,42 +814,38 @@ async def _process_tools(
         execution_ms = int((time.time() - tool_start_time) * 1000)
 
         # Build full trace record
-        tool_call = ToolCall(
+        tool_calls.append(ToolCall(
             tool_use_id=tool_use_id,
             tool_name=tool_name,
             tool_input=tool_input,
-            output_from_executor=_safe_serialize(output_from_executor),
-            output_type=output_type,
-            output_to_model=tool_result_str,
-            payload=_safe_serialize(tool_result_data) if tool_result_data else None,
-            progress_events=progress_events if progress_events else None,
+            output_from_executor=_safe_serialize(exec_result.output_from_executor),
+            output_type=exec_result.output_type,
+            output_to_model=exec_result.tool_result_str,
+            payload=_safe_serialize(exec_result.tool_result_data) if exec_result.tool_result_data else None,
+            progress_events=exec_result.progress_events if exec_result.progress_events else None,
             execution_ms=execution_ms,
-        )
-        tool_calls.append(tool_call)
+        ))
 
         # Record simplified view for UI
-        tool_record = {
+        tool_records.append({
             "tool_name": tool_name,
-            "input": tool_input_from_model,
-            "output": tool_result_str
-        }
-        tool_records.append(tool_record)
+            "input": tool_input,
+            "output": exec_result.tool_result_str,
+        })
 
-        # Collect payload separately if present
-        if tool_result_data:
-            payloads.append(tool_result_data)
+        if exec_result.tool_result_data:
+            payloads.append(exec_result.tool_result_data)
 
-        # Collect result for message to model
         tool_results.append({
             "type": "tool_result",
             "tool_use_id": tool_use_id,
-            "content": tool_result_str
+            "content": exec_result.tool_result_str,
         })
 
         yield AgentToolComplete(
             tool_name=tool_name,
-            result_text=tool_result_str,
-            result_data=tool_result_data
+            result_text=exec_result.tool_result_str,
+            result_data=exec_result.tool_result_data,
         )
 
     yield _ToolsResult(tool_results=tool_results, tool_records=tool_records, tool_calls=tool_calls, payloads=payloads)
