@@ -4,11 +4,9 @@ Generic Agentic Loop
 A reusable async generator that runs an agentic loop with tool support.
 Emits typed events that consumers can map to their specific output format.
 
-Supports multiple tool executor types:
-- Sync executor: returns str or ToolResult
-- Async executor: returns str or ToolResult
-- Sync generator: yields ToolProgress, returns ToolResult (via StopIteration)
-- Async generator: yields ToolProgress and final ToolResult (real-time streaming)
+All tool executors are async. Two variants:
+- Plain: async def executor(...) -> ToolResult
+- Streaming: async def executor(...) -> AsyncGenerator[ToolProgress | ToolResult]
 
 Used by:
 - ChatStreamService (SSE streaming)
@@ -616,11 +614,9 @@ async def _execute_tool(
     """
     Execute a single tool and yield progress events + final result.
 
-    Handles all four executor types:
-    - Sync: def executor(...) -> str | ToolResult
-    - Async: async def executor(...) -> str | ToolResult
-    - Sync generator: yields ToolProgress, returns ToolResult via StopIteration
-    - Async generator: yields ToolProgress / ToolResult items
+    All executors are async. Two variants:
+    - Plain: returns ToolResult directly
+    - Streaming: returns an async generator yielding ToolProgress then ToolResult
 
     Yields AgentToolProgress events during streaming, then yields a single
     _ToolExecResult as the final item.
@@ -630,19 +626,11 @@ async def _execute_tool(
     if cancellation_token.is_cancelled:
         raise asyncio.CancelledError(f"Tool {tool_name} cancelled before execution")
 
-    # --- Invoke the executor ---
-    if asyncio.iscoroutinefunction(tool_config.executor):
-        raw_result = await tool_config.executor(tool_input, db, user_id, context)
-    else:
-        raw_result = await asyncio.to_thread(
-            tool_config.executor, tool_input, db, user_id, context
-        )
-
+    raw_result = await tool_config.executor(tool_input, db, user_id, context)
     result.output_from_executor = raw_result
 
-    # --- Async generator: stream progress in real-time ---
+    # --- Streaming: async generator yielding ToolProgress then ToolResult ---
     if hasattr(raw_result, '__anext__'):
-        result.output_type = "async_generator"
         final = None
         async for item in raw_result:
             if cancellation_token.is_cancelled:
@@ -666,71 +654,17 @@ async def _execute_tool(
                 final = item
                 result.tool_result_str = item.text
                 result.tool_result_data = item.payload
-                result.output_type = "ToolResult"
-            elif isinstance(item, str):
-                final = item
-                result.tool_result_str = item
-                result.output_type = "str"
         result.output_from_executor = final
+        result.output_type = "ToolResult" if final else "async_generator"
 
-    # --- Sync generator: collect in thread, then yield progress ---
-    elif hasattr(raw_result, '__next__'):
-        result.output_type = "generator"
-
-        def run_generator(gen):
-            results = []
-            try:
-                while True:
-                    item = next(gen)
-                    results.append(('progress', item))
-            except StopIteration as e:
-                results.append(('result', e.value))
-            return results
-
-        items = await asyncio.to_thread(run_generator, raw_result)
-        final = None
-        for item_type, item_value in items:
-            if item_type == 'progress' and isinstance(item_value, ToolProgress):
-                result.progress_events.append({
-                    "stage": item_value.stage,
-                    "message": item_value.message,
-                    "progress": item_value.progress,
-                    "data": item_value.data,
-                    "elapsed_ms": int((time.time() - tool_start_time) * 1000),
-                })
-                yield AgentToolProgress(
-                    tool_name=tool_name,
-                    stage=item_value.stage,
-                    message=item_value.message,
-                    progress=item_value.progress,
-                    data=item_value.data,
-                )
-            elif item_type == 'result':
-                final = item_value
-                if isinstance(item_value, ToolResult):
-                    result.tool_result_str = item_value.text
-                    result.tool_result_data = item_value.payload
-                    result.output_type = "ToolResult"
-                elif isinstance(item_value, str):
-                    result.tool_result_str = item_value
-                    result.output_type = "str"
-                else:
-                    result.tool_result_str = str(item_value) if item_value else ""
-                    result.output_type = type(item_value).__name__ if item_value else "None"
-        result.output_from_executor = final
-
-    # --- Plain ToolResult ---
+    # --- Plain: returned ToolResult or str directly ---
     elif isinstance(raw_result, ToolResult):
         result.output_type = "ToolResult"
         result.tool_result_str = raw_result.text
         result.tool_result_data = raw_result.payload
-
-    # --- Plain string ---
     elif isinstance(raw_result, str):
         result.output_type = "str"
         result.tool_result_str = raw_result
-
-    # --- Other ---
     else:
         result.output_type = type(raw_result).__name__
         result.tool_result_str = str(raw_result)

@@ -10,18 +10,16 @@ Tools can be:
 Pages declare which additional tools they use via their TabConfig.
 The resolution is: global tools + page-declared tools + tab-declared tools.
 
-Supports streaming tools that yield ToolProgress updates before returning ToolResult.
-
 Payload types are defined in schemas/payloads.py - tools reference them by name.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Dict, Generator, List, Optional, Union
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
     from services.chat_page_config.registry import PageLocation
 
 
@@ -41,22 +39,14 @@ class ToolResult:
     payload: Optional[Dict[str, Any]] = None  # Structured data for frontend (type, data)
 
 
-# Type for sync tool executor
-SyncToolExecutor = Callable[
-    [Dict[str, Any], AsyncSession, int, Dict[str, Any]],
-    Union[str, ToolResult, Generator[ToolProgress, None, ToolResult]]
-]
-
-# Type for async tool executor
-AsyncToolExecutor = Callable[
-    [Dict[str, Any], AsyncSession, int, Dict[str, Any]],
-    Awaitable[Union[str, ToolResult]]
-]
-
-# Type for async streaming tool executor
-AsyncStreamingToolExecutor = Callable[
-    [Dict[str, Any], AsyncSession, int, Dict[str, Any]],
-    AsyncGenerator[ToolProgress, None]
+# All executors take (params, db, user_id, context).
+# Plain executors return ToolResult; streaming executors return an async generator.
+ToolExecutor = Callable[
+    ["Dict[str, Any]", "AsyncSession", "int", "Dict[str, Any]"],
+    Union[
+        Awaitable[Union[str, ToolResult]],                          # plain
+        AsyncGenerator[Union[ToolProgress, ToolResult], None],      # streaming
+    ],
 ]
 
 
@@ -64,16 +54,16 @@ AsyncStreamingToolExecutor = Callable[
 class ToolConfig:
     """Configuration for a tool the agent can use.
 
-    Tools can be sync or async:
-    - Sync: def executor(params, db, user_id, context) -> str | ToolResult
-    - Async: async def executor(params, db, user_id, context) -> str | ToolResult
+    All executors are async:
+    - Plain: async def executor(params, db, user_id, context) -> ToolResult
+    - Streaming: async def executor(...) -> AsyncGenerator[ToolProgress | ToolResult]
 
-    The agent loop automatically detects async executors and awaits them.
+    The agent loop detects async generators at runtime via hasattr(__anext__).
     """
     name: str                           # Tool name (e.g., "search_pubmed")
     description: str                    # Description for LLM
     input_schema: Dict[str, Any]        # JSON schema for parameters
-    executor: Union[SyncToolExecutor, AsyncToolExecutor, AsyncStreamingToolExecutor]
+    executor: ToolExecutor
     category: str = "general"           # Tool category for organization
     payload_type: Optional[str] = None  # Payload type from schemas/payloads.py (e.g., "pubmed_search_results")
     is_global: bool = True              # If True, available on all pages by default
