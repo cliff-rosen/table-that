@@ -10,3 +10,4 @@ from tools.builtin import help
 from tools.builtin import table_data
 from tools.builtin import web
 from tools.builtin import compute
+from tools.builtin import google_places

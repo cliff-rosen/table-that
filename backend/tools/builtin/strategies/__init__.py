@@ -32,6 +32,7 @@ def get_strategies_by_kind(kind: str) -> List[RowStrategy]:
 
 
 # Auto-import strategy modules to trigger registration
-from tools.builtin.strategies import lookup        # noqa: E402, F401
-from tools.builtin.strategies import research      # noqa: E402, F401
-from tools.builtin.strategies import computation   # noqa: E402, F401
+from tools.builtin.strategies import lookup         # noqa: E402, F401
+from tools.builtin.strategies import research       # noqa: E402, F401
+from tools.builtin.strategies import computation    # noqa: E402, F401
+from tools.builtin.strategies import google_places  # noqa: E402, F401

@@ -446,7 +446,7 @@ def _row_label(row: TableRow, columns: list) -> str:
 # enrich_column — Strategy-based enrichment dispatcher
 # =============================================================================
 
-_VALID_STRATEGIES = ("lookup", "research", "computation")
+_VALID_STRATEGIES = ("lookup", "research", "computation", "google_places")
 
 # Concurrency per strategy type (research-comprehensive gets lower concurrency)
 _STRATEGY_CONCURRENCY = {
@@ -454,6 +454,7 @@ _STRATEGY_CONCURRENCY = {
     "research": 3,
     "research_comprehensive": 2,
     "computation": 10,
+    "google_places": 5,
 }
 
 
@@ -844,7 +845,9 @@ register_tool(ToolConfig(
         "Strategies: lookup (simple factual lookups — find THE answer or report not found), "
         "research (multi-step web research — always synthesize a useful answer; supports "
         "thoroughness: 'exploratory' for sampling or 'comprehensive' for exhaustive coverage), "
-        "computation (derive from existing columns). "
+        "computation (derive from existing columns), "
+        "google_places (look up a business on Google Maps and return its Maps URL — "
+        "use this for Google Maps links, review page URLs, or place lookups). "
         "Processes rows in parallel and presents results as a Data Proposal. "
         f"Maximum {MAX_ROWS_PER_ENRICH} rows per call. "
         "Does NOT modify the database — results are shown for review first."
@@ -868,7 +871,8 @@ register_tool(ToolConfig(
                     "Enrichment strategy: "
                     "'lookup' for simple factual lookups (has a definitive answer), "
                     "'research' for complex multi-step research (synthesize from multiple sources), "
-                    "'computation' for deriving from existing columns"
+                    "'computation' for deriving from existing columns, "
+                    "'google_places' for looking up a business on Google Maps (returns Maps URL)"
                 ),
             },
             "params": {
@@ -877,12 +881,21 @@ register_tool(ToolConfig(
                     "Strategy-specific parameters. Use {Column Name} for row value placeholders. "
                     "lookup: {question}. "
                     "research: {question, thoroughness}. "
-                    "computation: {formula}."
+                    "computation: {formula}. "
+                    "google_places: {query, location (optional)}."
                 ),
                 "properties": {
                     "question": {
                         "type": "string",
                         "description": "Question template with {Column Name} placeholders, e.g. 'What year was {Company} founded?'",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Business name template for google_places, e.g. '{Business Name}'",
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "Optional location for google_places, e.g. '{City}, {State}' or 'Castle Rock, CO'",
                     },
                     "formula": {
                         "type": "string",
