@@ -15,6 +15,7 @@ Used by:
 
 import asyncio
 import copy
+import inspect
 import logging
 import time
 import uuid
@@ -626,7 +627,10 @@ async def _execute_tool(
     if cancellation_token.is_cancelled:
         raise asyncio.CancelledError(f"Tool {tool_name} cancelled before execution")
 
-    raw_result = await tool_config.executor(tool_input, db, user_id, context)
+    if inspect.isasyncgenfunction(tool_config.executor):
+        raw_result = tool_config.executor(tool_input, db, user_id, context)
+    else:
+        raw_result = await tool_config.executor(tool_input, db, user_id, context)
     result.output_from_executor = raw_result
 
     # --- Streaming: async generator yielding ToolProgress then ToolResult ---

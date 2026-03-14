@@ -454,7 +454,9 @@ async def validate_token(
     except Exception as e:
         logger.error(f"Token validation error: {str(e)}")
         logger.error(traceback.format_exc())
+        # Don't mask infrastructure errors (DB down, pool exhausted) as 401.
+        # Only auth-specific exceptions (above) should return 401.
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token validation failed: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable"
         )
