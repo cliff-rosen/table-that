@@ -12,7 +12,6 @@ import type {
   StreamSubscriptionStatus
 } from '../../types/organization';
 import type { User, UserList } from '../../types/user';
-import type { Artifact, ArtifactCategory } from '../../types/artifact';
 
 // Import ResearchStream type from existing types
 interface ResearchStream {
@@ -414,82 +413,6 @@ export const adminApi = {
     return response.data;
   },
 
-  // ==================== Artifact Management ====================
-
-  /**
-   * Get all artifacts with optional filters (platform admin only)
-   */
-  async getArtifacts(params?: { type?: string; status?: string; category?: string }): Promise<Artifact[]> {
-    const response = await api.get('/api/admin/artifacts', {
-      params: {
-        type: params?.type || undefined,
-        status_filter: params?.status || undefined,
-        category: params?.category || undefined,
-      },
-    });
-    return response.data;
-  },
-
-  /**
-   * Create a new artifact (platform admin only)
-   */
-  async createArtifact(data: { title: string; artifact_type: string; description?: string; category?: string; priority?: string; status?: string; area?: string }): Promise<Artifact> {
-    const response = await api.post('/api/admin/artifacts', data);
-    return response.data;
-  },
-
-  /**
-   * Update an artifact (platform admin only)
-   */
-  async updateArtifact(id: number, data: { title?: string; description?: string; status?: string; artifact_type?: string; category?: string; priority?: string; area?: string }): Promise<Artifact> {
-    const response = await api.put(`/api/admin/artifacts/${id}`, data);
-    return response.data;
-  },
-
-  /**
-   * Delete an artifact (platform admin only)
-   */
-  async deleteArtifact(id: number): Promise<void> {
-    await api.delete(`/api/admin/artifacts/${id}`);
-  },
-
-  // ==================== Artifact Bulk Operations ====================
-
-  async bulkUpdateArtifacts(ids: number[], data: { status?: string; category?: string; priority?: string; area?: string }): Promise<{ updated: number }> {
-    const response = await api.post('/api/admin/artifacts/bulk-update', { ids, ...data });
-    return response.data;
-  },
-
-  async bulkDeleteArtifacts(ids: number[]): Promise<void> {
-    await api.post('/api/admin/artifacts/bulk-delete', { ids });
-  },
-
-  // ==================== Artifact Categories ====================
-
-  async getArtifactCategories(): Promise<ArtifactCategory[]> {
-    const response = await api.get('/api/admin/artifact-categories');
-    return response.data;
-  },
-
-  async createArtifactCategory(name: string): Promise<ArtifactCategory> {
-    const response = await api.post('/api/admin/artifact-categories', { name });
-    return response.data;
-  },
-
-  async bulkCreateArtifactCategories(names: string[]): Promise<ArtifactCategory[]> {
-    const response = await api.post('/api/admin/artifact-categories/bulk', { names });
-    return response.data;
-  },
-
-  async renameArtifactCategory(id: number, name: string): Promise<ArtifactCategory> {
-    const response = await api.put(`/api/admin/artifact-categories/${id}`, { name });
-    return response.data;
-  },
-
-  async deleteArtifactCategory(id: number): Promise<{ name: string; affected_count: number }> {
-    const response = await api.delete(`/api/admin/artifact-categories/${id}`);
-    return response.data;
-  },
 };
 
 // Chat config types
