@@ -983,9 +983,6 @@ export function ChatConfigPanel() {
                                                         {tool.is_global && (
                                                             <GlobeAltIcon className="h-3.5 w-3.5 text-purple-500" title="Global" />
                                                         )}
-                                                        {tool.streaming && (
-                                                            <span className="text-xs text-blue-500" title="Streaming">S</span>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </button>
@@ -1028,19 +1025,6 @@ export function ChatConfigPanel() {
                                                         <span className="text-purple-600 dark:text-purple-400">Global</span>
                                                     ) : (
                                                         <span className="text-gray-600 dark:text-gray-300">Page-specific</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {/* Streaming */}
-                                            <div className="px-4 py-3 border-r border-gray-200 dark:border-gray-700">
-                                                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                                                    Streaming
-                                                </div>
-                                                <div className="text-sm">
-                                                    {selectedTool.streaming ? (
-                                                        <span className="text-blue-600 dark:text-blue-400">Yes</span>
-                                                    ) : (
-                                                        <span className="text-gray-400">No</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -1662,6 +1646,63 @@ export function ChatConfigPanel() {
                                 </h3>
 
                                 <div className="space-y-4">
+                                    {/* Chat Model Selector */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Chat Model
+                                        </label>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                            The LLM model used for chat responses. Higher-tier models produce better results but cost more per request.
+                                        </p>
+                                        <div className="space-y-2">
+                                            {systemConfig.available_models?.map((model) => (
+                                                <label
+                                                    key={model.model_id}
+                                                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                        systemConfig.chat_model === model.model_id
+                                                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="radio"
+                                                            name="chat_model"
+                                                            checked={systemConfig.chat_model === model.model_id}
+                                                            onChange={async () => {
+                                                                setIsSavingSystem(true);
+                                                                setSystemError(null);
+                                                                try {
+                                                                    const updated = await adminApi.updateSystemConfig({
+                                                                        chat_model: model.model_id
+                                                                    });
+                                                                    setSystemConfig(updated);
+                                                                } catch (err) {
+                                                                    setSystemError(handleApiError(err));
+                                                                } finally {
+                                                                    setIsSavingSystem(false);
+                                                                }
+                                                            }}
+                                                            className="text-purple-600 focus:ring-purple-500"
+                                                        />
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                                {model.label}
+                                                            </span>
+                                                            <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-mono">
+                                                                {model.model_id}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+                                                        <div>{'$'}{model.input_cost.toFixed(2)} / {'$'}{model.output_cost.toFixed(2)}</div>
+                                                        <div className="text-gray-400 dark:text-gray-500">per 1M tokens (in/out)</div>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                             Max Tool Iterations

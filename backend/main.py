@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from routers import auth, chat_stream, tools, user, organization, admin, help, tracking, chat, tables
-from database import init_db
+from database import init_db, AsyncSessionLocal
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
 from pydantic import ValidationError
@@ -102,7 +102,26 @@ async def root():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint for monitoring"""
-    return {"status": "healthy", "version": settings.SETTING_VERSION}
+    db_status = "healthy"
+    db_error = None
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as e:
+        db_status = "unhealthy"
+        db_error = str(e)
+
+    overall = "healthy" if db_status == "healthy" else "degraded"
+
+    result = {
+        "status": overall,
+        "version": settings.SETTING_VERSION,
+        "database": db_status,
+    }
+    if db_error:
+        result["database_error"] = db_error
+
+    return result
 
 
 @app.exception_handler(ValidationError)

@@ -379,6 +379,88 @@ class ChatService:
         logger.info(f"Updated max_tool_iterations to {value} by user {user_id}")
         return value
 
+    # Loaded once from config/chat_models.yaml
+    CHAT_MODELS: dict = {}
+    DEFAULT_CHAT_MODEL: str = "claude-sonnet-4-20250514"
+    _chat_models_loaded: bool = False
+
+    @classmethod
+    def _ensure_chat_models_loaded(cls) -> None:
+        """Load chat model definitions from YAML config (once)."""
+        if cls._chat_models_loaded:
+            return
+        import yaml
+        from pathlib import Path
+        yaml_path = Path(__file__).parent.parent / "config" / "chat_models.yaml"
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+        cls.CHAT_MODELS = {}
+        for m in data["models"]:
+            cls.CHAT_MODELS[m["id"]] = {
+                "label": m["label"],
+                "input_cost": m["input_cost"],
+                "output_cost": m["output_cost"],
+            }
+        cls.DEFAULT_CHAT_MODEL = data["models"][0]["id"]
+        cls._chat_models_loaded = True
+        logger.info(f"Loaded {len(cls.CHAT_MODELS)} chat models from {yaml_path.name}")
+
+    async def get_chat_model(self) -> str:
+        """Get the chat model setting, or default."""
+        from models import ChatConfig
+        self._ensure_chat_models_loaded()
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "chat_model"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                model = config.content.strip()
+                if model in self.CHAT_MODELS:
+                    return model
+                logger.warning(f"Invalid chat_model in config: {model!r}, using default")
+        except Exception as e:
+            logger.warning(f"Failed to load chat_model config: {e}")
+
+        return self.DEFAULT_CHAT_MODEL
+
+    async def set_chat_model(self, model: str, user_id: int) -> str:
+        """Set the chat model. Returns the saved value."""
+        from models import ChatConfig
+        self._ensure_chat_models_loaded()
+
+        if model not in self.CHAT_MODELS:
+            raise ValueError(f"Invalid model: {model}. Valid: {list(self.CHAT_MODELS.keys())}")
+
+        result = await self.db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "system",
+                ChatConfig.scope_key == "chat_model"
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            existing.content = model
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = user_id
+        else:
+            new_config = ChatConfig(
+                scope="system",
+                scope_key="chat_model",
+                content=model,
+                updated_by=user_id
+            )
+            self.db.add(new_config)
+
+        await self.db.commit()
+        logger.info(f"Updated chat_model to {model} by user {user_id}")
+        return model
+
     DEFAULT_MAX_RESEARCH_STEPS = 5
 
     async def get_max_research_steps(self) -> int:
@@ -548,12 +630,14 @@ class ChatService:
             "max_tool_iterations": await self.get_max_tool_iterations(),
             "max_research_steps": await self.get_max_research_steps(),
             "guest_turn_limit": await self.get_guest_turn_limit(),
-            "global_preamble": await self.get_global_preamble()
+            "global_preamble": await self.get_global_preamble(),
+            "chat_model": await self.get_chat_model(),
         }
 
     async def update_system_config(
         self,
         user_id: int,
+        chat_model: Optional[str] = None,
         max_tool_iterations: Optional[int] = None,
         max_research_steps: Optional[int] = None,
         guest_turn_limit: Optional[int] = None,
@@ -561,6 +645,8 @@ class ChatService:
         clear_global_preamble: bool = False
     ) -> dict:
         """Update system configuration values. Returns the updated config."""
+        if chat_model is not None:
+            await self.set_chat_model(chat_model, user_id)
         if max_tool_iterations is not None:
             await self.set_max_tool_iterations(max_tool_iterations, user_id)
         if max_research_steps is not None:

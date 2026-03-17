@@ -986,8 +986,18 @@ async def delete_page_config(
 # ==================== System Chat Config ====================
 
 
+class ChatModelInfo(BaseModel):
+    """Info about an available chat model."""
+    model_id: str
+    label: str
+    input_cost: float = Field(description="Cost per million input tokens ($)")
+    output_cost: float = Field(description="Cost per million output tokens ($)")
+
+
 class SystemConfigResponse(BaseModel):
     """System configuration settings."""
+    chat_model: str = Field(description="Active chat model ID")
+    available_models: List[ChatModelInfo] = Field(description="All available chat models with pricing")
     max_tool_iterations: int = Field(description="Maximum tool call iterations per chat request")
     max_research_steps: int = Field(description="Maximum research steps per row during for_each_row web research")
     guest_turn_limit: int = Field(description="Maximum messages a guest user can send before registration required")
@@ -997,6 +1007,7 @@ class SystemConfigResponse(BaseModel):
 
 class SystemConfigUpdate(BaseModel):
     """Update system configuration."""
+    chat_model: Optional[str] = Field(None, description="Chat model ID (e.g. 'claude-sonnet-4-6-20250527')")
     max_tool_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max tool iterations (1-20)")
     max_research_steps: Optional[int] = Field(None, ge=1, le=15, description="Max research steps per row (1-15)")
     guest_turn_limit: Optional[int] = Field(None, ge=1, le=100, description="Guest turn limit (1-100)")
@@ -1020,9 +1031,14 @@ async def get_system_config_endpoint(
     try:
         chat_service = ChatService(db)
         config = await chat_service.get_system_config()
+        available_models = [
+            ChatModelInfo(model_id=mid, **info)
+            for mid, info in ChatService.CHAT_MODELS.items()
+        ]
         return SystemConfigResponse(
             **config,
-            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE
+            available_models=available_models,
+            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE,
         )
     except Exception as e:
         logger.error(f"get_system_config failed: {e}", exc_info=True)
@@ -1050,15 +1066,21 @@ async def update_system_config_endpoint(
         chat_service = ChatService(db)
         config = await chat_service.update_system_config(
             user_id=current_user.user_id,
+            chat_model=update.chat_model,
             max_tool_iterations=update.max_tool_iterations,
             max_research_steps=update.max_research_steps,
             guest_turn_limit=update.guest_turn_limit,
             global_preamble=update.global_preamble,
-            clear_global_preamble=update.clear_global_preamble
+            clear_global_preamble=update.clear_global_preamble,
         )
+        available_models = [
+            ChatModelInfo(model_id=mid, **info)
+            for mid, info in ChatService.CHAT_MODELS.items()
+        ]
         return SystemConfigResponse(
             **config,
-            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE
+            available_models=available_models,
+            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE,
         )
     except Exception as e:
         logger.error(f"update_system_config failed: {e}", exc_info=True)

@@ -523,7 +523,6 @@ export interface ToolInfo {
   category: string;
   is_global: boolean;
   payload_type?: string;
-  streaming: boolean;
   input_schema?: ToolInputSchema;
 }
 
@@ -657,7 +656,16 @@ export interface ChatConfigUpdate {
 }
 
 // System config types
+export interface ChatModelInfo {
+  model_id: string;
+  label: string;
+  input_cost: number;   // $ per million input tokens
+  output_cost: number;  // $ per million output tokens
+}
+
 export interface SystemConfig {
+  chat_model: string;
+  available_models: ChatModelInfo[];
   max_tool_iterations: number;
   max_research_steps: number;
   guest_turn_limit: number;
@@ -666,6 +674,7 @@ export interface SystemConfig {
 }
 
 export interface SystemConfigUpdate {
+  chat_model?: string;
   max_tool_iterations?: number;
   max_research_steps?: number;
   guest_turn_limit?: number;

@@ -42,6 +42,14 @@ if (-not (Test-Path ".git")) {
     exit 1
 }
 
+# Must be on main branch
+$currentBranch = git rev-parse --abbrev-ref HEAD
+if ($currentBranch -ne "main") {
+    Write-Host "Error: Deploys must be from the 'main' branch. Currently on '$currentBranch'." -ForegroundColor Red
+    Write-Host "  Merge develop into main first: git checkout main && git merge develop" -ForegroundColor Yellow
+    exit 1
+}
+
 # Check for uncommitted changes
 $status = git status --porcelain
 if ($status) {
@@ -177,6 +185,31 @@ if ($Backend) {
 
     Pop-Location
     Write-Host "Backend deployed ($VERSION)" -ForegroundColor Green
+}
+
+# -- GitHub Release ------------------------------------------------------------
+
+if (-not $SkipTag) {
+    Write-Host ""
+    Write-Host "--- GitHub Release ---" -ForegroundColor Magenta
+    Write-Host "Creating GitHub Release for $VERSION..." -ForegroundColor Yellow
+
+    gh release create $VERSION --generate-notes --title $VERSION
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "GitHub Release creation failed (non-fatal, tag still exists)" -ForegroundColor Yellow
+    } else {
+        Write-Host "GitHub Release $VERSION created" -ForegroundColor Green
+    }
+}
+
+# -- Cleanup -------------------------------------------------------------------
+
+# Remove BUILD_VERSION file (not committed to git)
+$buildVersionFile = Join-Path $BACKEND_DIR "BUILD_VERSION"
+if (Test-Path $buildVersionFile) {
+    Remove-Item $buildVersionFile
+    Write-Host "Cleaned up BUILD_VERSION file" -ForegroundColor Gray
 }
 
 # -- Done ----------------------------------------------------------------------

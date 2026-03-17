@@ -61,7 +61,7 @@ from services.chat_service import ChatService, derive_scope
 
 logger = logging.getLogger(__name__)
 
-CHAT_MODEL = "claude-sonnet-4-20250514"
+CHAT_MODEL_FALLBACK = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 8000
 DEFAULT_MAX_TOOL_ITERATIONS = 5  # Configurable max iterations for agent loop, can be adjusted based on needs and model capabilities.
 DEFAULT_GUEST_TURN_LIMIT = 8  # Fallback; actual value loaded from DB via ChatService.get_guest_turn_limit()
@@ -618,9 +618,10 @@ class ChatStreamService:
             max_iterations = await self._get_max_tool_iterations()
 
             # ── 3. Stream agent loop events ─────────────────────────────
+            chat_model = await self._get_chat_model()
             async for event in run_agent_loop(
                 client=self.async_client,
-                model=CHAT_MODEL,
+                model=chat_model,
                 max_tokens=CHAT_MAX_TOKENS,
                 max_iterations=max_iterations,
                 system_prompt=system_prompt,
@@ -1229,6 +1230,10 @@ SUGGESTED_ACTIONS:
         Instructions are stored in the chat_config table.
         """
         return None
+
+    async def _get_chat_model(self) -> str:
+        """Get the chat model from config, or fallback."""
+        return await self.chat_service.get_chat_model()
 
     async def _get_max_tool_iterations(self) -> int:
         """Get the maximum tool iterations from config, or default."""
