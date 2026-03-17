@@ -38,8 +38,11 @@ async def _google_places_core(
       {"action": "answer", "outcome": "found"|"not_found", "value": url, "matched_name": ..., "place_id": ...}
       {"action": "error", "detail": ...}
     """
+    logger.info(f"google_places_core: query={query!r}, location={location!r}")
+
     api_key = os.getenv("SERPAPI_KEY")
     if not api_key:
+        logger.error("google_places_core: SERPAPI_KEY not configured")
         yield {"action": "error", "detail": "SERPAPI_KEY not configured"}
         yield {"action": "answer", "outcome": "error", "value": None,
                "explanation": "SERPAPI_KEY not configured"}
@@ -59,6 +62,7 @@ async def _google_places_core(
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
+        logger.error(f"google_places_core: SerpAPI request failed: {e}")
         yield {"action": "error", "detail": f"SerpAPI request failed: {e}"}
         yield {"action": "answer", "outcome": "not_found", "value": None,
                "explanation": f"SerpAPI request failed: {e}"}
@@ -72,17 +76,35 @@ async def _google_places_core(
         result = data["place_results"]
         place_id = result.get("place_id", "")
         matched_name = result.get("title", "")
+        logger.info(f"google_places_core: exact match — {matched_name!r} (place_id={place_id})")
     elif data.get("local_results"):
         result = data["local_results"][0]
         place_id = result.get("place_id", "")
         matched_name = result.get("title", "")
+        n_results = len(data["local_results"])
+        logger.info(f"google_places_core: {n_results} results, best match — {matched_name!r} (place_id={place_id})")
+
+    # Build a result summary for the research log
+    n_local = len(data.get("local_results", []))
+    if matched_name:
+        result_summary = f"Google Maps: found {matched_name!r}"
+        if n_local > 1:
+            result_summary += f" (best of {n_local} results)"
+    else:
+        result_summary = f"Google Maps: no results for '{search_query}'"
+
+    yield {"action": "search_result", "query": search_query,
+           "detail": result_summary,
+           "result": result_summary}
 
     if not place_id:
+        logger.info(f"google_places_core: no results for {search_query!r}")
         yield {"action": "answer", "outcome": "not_found", "value": None,
                "explanation": f"No Google Maps results for '{search_query}'"}
         return
 
     maps_url = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
+    logger.info(f"google_places_core: found — {matched_name!r} → {maps_url}")
 
     yield {"action": "answer", "outcome": "found", "value": maps_url,
            "matched_name": matched_name, "place_id": place_id}
@@ -112,6 +134,11 @@ async def execute_google_places(
             yield ToolProgress(
                 stage="search",
                 message=f"Searching Google Maps: {step['query'][:80]}",
+            )
+        elif action == "search_result":
+            yield ToolProgress(
+                stage="search_result",
+                message=step.get("detail", "")[:120],
             )
         elif action == "error":
             yield ToolProgress(

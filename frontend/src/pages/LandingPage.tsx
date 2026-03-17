@@ -4,11 +4,6 @@ import PublicTopBar from '../components/layout/PublicTopBar';
 import { useAuth } from '../context/AuthContext';
 import { STARTERS } from '../config/starters';
 
-// Pick 4 relatable starters by title
-const LANDING_STARTERS = STARTERS.filter(s =>
-    ['Find a Dentist', 'Compare Laptops', 'Track Job Applications', 'Research Competitors'].includes(s.title)
-);
-
 export default function LandingPage() {
     const [prompt, setPrompt] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,69 +25,80 @@ export default function LandingPage() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col dark:bg-gray-900 bg-gray-50">
-            <PublicTopBar />
+        <div className="min-h-screen flex flex-col bg-[#FAF8F4] dark:bg-gray-900">
+            <PublicTopBar transparent />
 
-            <main className="flex-1 flex flex-col items-center justify-center px-6 pt-16">
-                <div className="max-w-2xl w-full text-center space-y-8">
-                    {/* Pain statement */}
-                    <div className="space-y-4">
-                        <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl leading-tight">
-                            &ldquo;Here&rsquo;s your updated table.&rdquo;
-                            <br />
-                            <span className="text-red-500 dark:text-red-400">You check. It&rsquo;s not updated.</span>
-                        </h1>
-                        <p className="text-lg text-gray-500 dark:text-gray-400 max-w-lg mx-auto">
-                            You ask AI to build a table. It says &ldquo;Done!&rdquo;
-                            It&rsquo;s never done. Rows are missing. Values changed. You&rsquo;re doing QA, not work.
-                        </p>
+            <main className="flex-1 flex flex-col items-center px-6 pt-32 pb-16">
+                <div className="max-w-3xl w-full text-center space-y-8">
+                    {/* Tagline pill */}
+                    <div className="inline-block px-5 py-1.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 text-sm font-medium">
+                        Stuff to research? Table that.
                     </div>
 
-                    {/* Transition */}
-                    <p className="text-base text-gray-600 dark:text-gray-300">
-                        We could explain how we fix this. Or you could just try it.
-                    </p>
+                    {/* Hero heading */}
+                    <h1 className="text-4xl sm:text-5xl font-bold leading-tight text-gray-900 dark:text-white font-serif">
+                        Describe what you&rsquo;re researching.{' '}
+                        <br className="hidden sm:block" />
+                        Get the table, the data,{' '}
+                        <br className="hidden sm:block" />
+                        and the analysis.
+                    </h1>
 
-                    {/* Describe your table */}
-                    <div className="space-y-3">
-                        <textarea
+                    {/* Subtext */}
+                    <p className="text-lg text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
+                        TableThat figures out the right questions to ask, finds the answers,
+                        and helps you make sense of it all.
+                    </p>
+                </div>
+
+                {/* Input + button */}
+                <div className="max-w-2xl w-full mt-12">
+                    <div className="flex items-center gap-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm overflow-hidden">
+                        <input
+                            type="text"
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
+                                if (e.key === 'Enter') {
                                     e.preventDefault();
                                     handleSubmit(prompt);
                                 }
                             }}
-                            placeholder="Describe your table..."
-                            rows={3}
+                            placeholder="What are you trying to research or decide?"
                             disabled={isSubmitting}
-                            className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50"
+                            className="flex-1 px-5 py-4 text-base bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none disabled:opacity-50"
                         />
                         <button
                             onClick={() => handleSubmit(prompt)}
                             disabled={!prompt.trim() || isSubmitting}
-                            className="w-full sm:w-auto px-8 py-3 text-base font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="flex-shrink-0 px-6 py-4 text-base font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border-l border-gray-200 dark:border-gray-600"
                         >
-                            {isSubmitting ? 'Creating...' : 'Create Table'}
+                            {isSubmitting ? 'Creating...' : 'Build my table \u2192'}
                         </button>
                     </div>
+                </div>
 
-                    {/* Or choose one of these */}
-                    <div className="space-y-2">
-                        <p className="text-sm text-gray-400 dark:text-gray-500">or choose one of these</p>
-                        <div className="space-y-2 text-left">
-                            {LANDING_STARTERS.map((starter) => (
-                                <button
-                                    key={starter.title}
-                                    onClick={() => handleSubmit(starter.prompt)}
-                                    disabled={isSubmitting}
-                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
+                {/* Starter cards */}
+                <div className="max-w-3xl w-full mt-10">
+                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center mb-5">
+                        Or start with one of these &rarr;
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {STARTERS.map((starter) => (
+                            <button
+                                key={starter.title}
+                                onClick={() => handleSubmit(starter.prompt)}
+                                disabled={isSubmitting}
+                                className="text-left p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <span className="text-xs font-medium text-gray-400 dark:text-gray-500 italic">
+                                    {starter.category}
+                                </span>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
                                     {starter.example}
-                                </button>
-                            ))}
-                        </div>
+                                </p>
+                            </button>
+                        ))}
                     </div>
                 </div>
             </main>

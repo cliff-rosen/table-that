@@ -1,15 +1,17 @@
 import {
-  HeartIcon,
+  ShoppingCartIcon,
+  MapPinIcon,
   BriefcaseIcon,
   ChartBarIcon,
-  MapPinIcon,
-  WrenchScrewdriverIcon,
-  ShoppingCartIcon,
+  AcademicCapIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 import type { ComponentType } from 'react';
 
 export interface Starter {
   title: string;
+  /** Category label shown above the description */
+  category: string;
   description: string;
   /** Short first-person sentence shown on landing page so users know what to type */
   example: string;
@@ -19,51 +21,57 @@ export interface Starter {
 
 export const STARTERS: Starter[] = [
   {
-    title: 'Find a Dentist',
-    icon: MapPinIcon,
-    description: 'Build a list of top-rated providers who take your insurance',
-    example: "Build me a list of top dentists in my area with ratings, insurance accepted, and availability",
-    prompt:
-      "Build me a list of top dentists in my area with ratings, insurance accepted, and availability. Start simple — I can add more columns later.",
-  },
-  {
-    title: 'Compare Laptops',
+    title: 'Espresso Machine',
+    category: 'Product research',
     icon: ShoppingCartIcon,
-    description: 'Research and compare options before you buy',
-    example: "I'm buying a laptop under $1500 — compare the top options with specs, reviews, and prices",
+    description: 'Research and compare products before you buy',
+    example: 'Help me pick a new espresso machine for a small kitchen',
     prompt:
-      "I'm buying a laptop under $1500 — compare the top options with specs, reviews, and prices. Start simple — I can add more columns later.",
+      'Help me pick a new espresso machine for a small kitchen. Compare the top options with price, size, features, and reviews. Start simple — I can add more columns later.',
   },
   {
-    title: 'Track Job Applications',
+    title: 'Find a Dentist',
+    category: 'Vendor selection',
+    icon: MapPinIcon,
+    description: 'Build a list of providers who meet your criteria',
+    example: 'Find me a dentist in my neighborhood accepting new patients',
+    prompt:
+      'Find me a dentist in my neighborhood accepting new patients. Include ratings, insurance accepted, and availability. Start simple — I can add more columns later.',
+  },
+  {
+    title: 'Job Search Tracker',
+    category: 'Job search',
     icon: BriefcaseIcon,
-    description: 'Stay organized during your job search',
-    example: "Track my job applications — company, role, salary, status, and interview dates",
+    description: 'Stay organized and find your next role',
+    example: 'Track my job search and suggest companies I should be targeting',
     prompt:
-      "Track my job applications — company, role, salary, status, and interview dates. Start simple — I can add more columns later.",
+      'Track my job search and suggest companies I should be targeting. Include company, role, salary range, status, and why it\'s a fit. Start simple — I can add more columns later.',
   },
   {
-    title: 'Research Competitors',
+    title: 'Competitive Analysis',
+    category: 'Competitive analysis',
     icon: ChartBarIcon,
     description: 'Map out your competitive landscape with AI research',
-    example: "Research my top 10 competitors and compare their pricing, features, and target market",
+    example: 'Analyze the top competitors in the project management software space',
     prompt:
-      "Research my top 10 competitors and compare their pricing, features, and target market. Start simple — I can add more columns later.",
+      'Analyze the top competitors in the project management software space. Compare pricing, features, target market, and strengths/weaknesses. Start simple — I can add more columns later.',
   },
   {
-    title: 'Plan a Wedding',
-    icon: HeartIcon,
-    description: 'Research and compare venues, vendors, or guest lists',
-    example: "I'm planning a wedding — build me a table to compare venues with pricing, capacity, and availability",
+    title: 'Term Paper Topics',
+    category: 'Academic research',
+    icon: AcademicCapIcon,
+    description: 'Explore research topics and find sources',
+    example: 'Give me 6 term paper topics for my Intro to Environmental Policy class',
     prompt:
-      "I'm planning a wedding — build me a table to compare venues with pricing, capacity, and availability. Start simple — I can add more columns later.",
+      'Give me 6 term paper topics for my Intro to Environmental Policy class. Include the topic, a thesis angle, key sources, and difficulty level. Start simple — I can add more columns later.',
   },
   {
-    title: 'Home Renovation',
-    icon: WrenchScrewdriverIcon,
-    description: 'Track projects, contractors, costs, and timelines',
-    example: "I'm renovating my kitchen — build a table of contractors with quotes, ratings, and availability",
+    title: 'Trip to Japan',
+    category: 'Travel planning',
+    icon: GlobeAltIcon,
+    description: 'Plan trips with structured research',
+    example: 'Plan a 10-day trip to Japan — what do I need to research and decide?',
     prompt:
-      "I'm renovating my kitchen — build a table of contractors with quotes, ratings, and availability. Start simple — I can add more columns later.",
+      'Plan a 10-day trip to Japan — what do I need to research and decide? Build me a table of decisions with options, costs, and priorities. Start simple — I can add more columns later.',
   },
 ];

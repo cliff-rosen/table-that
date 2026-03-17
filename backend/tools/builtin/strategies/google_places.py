@@ -45,6 +45,15 @@ class GooglePlacesStrategy(RowStrategy):
 
             if action == "search":
                 yield RowStep(type="search", detail=step.get("query", ""))
+            elif action == "search_result":
+                yield RowStep(
+                    type="search",
+                    detail=step.get("query", ""),
+                    data={
+                        "detail": step.get("detail", ""),
+                        "result": step.get("result", ""),
+                    },
+                )
             elif action == "error":
                 yield RowStep(type="error", detail=step.get("detail", ""))
             elif action == "answer":

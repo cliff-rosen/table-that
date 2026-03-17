@@ -94,7 +94,9 @@
       "mcp__playwright__browser_press_key",
       "Bash(./venv/Scripts/python.exe:*)",
       "Bash(rm:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(npx vite:*)",
+      "Bash(git:*)"
     ],
     "deny": [],
     "ask": [],

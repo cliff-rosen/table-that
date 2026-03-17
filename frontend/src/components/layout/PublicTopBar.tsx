@@ -3,11 +3,21 @@ import { MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { useTheme } from '../../context/ThemeContext';
 import settings from '../../config/settings';
 
-export default function PublicTopBar() {
+interface PublicTopBarProps {
+    transparent?: boolean;
+}
+
+export default function PublicTopBar({ transparent }: PublicTopBarProps) {
     const { isDarkMode, toggleTheme } = useTheme();
 
     return (
-        <header className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 flex items-center justify-between px-6">
+        <header
+            className={`fixed top-0 left-0 right-0 h-16 z-50 flex items-center justify-between px-6 ${
+                transparent
+                    ? 'bg-transparent'
+                    : 'bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700'
+            }`}
+        >
             <Link to="/" className="flex items-center">
                 <span className="text-lg font-semibold text-gray-900 dark:text-white">{settings.appName}</span>
             </Link>
