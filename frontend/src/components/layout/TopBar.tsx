@@ -47,12 +47,14 @@ export default function TopBar({ newVersionAvailable }: TopBarProps) {
                     {isGuest ? (
                         <button
                             onClick={() => { logout(); navigate('/'); }}
-                            className="text-lg font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
+                            <img src="/tt-icon.svg" alt="" className="h-7 w-7" />
                             {settings.appName}
                         </button>
                     ) : (
-                        <NavLink to="/tables" className="text-lg font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                        <NavLink to="/tables" className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            <img src="/tt-icon.svg" alt="" className="h-7 w-7" />
                             {settings.appName}
                         </NavLink>
                     )}

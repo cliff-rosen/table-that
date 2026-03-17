@@ -18,7 +18,8 @@ export default function PublicTopBar({ transparent }: PublicTopBarProps) {
                     : 'bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700'
             }`}
         >
-            <Link to="/" className="flex items-center">
+            <Link to="/" className="flex items-center gap-2">
+                <img src="/tt-icon.svg" alt="" className="h-7 w-7" />
                 <span className="text-lg font-semibold text-gray-900 dark:text-white">{settings.appName}</span>
             </Link>
 

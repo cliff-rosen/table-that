@@ -96,7 +96,8 @@
       "Bash(rm:*)",
       "Bash(touch:*)",
       "Bash(npx vite:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(gh release:*)"
     ],
     "deny": [],
     "ask": [],
