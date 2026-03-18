@@ -334,7 +334,7 @@ export default function TablesListPage() {
         isOpen={chatOpen}
         onOpenChange={setChatOpen}
         onProposalAccept={activeProposal ? handleProposalAcceptFromChat : undefined}
-        onProposalDismiss={resolveProposal}
+        onProposalDismiss={() => resolveProposal('dismissed')}
       />
       {showPromptHero ? (
         <PromptHero
@@ -383,7 +383,7 @@ export default function TablesListPage() {
                 includeSampleData={includeSampleData}
                 onIncludeSampleDataChange={setIncludeSampleData}
                 onAccept={handleProposalAcceptFromPreview}
-                onDismiss={resolveProposal}
+                onDismiss={() => resolveProposal('dismissed')}
               />
             ) : tables.length === 0 ? (
               /* Empty state — "your table will appear here" */

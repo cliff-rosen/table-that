@@ -402,7 +402,7 @@ export default function TableViewPage() {
 
   const handleDismissProposal = useCallback(() => {
     proposal.dismiss();
-    resolveProposal();
+    resolveProposal('dismissed');
   }, [proposal.dismiss, resolveProposal]);
 
   // Bridge ChatContext's pendingProposal into useTableProposal.

@@ -45,7 +45,7 @@ interface ChatContextType {
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata, options?: { newConversation?: boolean }) => Promise<void>;
     resetGuestLimit: () => void;
     cancelRequest: () => void;
-    resolveProposal: () => void;
+    resolveProposal: (outcome?: 'accepted' | 'dismissed') => void;
     clearRestoredInput: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
     setContext: (newContext: Record<string, unknown>) => void;
@@ -105,10 +105,10 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
         setPendingProposal(p);
     }, []);
 
-    const resolveProposal = useCallback(() => {
+    const resolveProposal = useCallback((outcome: 'accepted' | 'dismissed' = 'accepted') => {
         const current = pendingProposalRef.current;
         if (current?.messageId) {
-            chatApi.resolveProposal(current.messageId).catch(() => {});
+            chatApi.resolveProposal(current.messageId, outcome).catch(() => {});
         }
         setProposal(null);
     }, [setProposal]);

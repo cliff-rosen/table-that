@@ -97,15 +97,20 @@ async def get_chat_by_context(
 
 # === Admin Endpoints ===
 
+class ResolveProposalRequest(BaseModel):
+    outcome: str = "accepted"  # "accepted" or "dismissed"
+
+
 @router.patch("/messages/{message_id}/resolve-proposal")
 async def resolve_proposal(
     message_id: int,
+    body: ResolveProposalRequest = ResolveProposalRequest(),
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """Mark a proposal in a message as resolved (accepted or dismissed)."""
     try:
-        await service.resolve_proposal(message_id, current_user.user_id)
+        await service.resolve_proposal(message_id, current_user.user_id, body.outcome)
         return {"ok": True}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
