@@ -148,7 +148,7 @@ function StarterGrid({ onStarterClick, compact }: StarterGridProps) {
 
 export default function TablesListPage() {
   const navigate = useNavigate();
-  const { setContext, updateContext, sendMessage, loadForContext, pendingProposal, resolveProposal } = useChatContext();
+  const { setContext, updateContext, sendMessage, loadForContext, pendingProposal, resolveProposal, migrateScope } = useChatContext();
   const { isGuest } = useAuth();
 
   const [tables, setTables] = useState<TableListItem[]>([]);
@@ -285,6 +285,9 @@ export default function TablesListPage() {
         }));
       }
 
+      // Migrate conversation scope before navigating so loadForContext
+      // on the table view page finds the existing conversation.
+      await migrateScope(created.id);
       resolveProposal();
       navigate(`/tables/${created.id}`, {
         state: { justCreated: true, tableName: created.name, includedSampleData: includeSampleData },

@@ -117,6 +117,28 @@ async def resolve_proposal(
         )
 
 
+class MigrateScopeRequest(BaseModel):
+    table_id: int
+
+
+@router.post("/{chat_id}/migrate-scope")
+async def migrate_scope(
+    chat_id: int,
+    body: MigrateScopeRequest,
+    service: ChatService = Depends(get_chat_service),
+    current_user: User = Depends(auth_service.validate_token),
+):
+    """Migrate a conversation's scope to a specific table.
+
+    Called when a table is created from the tables_list page so the
+    conversation follows the user to the table_view page.
+    """
+    chat = await service.migrate_to_table(chat_id, current_user.user_id, body.table_id)
+    if not chat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return {"ok": True, "scope": chat.scope}
+
+
 class AdminChatResponse(BaseModel):
     """Chat with user info for admin"""
     id: int

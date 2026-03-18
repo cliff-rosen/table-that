@@ -49,6 +49,15 @@ export const chatApi = {
 
 
     /**
+     * Migrate a conversation's scope to a specific table.
+     * Called after creating a table from tables_list so the conversation
+     * follows the user to the table_view page.
+     */
+    async migrateScope(chatId: number, tableId: number): Promise<void> {
+        await api.post(`/api/chats/${chatId}/migrate-scope`, { table_id: tableId });
+    },
+
+    /**
      * Mark a proposal in a message as resolved (accepted or dismissed).
      */
     async resolveProposal(messageId: number): Promise<void> {

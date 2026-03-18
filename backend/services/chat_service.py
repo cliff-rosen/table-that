@@ -76,8 +76,10 @@ class ChatService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def resolve_proposal(self, message_id: int, user_id: int) -> None:
-        """Mark a message's custom_payload as resolved (accepted/dismissed)."""
+    async def resolve_proposal(
+        self, message_id: int, user_id: int, outcome: str = "accepted"
+    ) -> None:
+        """Mark a message's custom_payload as resolved with an outcome."""
         stmt = (
             select(Message)
             .join(Conversation, Message.conversation_id == Conversation.id)
@@ -92,6 +94,7 @@ class ChatService:
         cp = extras.get("custom_payload")
         if cp and isinstance(cp, dict):
             cp["resolved"] = True
+            cp["outcome"] = outcome
             extras["custom_payload"] = cp
             msg.extras = extras
             await self.db.commit()
