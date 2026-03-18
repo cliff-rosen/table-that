@@ -95,7 +95,6 @@ class PendingTurn:
     response: "ResponseBuilder"
     committed: bool = False
     commit_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    assistant_message_id: Optional[int] = None
 
 
 class ResponseBuilder:
@@ -114,6 +113,9 @@ class ResponseBuilder:
         self.collected_payloads: list = []
         self.trace: Optional[AgentTrace] = None
         self.tool_call_index: int = 0
+
+        # ── DB identity (set by _commit_turn) ──
+        self.message_id: Optional[int] = None
 
         # ── Finalized state (set by finalize()) ──
         self._finalized = False
@@ -415,7 +417,7 @@ class ChatStreamService:
 
         async with turn.commit_lock:
             if turn.committed:
-                return (turn.history.chat_id or 0, turn.assistant_message_id)
+                return (turn.history.chat_id or 0, turn.response.message_id)
 
             from database import AsyncSessionLocal
 
@@ -461,8 +463,8 @@ class ChatStreamService:
 
             turn.committed = True
             turn.history.chat_id = chat_id
-            turn.assistant_message_id = assistant_msg.id if assistant_msg else None
-            return (chat_id, turn.assistant_message_id)
+            turn.response.message_id = assistant_msg.id if assistant_msg else None
+            return (chat_id, turn.response.message_id)
 
     async def commit_if_needed(self) -> None:
         """Commit turn if there's pending content.  For fire-and-forget use.

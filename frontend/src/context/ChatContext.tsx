@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef } from 
 import { chatApi } from '../lib/api/chatApi';
 import {
     ChatMessage,
+    ChatResponsePayload,
     InteractionType,
     ActionMetadata,
     ToolProgressEvent,
@@ -184,7 +185,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         break;
 
                     case 'complete': {
-                        const responsePayload = event.payload;
+                        const responsePayload: ChatResponsePayload = event.payload;
 
                         const assistantMessage: ChatMessage = {
                             id: responsePayload.message_id,
