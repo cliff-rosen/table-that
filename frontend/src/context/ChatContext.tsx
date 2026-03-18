@@ -22,6 +22,8 @@ export interface PendingProposal {
     data: unknown;
     /** Index of the message in the messages array that carries this proposal */
     messageIndex: number;
+    /** Database message ID (for persisting resolved state). Only present when loaded from history. */
+    messageId?: number;
 }
 
 interface ChatContextType {
@@ -101,6 +103,10 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
     }, []);
 
     const resolveProposal = useCallback(() => {
+        const current = pendingProposalRef.current;
+        if (current?.messageId) {
+            chatApi.resolveProposal(current.messageId).catch(() => {});
+        }
         setProposal(null);
     }, [setProposal]);
 
@@ -181,6 +187,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         const responsePayload = event.payload;
 
                         const assistantMessage: ChatMessage = {
+                            id: responsePayload.message_id,
                             role: 'assistant',
                             content: responsePayload.message,
                             timestamp: new Date().toISOString(),
@@ -202,6 +209,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                                         payloadType: responsePayload.custom_payload.type,
                                         data: responsePayload.custom_payload.data,
                                         messageIndex: next.length - 1,
+                                        messageId: responsePayload.message_id,
                                     });
                                 }
                             }
@@ -343,6 +351,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             const loadedMessages: ChatMessage[] = chat.messages
                 .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                 .map(msg => ({
+                    id: msg.id,
                     role: msg.role as 'user' | 'assistant',
                     content: msg.content,
                     timestamp: msg.created_at,
@@ -359,10 +368,23 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
             lastLoadedPageRef.current = currentPage;
             lastLoadedTableIdRef.current = tableId;
             setError(null);
-            // Clear any pending proposal — loaded history may contain resolved proposals
-            // that we can't distinguish from pending ones. Proposals are ephemeral UI
-            // state; only live streaming responses should set them.
-            setProposal(null);
+            // Restore the most recent unresolved proposal from history
+            let restored = false;
+            for (let i = loadedMessages.length - 1; i >= 0; i--) {
+                const msg = loadedMessages[i];
+                const cp = msg.custom_payload;
+                if (msg.role === 'assistant' && cp?.type && cp.data && !cp.resolved) {
+                    const kind = classifyProposal(cp);
+                    if (kind) {
+                        setProposal({ kind, payloadType: cp.type, data: cp.data, messageIndex: i, messageId: msg.id });
+                        restored = true;
+                        break;
+                    }
+                }
+            }
+            if (!restored) {
+                setProposal(null);
+            }
 
             return true;
         } catch (err) {

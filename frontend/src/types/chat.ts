@@ -64,6 +64,8 @@ export interface SuggestedAction {
 export interface CustomPayload {
     type: string;
     data: unknown;
+    /** Set to true when the user has accepted or dismissed this proposal. */
+    resolved?: boolean;
 }
 
 export interface ToolHistoryEntry {
@@ -291,6 +293,7 @@ export interface ChatResponsePayload {
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
     conversation_id?: number;
+    message_id?: number;
     warning?: string;
     diagnostics?: ChatDiagnostics;
 }
@@ -304,6 +307,8 @@ export interface ChatResponsePayload {
  * Chat message for UI display (includes interaction elements)
  */
 export interface ChatMessage {
+    /** Database message ID (present when loaded from history). */
+    id?: number;
     role: 'user' | 'assistant';
     content: string;
     timestamp: string;

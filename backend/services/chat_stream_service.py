@@ -95,6 +95,7 @@ class PendingTurn:
     response: "ResponseBuilder"
     committed: bool = False
     commit_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    assistant_message_id: Optional[int] = None
 
 
 class ResponseBuilder:
@@ -233,11 +234,11 @@ class ResponseBuilder:
 
     # ── Package for delivery (called after commit) ───────────────
 
-    def to_complete_event(self, conversation_id: int) -> CompleteEvent:
+    def to_complete_event(self, conversation_id: int, message_id: int | None = None) -> CompleteEvent:
         """Build the CompleteEvent for SSE delivery.
 
-        Must be called after finalize().  Takes conversation_id because
-        that's only known after _commit_turn.
+        Must be called after finalize().  Takes conversation_id and message_id
+        because those are only known after _commit_turn.
         """
         if not self._finalized:
             raise RuntimeError("to_complete_event called before finalize()")
@@ -266,6 +267,7 @@ class ResponseBuilder:
             custom_payload=self._custom_payload_obj,
             tool_history=self.tool_call_history or None,
             conversation_id=conversation_id,
+            message_id=message_id,
             warning=context_warning,
             diagnostics=self.trace,
         )
@@ -395,7 +397,7 @@ class ChatStreamService:
         # ── In-flight turn state (write-late pattern) ──
         self._turn: Optional[PendingTurn] = None
 
-    async def _commit_turn(self) -> int:
+    async def _commit_turn(self) -> tuple[int, int | None]:
         """Atomically write the pending turn to the database.
 
         Reads everything from self._turn: history (conversation state),
@@ -405,7 +407,7 @@ class ChatStreamService:
         Uses a fresh DB session so writes survive cancelled request scopes.
         Idempotent via turn.commit_lock + turn.committed.
 
-        Returns the conversation ID.
+        Returns (conversation_id, assistant_message_id).
         """
         turn = self._turn
         if not turn:
@@ -413,7 +415,7 @@ class ChatStreamService:
 
         async with turn.commit_lock:
             if turn.committed:
-                return turn.history.chat_id or 0
+                return (turn.history.chat_id or 0, turn.assistant_message_id)
 
             from database import AsyncSessionLocal
 
@@ -448,7 +450,7 @@ class ChatStreamService:
                     content=turn.user_message.message,
                     context=turn.user_message.context,
                 )
-                await chat_service.add_message(
+                assistant_msg = await chat_service.add_message(
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="assistant",
@@ -459,7 +461,8 @@ class ChatStreamService:
 
             turn.committed = True
             turn.history.chat_id = chat_id
-            return chat_id
+            turn.assistant_message_id = assistant_msg.id if assistant_msg else None
+            return (chat_id, turn.assistant_message_id)
 
     async def commit_if_needed(self) -> None:
         """Commit turn if there's pending content.  For fire-and-forget use.
@@ -677,7 +680,7 @@ class ChatStreamService:
                             f"text={len(response.collected_text)} chars, "
                             f"tools={len(response.tool_call_history)}"
                         )
-                        chat_id = await self._commit_turn()
+                        chat_id, _ = await self._commit_turn()
                         # Emit chat_id so frontend can sync later
                         yield ChatIdEvent(
                             conversation_id=chat_id
@@ -697,12 +700,12 @@ class ChatStreamService:
             # ── 4. Normal completion: finalize, commit, deliver ─────────
             parsed = self._parse_llm_response(response.collected_text, page)
             response.finalize(parsed)
-            chat_id = await self._commit_turn()
+            chat_id, msg_id = await self._commit_turn()
             logger.info(
                 f"Stream complete: chat_id={chat_id} "
                 f"text={len(response.collected_text)} chars"
             )
-            yield response.to_complete_event(chat_id).model_dump_json()
+            yield response.to_complete_event(chat_id, msg_id).model_dump_json()
 
             if guest_limit_hit:
                 logger.info(

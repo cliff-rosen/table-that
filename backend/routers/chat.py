@@ -97,6 +97,26 @@ async def get_chat_by_context(
 
 # === Admin Endpoints ===
 
+@router.patch("/messages/{message_id}/resolve-proposal")
+async def resolve_proposal(
+    message_id: int,
+    service: ChatService = Depends(get_chat_service),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """Mark a proposal in a message as resolved (accepted or dismissed)."""
+    try:
+        await service.resolve_proposal(message_id, current_user.user_id)
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"resolve_proposal failed - message_id={message_id}, user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resolve proposal: {str(e)}"
+        )
+
+
 class AdminChatResponse(BaseModel):
     """Chat with user info for admin"""
     id: int

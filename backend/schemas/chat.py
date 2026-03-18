@@ -228,6 +228,7 @@ class ChatResponsePayload(BaseModel):
     custom_payload: Optional[CustomPayload] = None
     tool_history: Optional[List[ToolHistoryEntry]] = None
     conversation_id: Optional[int] = None
+    message_id: Optional[int] = None
     warning: Optional[str] = None
     diagnostics: Optional[ChatDiagnostics] = None
 

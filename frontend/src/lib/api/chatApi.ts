@@ -48,6 +48,13 @@ export const chatApi = {
 
 
 
+    /**
+     * Mark a proposal in a message as resolved (accepted or dismissed).
+     */
+    async resolveProposal(messageId: number): Promise<void> {
+        await api.patch(`/api/chats/messages/${messageId}/resolve-proposal`);
+    },
+
     // === Streaming Chat ===
 
     /**

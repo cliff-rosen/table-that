@@ -76,6 +76,26 @@ class ChatService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def resolve_proposal(self, message_id: int, user_id: int) -> None:
+        """Mark a message's custom_payload as resolved (accepted/dismissed)."""
+        stmt = (
+            select(Message)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(Message.id == message_id, Conversation.user_id == user_id)
+        )
+        result = await self.db.execute(stmt)
+        msg = result.scalars().first()
+        if not msg:
+            raise ValueError(f"Message {message_id} not found or not owned by user")
+
+        extras = dict(msg.extras or {})
+        cp = extras.get("custom_payload")
+        if cp and isinstance(cp, dict):
+            cp["resolved"] = True
+            extras["custom_payload"] = cp
+            msg.extras = extras
+            await self.db.commit()
+
     async def count_user_messages(self, user_id: int) -> int:
         """Count total user-role messages across all conversations for a user."""
         stmt = (
