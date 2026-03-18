@@ -16,34 +16,97 @@
 | Frontend | `https://tablethat.ironcliff.ai` |
 | Backend API | `https://tablethat-api.ironcliff.ai` |
 | API Docs | `https://tablethat-api.ironcliff.ai/docs` |
-| Health Check | `https://tablethat-api.ironcloff.ai/api/health` |
+| Health Check | `https://tablethat-api.ironcliff.ai/api/health` |
+
+---
+
+## Branching Model
+
+This project uses a **main/develop** branching model. See `BRANCHING.md` for full details.
+
+| Branch | Purpose | Deploys to |
+|--------|---------|------------|
+| `main` | Always matches production. Only moves forward via release merges or hotfixes. | **Production** |
+| `develop` | Active development. All day-to-day work happens here. | Local dev only |
+
+**Key rule:** Production deployments ONLY happen from the `main` branch. The deploy script enforces this.
 
 ---
 
 ## How to Deploy
 
-Everything goes through one script at the repo root. You must have no uncommitted changes.
+### Local Dev
 
-### Deploy everything (most common)
+```bash
+# Backend
+cd backend && venv/Scripts/python.exe -m uvicorn main:app --reload --port 8001
 
-```powershell
+# Frontend
+cd frontend && npm run dev
+```
+
+### Production — Release
+
+When `develop` is ready to ship:
+
+```bash
+# 1. Switch to main and merge develop
+git checkout main
+git merge develop
+
+# 2. Deploy (tags, builds, and pushes to production)
+.\deploy.ps1              # Deploy everything (frontend + backend)
+.\deploy.ps1 -Frontend    # Frontend only
+.\deploy.ps1 -Backend     # Backend only
+.\deploy.ps1 -SkipTag     # Re-deploy current version without a new tag
+
+# 3. Push main so the remote matches
+git push origin main
+
+# 4. Return to develop and sync
+git checkout develop
+git merge main             # Keep develop up-to-date with the release tag commit
+git push origin develop
+```
+
+### Production — Hotfix
+
+When a bug is found in production and `develop` has unreleased work:
+
+```bash
+# 1. Stash any in-progress work
+git stash push -u -m "WIP: work before hotfix"
+
+# 2. Create hotfix branch from main
+git checkout main
+git checkout -b hotfix/X.Y.Z
+
+# 3. Fix and commit
+git add <fixed-files>
+git commit -m "fix: describe the bug fix"
+
+# 4. Merge into main and deploy
+git checkout main
+git merge hotfix/X.Y.Z
 .\deploy.ps1
+
+# 5. Push main
+git push origin main
+
+# 6. Merge into develop so the fix isn't lost
+git checkout develop
+git merge main
+git push origin develop
+
+# 7. Clean up
+git branch -d hotfix/X.Y.Z
+git push origin --delete hotfix/X.Y.Z
+
+# 8. Restore stashed work
+git stash pop
 ```
 
-### Deploy only frontend or backend
-
-```powershell
-.\deploy.ps1 -Frontend     # S3 only
-.\deploy.ps1 -Backend      # EB only
-```
-
-### Redeploy without a new version tag
-
-```powershell
-.\deploy.ps1 -SkipTag
-```
-
-### What happens when you run `.\deploy.ps1`
+### What `.\deploy.ps1` does
 
 Here's the exact sequence:
 
@@ -274,5 +337,31 @@ For frontend, redeploy from a previous git tag:
 ```powershell
 git checkout v1.0.3
 .\deploy.ps1 -Frontend -SkipTag
-git checkout master
+git checkout main
 ```
+
+---
+
+## Database Schema Changes
+
+Schema changes happen ad-hoc during development against the `table-that` database. Before deploying to production, verify that any schema changes have been applied.
+
+### Environment Targeting
+
+Any script that imports from `database.py` connects to whatever `ENVIRONMENT` resolves to:
+
+| `ENVIRONMENT` value | Connects to |
+|---------------------|-------------|
+| _(not set)_ | `table-that` (dev — safe default) |
+| `production` | `table-that` (same RDS, same database) |
+
+### Before a Production Deploy
+
+If you've made schema changes (new tables, altered columns, etc.):
+
+1. **Review changes** — check `models.py` for any new or modified models since the last deploy.
+2. **Apply migrations** — run any necessary `ALTER TABLE` / `CREATE TABLE` statements against the production database.
+3. **Deploy the code.**
+4. **Verify** — confirm the app starts cleanly and health check passes.
+
+**Always verify schema compatibility before deploying code that depends on new columns or tables.**
