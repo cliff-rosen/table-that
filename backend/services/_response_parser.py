@@ -62,13 +62,23 @@ def _extract_marker_array(
     message: str, marker: str
 ) -> tuple[str, Optional[List[Dict[str, Any]]]]:
     """Find a marker like SUGGESTED_VALUES: [...] in message, extract the
-    JSON array, and return (cleaned_message, parsed_array)."""
-    if marker not in message:
+    JSON array, and return (cleaned_message, parsed_array).
+
+    Handles optional markdown bold/italic wrapping around the marker,
+    e.g. **SUGGESTED_VALUES:** or *SUGGESTED_VALUES:*
+    """
+    marker_text = marker.rstrip(":")
+    marker_pattern = re.compile(
+        r"\*{0,2}" + re.escape(marker_text) + r"\*{0,2}\s*:"
+    )
+    match = marker_pattern.search(message)
+    if not match:
         return message, None
 
-    marker_pos = message.find(marker)
-    after_marker = message[marker_pos + len(marker) :]
-    after_marker_stripped = after_marker.lstrip()
+    marker_pos = match.start()
+    after_marker_raw = message[match.end():]
+    # Strip whitespace and any trailing bold/italic markers before the JSON
+    after_marker_stripped = after_marker_raw.lstrip().lstrip("*").lstrip()
     json_content = _extract_json_array(after_marker_stripped)
     if not json_content:
         return message, None
@@ -76,10 +86,9 @@ def _extract_marker_array(
     try:
         parsed = json.loads(json_content)
         if isinstance(parsed, list):
-            # Calculate whitespace between marker and JSON
-            whitespace_len = len(after_marker) - len(after_marker_stripped)
-            # Remove everything from marker through end of JSON
-            end_pos = marker_pos + len(marker) + whitespace_len + len(json_content)
+            # Find where JSON starts in the raw text after the marker
+            json_start_in_raw = after_marker_raw.find(json_content)
+            end_pos = match.end() + json_start_in_raw + len(json_content)
             cleaned = (message[:marker_pos] + message[end_pos:]).strip()
             return cleaned, parsed
     except json.JSONDecodeError:
