@@ -548,6 +548,8 @@ export default function DataTable({
               schemaThClasses = 'bg-red-50 dark:bg-red-900/15 border-l-4 border-l-red-400';
             } else if (schemaMeta?.action === 'modify') {
               schemaThClasses = 'bg-amber-50 dark:bg-amber-900/20 border-l-4 border-l-amber-400';
+            } else if (schemaMeta?.action === 'reorder') {
+              schemaThClasses = 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-400';
             }
 
             return (
@@ -682,6 +684,8 @@ export default function DataTable({
                     schemaCellClass = 'bg-green-50/40 dark:bg-green-900/10';
                   } else if (schemaMeta?.action === 'remove') {
                     schemaCellClass = 'bg-red-50/40 dark:bg-red-900/10 opacity-60';
+                  } else if (schemaMeta?.action === 'reorder') {
+                    schemaCellClass = 'bg-blue-50/40 dark:bg-blue-900/10';
                   }
 
                   // Build cell classes

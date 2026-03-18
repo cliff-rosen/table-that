@@ -97,7 +97,15 @@
       "Bash(touch:*)",
       "Bash(npx vite:*)",
       "Bash(git:*)",
-      "Bash(gh release:*)"
+      "Bash(gh release:*)",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws drive files list --params '{\"q\":\"'\\\\''1_goPhNzGi-1UoAm0MD_H1p-vOBwIslWv'\\\\'' in parents\",\"pageSize\":50,\"fields\":\"files\\(id,name,mimeType,modifiedTime\\)\"}')",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets spreadsheets create --json '{\n  \"properties\": {\"title\": \"Adam - Project Tracker\"},\n  \"sheets\": [\n    {\"properties\": {\"sheetId\": 0, \"title\": \"Master\", \"index\": 0}},\n    {\"properties\": {\"sheetId\": 1, \"title\": \"Knowledge Horizon\", \"index\": 1}},\n    {\"properties\": {\"sheetId\": 2, \"title\": \"Table That\", \"index\": 2}},\n    {\"properties\": {\"sheetId\": 3, \"title\": \"BotBeam\", \"index\": 3}}\n  ]\n}')",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws drive files update --params '{\"fileId\":\"190DIHpoL-hys45UEKcoC-Sp2f9s6rbG3itgS4NocdBk\",\"addParents\":\"1_goPhNzGi-1UoAm0MD_H1p-vOBwIslWv\",\"removeParents\":\"root\",\"fields\":\"id,parents\"}')",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets +append --help)",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets --help)",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets spreadsheets --help)",
+      "Bash(SSID=\"190DIHpoL-hys45UEKcoC-Sp2f9s6rbG3itgS4NocdBk\")",
+      "Bash(__NEW_LINE_e731bd5e5aa5e55e__ GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets spreadsheets batchUpdate --params \"{\"\"spreadsheetId\"\":\"\"$SSID\"\"}\" --json '{\"\"requests\"\":[{\"\"updateSheetProperties\"\":{\"\"properties\"\":{\"\"sheetId\"\":2,\"\"title\"\":\"\"TableThat\"\"},\"\"fields\"\":\"\"title\"\"}}]}')"
     ],
     "deny": [],
     "ask": [],
