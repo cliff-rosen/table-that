@@ -7,6 +7,7 @@ import { AgentTrace } from '../../../types/chat';
 import { FullscreenContent } from './types';
 
 type AgentResponseTab = 'message' | 'payload' | 'tools';
+type MessageView = 'parsed' | 'raw';
 
 interface AgentResponseCardProps {
     response: NonNullable<AgentTrace['final_response']>;
@@ -16,9 +17,11 @@ interface AgentResponseCardProps {
 export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardProps) {
     const hasPayload = !!response.custom_payload;
     const hasTools = !!(response.tool_history && response.tool_history.length > 0);
+    const hasRaw = !!response.raw_response;
 
     // Default to first available tab
     const [activeTab, setActiveTab] = useState<AgentResponseTab>('message');
+    const [messageView, setMessageView] = useState<MessageView>('parsed');
 
     const tabs: { id: AgentResponseTab; label: string; show: boolean }[] = [
         { id: 'message', label: 'Message', show: true },
@@ -65,47 +68,86 @@ export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardP
             <div className="p-3">
                 {activeTab === 'message' && (
                     <div className="space-y-3">
-                        {/* Message Text */}
-                        <div>
-                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Message</div>
-                            <pre className="bg-white dark:bg-gray-900 rounded p-2 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
-                                {response.message}
-                            </pre>
-                        </div>
-
-                        {/* Suggested Values */}
-                        {response.suggested_values && response.suggested_values.length > 0 && (
-                            <div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                    Suggested Values ({response.suggested_values.length})
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {response.suggested_values.map((sv, i) => (
-                                        <div key={i} className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded">
-                                            <div className="text-xs font-medium text-blue-800 dark:text-blue-200">{sv.text}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                        {/* Parsed / Raw toggle */}
+                        {hasRaw && (
+                            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded p-0.5 w-fit">
+                                <button
+                                    onClick={() => setMessageView('parsed')}
+                                    className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                                        messageView === 'parsed'
+                                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
+                                >
+                                    Parsed
+                                </button>
+                                <button
+                                    onClick={() => setMessageView('raw')}
+                                    className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                                        messageView === 'raw'
+                                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
+                                >
+                                    Raw
+                                </button>
                             </div>
                         )}
 
-                        {/* Suggested Actions */}
-                        {response.suggested_actions && response.suggested_actions.length > 0 && (
+                        {messageView === 'raw' && hasRaw ? (
+                            /* Raw LLM response — full text including markers */
                             <div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                    Suggested Actions ({response.suggested_actions.length})
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {response.suggested_actions.map((sa, i) => (
-                                        <div key={i} className="px-2 py-1 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded">
-                                            <div className="text-xs font-medium text-green-800 dark:text-green-200">{sa.label}</div>
-                                            <div className="text-xs text-green-600 dark:text-green-400 font-mono">
-                                                {sa.action} ({sa.handler})
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Raw LLM Response</div>
+                                <pre className="bg-white dark:bg-gray-900 rounded p-2 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 max-h-[400px] overflow-auto">
+                                    {response.raw_response}
+                                </pre>
                             </div>
+                        ) : (
+                            /* Parsed view — message + extracted suggestions/actions */
+                            <>
+                                {/* Message Text */}
+                                <div>
+                                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Message</div>
+                                    <pre className="bg-white dark:bg-gray-900 rounded p-2 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
+                                        {response.message}
+                                    </pre>
+                                </div>
+
+                                {/* Suggested Values */}
+                                {response.suggested_values && response.suggested_values.length > 0 && (
+                                    <div>
+                                        <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                            Suggested Values ({response.suggested_values.length})
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {response.suggested_values.map((sv, i) => (
+                                                <div key={i} className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded">
+                                                    <div className="text-xs font-medium text-blue-800 dark:text-blue-200">{sv.text}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Suggested Actions */}
+                                {response.suggested_actions && response.suggested_actions.length > 0 && (
+                                    <div>
+                                        <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                            Suggested Actions ({response.suggested_actions.length})
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {response.suggested_actions.map((sa, i) => (
+                                                <div key={i} className="px-2 py-1 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded">
+                                                    <div className="text-xs font-medium text-green-800 dark:text-green-200">{sa.label}</div>
+                                                    <div className="text-xs text-green-600 dark:text-green-400 font-mono">
+                                                        {sa.action} ({sa.handler})
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

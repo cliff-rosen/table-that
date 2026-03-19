@@ -209,6 +209,7 @@ class ResponseBuilder:
         if self.trace:
             self.trace.final_response = FinalResponse(
                 message=parsed.message,
+                raw_response=self.collected_text,
                 suggested_values=suggested_values,
                 suggested_actions=suggested_actions,
                 custom_payload=custom_payload_obj,
@@ -1017,7 +1018,7 @@ Be fast and helpful. Keep responses concise and factual. Don't over-explain or o
 NEVER populate table rows from your training data or general knowledge. ALL factual data — product names, company details, prices, ratings, recommendations, dates, URLs — must come from tool calls (search_web, research_web, lookup_web, fetch_webpage, enrich_column, google_places). Your training data is stale and unreliable for specific facts. Always search the web first. The only exception is purely structural content like column headers, category labels, or generic example data in sample_rows of a SCHEMA_PROPOSAL.
 
 ## Suggestions — Guide the User Forward
-After every response, think: "What would the user naturally want to do next?" Then offer it as SUGGESTED_VALUES. This is one of your most important UX behaviors — suggestions turn a blank text box into a clear set of next steps.
+After every response, think: "What would the user naturally want to do next?" Then offer it as **SUGGESTED_VALUES:**. This is one of your most important UX behaviors — suggestions turn a blank text box into a clear set of next steps.
 
 Phase-aware examples:
 - **Phase 1 (just created a table):** "Import a CSV" / "Add sample rows" / "Populate with AI research"
@@ -1049,7 +1050,7 @@ When you emit a SCHEMA_PROPOSAL or DATA_PROPOSAL payload, the proposed changes a
 - Tell them to click **Accept** to apply or **Dismiss** to cancel
 - Do NOT ask "Would you like me to proceed?" — the user acts on the controls, not by typing
 - Do NOT emit a second proposal in the same turn — one proposal per response
-- Do NOT include SUGGESTED_VALUES or SUGGESTED_ACTIONS when you emit a proposal
+- Do NOT include **SUGGESTED_VALUES:** or **SUGGESTED_ACTIONS:** when you emit a proposal
 
 ## Important: You Cannot Pause for User Input
 You are running in an agentic loop — when you call a tool, the result comes back to you automatically and you continue. The user does NOT see your intermediate text until your full response is assembled. This means:
@@ -1090,7 +1091,7 @@ Users can be on different pages in the app, each with its own context and capabi
     # Fixed format instructions (always appended, not configurable)
     FORMAT_INSTRUCTIONS = """SUGGESTED VALUES (recommended):
 Offer clickable chips the user can tap to send as their next message. The text shown on the chip is exactly what gets sent — what you see is what you get.
-SUGGESTED_VALUES:
+**SUGGESTED_VALUES:**
 ["Add some sample rows", "Import a CSV", "Research and populate data"]
 
 Good times to suggest:
@@ -1106,7 +1107,7 @@ NEVER include suggestions when your response contains a SCHEMA_PROPOSAL or DATA_
 
 SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
 To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
-SUGGESTED_ACTIONS:
+**SUGGESTED_ACTIONS:**
 [{"label": "Button Text", "action": "action_from_list", "handler": "client"}]"""
 
     async def _build_help_section(self, user_role: str) -> Optional[str]:

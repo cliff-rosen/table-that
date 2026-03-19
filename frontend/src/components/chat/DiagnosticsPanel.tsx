@@ -430,24 +430,6 @@ function MetricsTab({ diagnostics, onFullscreen }: {
                 </div>
             )}
 
-            {/* Final Text */}
-            <div>
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Final Text ({diagnostics.final_text?.length || 0} chars)
-                    </h4>
-                    <button
-                        onClick={() => onFullscreen({ type: 'raw', title: 'Final Text', content: diagnostics.final_text || '' })}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        title="View fullscreen"
-                    >
-                        <ArrowsPointingOutIcon className="h-4 w-4" />
-                    </button>
-                </div>
-                <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-64 overflow-y-auto resize-y min-h-[3rem]">
-                    {diagnostics.final_text}
-                </pre>
-            </div>
         </div>
     );
 }

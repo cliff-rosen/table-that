@@ -129,6 +129,7 @@ export interface AgentIteration {
 
 export interface FinalResponse {
     message: string;
+    raw_response?: string;
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;

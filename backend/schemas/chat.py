@@ -156,6 +156,7 @@ class AgentIteration(BaseModel):
 class FinalResponse(BaseModel):
     """What was sent to the frontend in ChatResponsePayload (mirrors ChatResponsePayload minus diagnostics)"""
     message: str
+    raw_response: Optional[str] = None
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
     custom_payload: Optional[CustomPayload] = None
