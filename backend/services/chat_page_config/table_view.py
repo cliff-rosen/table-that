@@ -156,6 +156,8 @@ Use DATA_PROPOSAL for ALL data changes: adding rows, updating cells, deleting ro
 - After emitting: Briefly describe what's proposed, then tell the user the changes are highlighted in the table to the right. They can uncheck rows they don't want and click **Accept** or **Dismiss**.
 
 **Use enrich_column for ANY multi-row enrichment:**
+enrich_column fills in a column by researching each row individually, using that row's existing data as context. The question template MUST reference at least one existing column via {Column Name} placeholders so each row gets a row-specific query. NEVER use enrich_column to generate new rows or to replace a column's primary data with unrelated content. To add new rows, research with search_web/research_web first, then emit a DATA_PROPOSAL with add operations.
+
 When the user asks to look up, research, find, or compute information for multiple rows, use enrich_column with the appropriate strategy:
 - **lookup**: Simple factual lookups where there IS a definitive answer — "Find the founding year for each company", "What is the headquarters city for each company?"
   - params: {question: "What year was {Company} founded?"}
