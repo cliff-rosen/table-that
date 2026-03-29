@@ -119,7 +119,7 @@ def _extract_custom_payload(
         if match:
             marker_pos = match.start()
             after_marker_raw = message[match.end() :]
-            after_marker = after_marker_raw.strip()
+            after_marker = after_marker_raw.lstrip().lstrip("*").lstrip()
             json_content = _extract_json_object(after_marker)
             if json_content:
                 parsed = config.parser(json_content)
