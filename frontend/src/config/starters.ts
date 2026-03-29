@@ -70,8 +70,8 @@ export const STARTERS: Starter[] = [
     category: 'Travel planning',
     icon: GlobeAltIcon,
     description: 'Plan trips with structured research',
-    example: 'Plan a 10-day trip to Japan — what do I need to research and decide?',
+    example: 'Plan a 10-day trip to Japan — where should I go? What should I see?',
     prompt:
-      'Plan a 10-day trip to Japan — what do I need to research and decide? Build me a table of decisions with options, costs, and priorities. Start simple — I can add more columns later.',
+      'Plan a 10-day trip to Japan — where should I go? What should I see? Build me a table of destinations with highlights, costs, and priorities. Start simple — I can add more columns later.',
   },
 ];
