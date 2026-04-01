@@ -105,7 +105,10 @@
       "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets --help)",
       "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets spreadsheets --help)",
       "Bash(SSID=\"190DIHpoL-hys45UEKcoC-Sp2f9s6rbG3itgS4NocdBk\")",
-      "Bash(__NEW_LINE_e731bd5e5aa5e55e__ GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets spreadsheets batchUpdate --params \"{\"\"spreadsheetId\"\":\"\"$SSID\"\"}\" --json '{\"\"requests\"\":[{\"\"updateSheetProperties\"\":{\"\"properties\"\":{\"\"sheetId\"\":2,\"\"title\"\":\"\"TableThat\"\"},\"\"fields\"\":\"\"title\"\"}}]}')"
+      "Bash(__NEW_LINE_e731bd5e5aa5e55e__ GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws sheets spreadsheets batchUpdate --params \"{\"\"spreadsheetId\"\":\"\"$SSID\"\"}\" --json '{\"\"requests\"\":[{\"\"updateSheetProperties\"\":{\"\"properties\"\":{\"\"sheetId\"\":2,\"\"title\"\":\"\"TableThat\"\"},\"\"fields\"\":\"\"title\"\"}}]}')",
+      "Bash(gh api:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [],
     "ask": [],
