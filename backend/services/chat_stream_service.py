@@ -64,8 +64,9 @@ logger = logging.getLogger(__name__)
 CHAT_MODEL_FALLBACK = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 8000
 DEFAULT_MAX_TOOL_ITERATIONS = 5  # Configurable max iterations for agent loop, can be adjusted based on needs and model capabilities.
-DEFAULT_GUEST_TURN_LIMIT = 8  # Fallback; actual value loaded from DB via ChatService.get_guest_turn_limit()
-# Context window for the chat model. Warning fires at 70% usage.
+DEFAULT_GUEST_TURN_LIMIT = (
+    8  # Fallback; actual value loaded from DB via ChatService.get_guest_turn_limit()
+)
 CONTEXT_WINDOW_TOKENS = 200_000
 CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
 
@@ -76,6 +77,7 @@ class ResolvedConversation:
 
     Produced by _resolve_chat, consumed by _commit_turn and prompt building.
     """
+
     chat_id: Optional[int]
     scope: Optional[str]
     db_messages: List = field(default_factory=list)
@@ -90,6 +92,7 @@ class PendingTurn:
       user_message — what the user sent (the input extending it)
       response     — assistant response being assembled
     """
+
     history: ResolvedConversation
     user_message: Any  # ChatRequest
     response: "ResponseBuilder"
@@ -228,8 +231,16 @@ class ResponseBuilder:
             "custom_payload": custom_payload,
             "payloads": payloads_with_ids or None,
             "trace": self.trace.model_dump() if self.trace else None,
-            "suggested_values": [sv.model_dump() for sv in suggested_values] if suggested_values else None,
-            "suggested_actions": [sa.model_dump() for sa in suggested_actions] if suggested_actions else None,
+            "suggested_values": (
+                [sv.model_dump() for sv in suggested_values]
+                if suggested_values
+                else None
+            ),
+            "suggested_actions": (
+                [sa.model_dump() for sa in suggested_actions]
+                if suggested_actions
+                else None
+            ),
         }
         extras = {k: v for k, v in extras.items() if v is not None}
         self._extras = extras if extras else None
@@ -237,7 +248,9 @@ class ResponseBuilder:
 
     # ── Package for delivery (called after commit) ───────────────
 
-    def to_complete_event(self, conversation_id: int, message_id: int | None = None) -> CompleteEvent:
+    def to_complete_event(
+        self, conversation_id: int, message_id: int | None = None
+    ) -> CompleteEvent:
         """Build the CompleteEvent for SSE delivery.
 
         Must be called after finalize().  Takes conversation_id and message_id
@@ -335,14 +348,18 @@ class ResponseBuilder:
                     combined_log.extend(data.get("research_log", []))
                     if data.get("reasoning"):
                         reasoning_parts.append(data["reasoning"])
-                merged.append({
-                    "type": "data_proposal",
-                    "data": {
-                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
-                        "operations": combined_ops,
-                        "research_log": combined_log if combined_log else None,
-                    },
-                })
+                merged.append(
+                    {
+                        "type": "data_proposal",
+                        "data": {
+                            "reasoning": (
+                                " | ".join(reasoning_parts) if reasoning_parts else None
+                            ),
+                            "operations": combined_ops,
+                            "research_log": combined_log if combined_log else None,
+                        },
+                    }
+                )
             elif t == "schema_proposal":
                 combined_ops = []
                 reasoning_parts = []
@@ -351,13 +368,17 @@ class ResponseBuilder:
                     combined_ops.extend(data.get("operations", []))
                     if data.get("reasoning"):
                         reasoning_parts.append(data["reasoning"])
-                merged.append({
-                    "type": "schema_proposal",
-                    "data": {
-                        "reasoning": " | ".join(reasoning_parts) if reasoning_parts else None,
-                        "operations": combined_ops,
-                    },
-                })
+                merged.append(
+                    {
+                        "type": "schema_proposal",
+                        "data": {
+                            "reasoning": (
+                                " | ".join(reasoning_parts) if reasoning_parts else None
+                            ),
+                            "operations": combined_ops,
+                        },
+                    }
+                )
             else:
                 merged.append(items[-1])
 
@@ -374,12 +395,14 @@ class ResponseBuilder:
             payload_data = payload.get("data", {})
             payload_id = str(uuid.uuid4())[:8]
             summary = summarize_payload(payload_type, payload_data)
-            processed.append({
-                "payload_id": payload_id,
-                "type": payload_type,
-                "data": payload_data,
-                "summary": summary,
-            })
+            processed.append(
+                {
+                    "payload_id": payload_id,
+                    "type": payload_type,
+                    "data": payload_data,
+                    "summary": summary,
+                }
+            )
         return processed
 
 
@@ -550,19 +573,19 @@ class ChatStreamService:
                 # async generator cleanup limitation).  Fire-and-forget
                 # because we may be inside a cancelled anyio scope.
                 try:
-                    asyncio.get_running_loop().create_task(
-                        service.commit_if_needed()
+                    asyncio.get_running_loop().create_task(service.commit_if_needed())
+                    logger.info(
+                        "SSE generator finally: scheduled commit_if_needed task"
                     )
-                    logger.info("SSE generator finally: scheduled commit_if_needed task")
                 except Exception:
-                    logger.warning(
-                        "Failed to schedule commit task", exc_info=True
-                    )
+                    logger.warning("Failed to schedule commit task", exc_info=True)
 
         return _sse_generator()
 
     async def stream_chat_message(
-        self, request, user_role: str = "member",
+        self,
+        request,
+        user_role: str = "member",
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncGenerator[str, None]:
         """
@@ -585,9 +608,7 @@ class ChatStreamService:
             cancellation_token = CancellationToken()
 
         # ── 1. Resolve conversation (read-only — no DB writes) ──────────
-        history = await self._resolve_chat(
-            request.conversation_id, request.context
-        )
+        history = await self._resolve_chat(request.conversation_id, request.context)
         logger.info(
             f"Stream start: user={self.user_id} chat_id={history.chat_id} "
             f"scope={history.scope} message={request.message[:80]!r}"
@@ -685,11 +706,11 @@ class ChatStreamService:
                         )
                         chat_id, _ = await self._commit_turn()
                         # Emit chat_id so frontend can sync later
-                        yield ChatIdEvent(
-                            conversation_id=chat_id
-                        ).model_dump_json()
+                        yield ChatIdEvent(conversation_id=chat_id).model_dump_json()
                     else:
-                        logger.info("Cooperative cancel with no content — nothing written")
+                        logger.info(
+                            "Cooperative cancel with no content — nothing written"
+                        )
                     return
 
                 elif isinstance(event, AgentError):
@@ -748,7 +769,9 @@ class ChatStreamService:
                 raise ValueError(
                     f"Conversation {conversation_id} not found for user {self.user_id}"
                 )
-            db_messages = await self.chat_service.get_messages(conversation_id, self.user_id)
+            db_messages = await self.chat_service.get_messages(
+                conversation_id, self.user_id
+            )
             return ResolvedConversation(
                 chat_id=conversation_id, scope=scope, db_messages=db_messages
             )
@@ -1257,6 +1280,7 @@ To offer clickable buttons that trigger UI actions. You may ONLY use actions exp
         Delegates to the standalone parse_llm_response function.
         """
         from services._response_parser import parse_llm_response
+
         return parse_llm_response(response_text, page)
 
 
