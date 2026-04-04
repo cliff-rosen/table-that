@@ -550,8 +550,8 @@ export default function ChatTray({
                             </div>
                         )}
 
-                        {/* Thinking indicator - only when no streaming text and no active tool */}
-                        {isLoading && !streamingText && !activeToolProgress && (
+                        {/* Thinking indicator - shows when waiting on model (no active text stream or tool) */}
+                        {isLoading && !activeToolProgress && statusText && (
                             <div className="flex justify-start">
                                 <div className="bg-white dark:bg-gray-800 rounded-lg px-4 py-2 shadow">
                                     <div className="flex items-center gap-2">

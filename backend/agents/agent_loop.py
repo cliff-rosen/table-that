@@ -341,8 +341,6 @@ async def run_agent_loop(
     tool_call_history: List[Dict[str, Any]] = []
     collected_payloads: List[Dict[str, Any]] = []
 
-    yield AgentThinking(message="Starting...")
-
     try:
         for iteration in range(1, max_iterations + 1):
             if cancellation_token.is_cancelled:
@@ -354,6 +352,7 @@ async def run_agent_loop(
                 )
                 return
 
+            yield AgentThinking(message="Thinking..." if iteration > 1 else "Starting...")
             logger.debug(f"Agent loop iteration {iteration}")
 
             # Snapshot messages before API call
