@@ -65,16 +65,19 @@ interface ChatProviderProps {
 }
 
 export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps) {
+    const [chatId, setChatIdState] = useState<number | null>(null);
+    const chatIdRef = useRef<number | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [context, setContextState] = useState<Record<string, unknown>>({});
     const contextRef = useRef<Record<string, unknown>>({});
+
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
+    
     const [streamingText, setStreamingText] = useState('');
     const [statusText, setStatusText] = useState<string | null>(null);
-    const [chatId, setChatIdState] = useState<number | null>(null);
-    const chatIdRef = useRef<number | null>(null);
-    const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
+
     const [guestLimitReached, setGuestLimitReached] = useState(false);
     const [pendingProposal, setPendingProposal] = useState<PendingProposal | null>(null);
     const pendingProposalRef = useRef<PendingProposal | null>(null);
