@@ -88,13 +88,13 @@ class PendingTurn:
     """In-flight turn state for the write-late pattern.
 
     Three parts of a turn:
-      history      — prior conversation state from DB
-      user_message — what the user sent (the input extending it)
-      response     — assistant response being assembled
+      history  — prior conversation state from DB
+      request  — the ChatRequest that initiated this turn
+      response — assistant response being assembled
     """
 
     history: ResolvedConversation
-    user_message: Any  # ChatRequest
+    request: Any  # ChatRequest
     response: "ResponseBuilder"
     committed: bool = False
     commit_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -427,7 +427,7 @@ class ChatStreamService:
         """Atomically write the pending turn to the database.
 
         Reads everything from self._turn: history (conversation state),
-        user_message (what to save as the user message), and response
+        request (the ChatRequest to save as the user turn), and response
         (.content and .extras for the assistant message).
 
         Uses a fresh DB session so writes survive cancelled request scopes.
@@ -453,7 +453,7 @@ class ChatStreamService:
                 if not chat_id:
                     if not turn.history.scope:
                         logger.warning(
-                            f"No scope derived from context: {turn.user_message.context}"
+                            f"No scope derived from context: {turn.request.context}"
                         )
                     chat = await chat_service.create_chat(
                         self.user_id, app="table_that", scope=turn.history.scope
@@ -461,7 +461,7 @@ class ChatStreamService:
                     chat_id = chat.id
                 else:
                     # Migrate scope if context indicates a different entity
-                    table_id = turn.user_message.context.get("table_id")
+                    table_id = turn.request.context.get("table_id")
                     if turn.history.scope and table_id:
                         chat = await chat_service.get_chat(chat_id, self.user_id)
                         if chat and chat.scope != turn.history.scope:
@@ -473,15 +473,15 @@ class ChatStreamService:
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="user",
-                    content=turn.user_message.message,
-                    context=turn.user_message.context,
+                    content=turn.request.message,
+                    context=turn.request.context,
                 )
                 assistant_msg = await chat_service.add_message(
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="assistant",
                     content=turn.response.content,
-                    context=turn.user_message.context,
+                    context=turn.request.context,
                     extras=turn.response.extras,
                 )
 
@@ -616,17 +616,17 @@ class ChatStreamService:
 
         # ── 2. Set up pending turn (write-late state) ────────────────────
         response = ResponseBuilder()
-        turn = PendingTurn(history=history, user_message=request, response=response)
+        turn = PendingTurn(history=history, request=request, response=response)
         self._turn = turn
 
         try:
             guest_limit_hit = await self._check_guest_limit()
 
-            # Build enriched context (no mutation of turn.user_message.context)
+            # Build enriched context (no mutation of turn.request.context)
             context = {
-                **turn.user_message.context,
+                **turn.request.context,
                 "user_role": user_role,
-                "conversation_id": turn.user_message.conversation_id,
+                "conversation_id": turn.request.conversation_id,
             }
             page = PageLocation.from_context(context)
 
@@ -634,7 +634,7 @@ class ChatStreamService:
                 context, page, db_messages=turn.history.db_messages or None
             )
             messages = self._build_messages_from_history(
-                turn.user_message.message, turn.history.db_messages or None
+                turn.request.message, turn.history.db_messages or None
             )
             tools_by_name = get_tools_for_page_dict(page, user_role=user_role)
 
