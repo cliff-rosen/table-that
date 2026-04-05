@@ -4,60 +4,16 @@ Chat domain types for user-facing chat feature
 Organized to mirror frontend types/chat.ts for easy cross-reference.
 
 This module contains:
-- Core types: Conversation, Message, MessageRole (matching models.py)
 - Stream event types for SSE streaming
 - Interaction types: SuggestedValue, SuggestedAction, etc.
+- Agent trace types for execution tracing
 
 For LLM infrastructure types, see schemas/llm.py
+For ORM models (Conversation, Message), see models.py
 """
 
 from pydantic import BaseModel
 from typing import List, Optional, Any, Literal, Union
-from datetime import datetime
-from enum import Enum
-
-
-# ============================================================================
-# Core Types (matching models.py)
-# ============================================================================
-
-class MessageRole(str, Enum):
-    """Role of a message sender in a conversation"""
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-
-
-class Message(BaseModel):
-    """A message in a conversation"""
-    id: int
-    conversation_id: int
-    role: MessageRole
-    content: str
-    context: Optional[dict] = None
-    extras: Optional[dict] = None  # tool_history, custom_payload, diagnostics, suggested_values, suggested_actions
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class Conversation(BaseModel):
-    """A chat conversation"""
-    id: int
-    user_id: int
-    app: str = "kh"  # "kh", "tablizer", "trialscout"
-    title: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class ConversationWithMessages(Conversation):
-    """A conversation with its messages"""
-    messages: List[Message]
 
 
 # ============================================================================
@@ -210,10 +166,6 @@ class AgentTrace(BaseModel):
     peak_input_tokens: Optional[int] = None
 
 
-# Backwards compatibility alias
-ChatDiagnostics = AgentTrace
-
-
 class ToolHistoryEntry(BaseModel):
     """Record of a tool call made during the response (simplified view for UI)"""
     tool_name: str
@@ -231,7 +183,7 @@ class ChatResponsePayload(BaseModel):
     conversation_id: Optional[int] = None
     message_id: Optional[int] = None
     warning: Optional[str] = None
-    diagnostics: Optional[ChatDiagnostics] = None
+    diagnostics: Optional[AgentTrace] = None
 
 
 # ============================================================================
@@ -287,12 +239,6 @@ class ErrorEvent(BaseModel):
     message: str
 
 
-class CancelledEvent(BaseModel):
-    """Request was cancelled"""
-    type: Literal["cancelled"] = "cancelled"
-    conversation_id: Optional[int] = None
-
-
 class ChatIdEvent(BaseModel):
     """Emitted early so the frontend knows the conversation_id even on cancel"""
     type: Literal["chat_id"] = "chat_id"
@@ -314,19 +260,6 @@ StreamEvent = Union[
     ToolCompleteEvent,
     CompleteEvent,
     ErrorEvent,
-    CancelledEvent,
     ChatIdEvent,
     GuestLimitEvent,
 ]
-
-
-# ============================================================================
-# Backwards Compatibility Aliases
-# ============================================================================
-
-# Alias for code still using GeneralChatMessage
-class GeneralChatMessage(BaseModel):
-    """Simple chat message for general chat API (backwards compatibility)"""
-    role: Literal["user", "assistant"]
-    content: str
-    timestamp: str

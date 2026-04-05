@@ -46,8 +46,6 @@ export const chatApi = {
         return response.data;
     },
 
-
-
     /**
      * Migrate a conversation's scope to a specific table.
      * Called after creating a table from tables_list so the conversation

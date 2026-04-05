@@ -25,7 +25,6 @@ import ProposalActionBar from '../components/table/ProposalActionBar';
 import SchemaProposalStrip from '../components/table/SchemaProposalStrip';
 
 
-
 // =============================================================================
 // TableViewPage (Main)
 // =============================================================================

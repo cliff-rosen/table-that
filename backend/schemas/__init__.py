@@ -16,15 +16,6 @@ from .user import (
     OrgMember,
 )
 
-# Chat schemas (for user-facing chat)
-from .chat import (
-    MessageRole,
-    Message,
-    Conversation,
-    ConversationWithMessages,
-    StreamEvent,
-)
-
 # Legacy alias - UserResponse maps to User
 UserResponse = User
 
@@ -39,11 +30,4 @@ __all__ = [
     'TokenData',
     'UserList',
     'OrgMember',
-
-    # Chat schemas (for user-facing chat)
-    'MessageRole',
-    'Message',
-    'Conversation',
-    'ConversationWithMessages',
-    'StreamEvent',
 ]

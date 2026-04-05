@@ -10,15 +10,12 @@ from fastapi import APIRouter, Depends
 from starlette.requests import Request
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional, Literal, Callable
+from typing import Dict, Any, Optional, Literal, Callable
 import logging
 
 from models import User
 from routers.auth import get_current_user
-from schemas.chat import (
-    GeneralChatMessage,
-    ActionMetadata,
-)
+from schemas.chat import ActionMetadata
 from services.chat_stream_service import ChatStreamService, get_chat_stream_service_factory
 from agents.agent_loop import CancellationToken
 
@@ -38,8 +35,6 @@ class ChatRequest(BaseModel):
     interaction_type: Literal["text_input", "value_selected", "action_executed"]
     action_metadata: Optional[ActionMetadata] = None
     conversation_id: Optional[int] = None  # For persistence - if None, creates new conversation
-    # conversation_history is deprecated - history is now loaded from database
-    conversation_history: Optional[List[GeneralChatMessage]] = None
 
 
 @router.post("/stream",
