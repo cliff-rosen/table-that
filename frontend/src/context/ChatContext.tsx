@@ -195,7 +195,7 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         const assistantMessage: ChatMessage = {
                             id: responsePayload.message_id,
                             role: 'assistant',
-                            content: responsePayload.message,
+                            content: responsePayload.message_text,
                             timestamp: new Date().toISOString(),
                             suggested_values: responsePayload.suggested_values,
                             suggested_actions: responsePayload.suggested_actions,
@@ -257,9 +257,6 @@ export function ChatProvider({ children, app = 'table_that' }: ChatProviderProps
                         setStatusText(null);
                         break;
 
-                    case 'cancelled':
-                        setStatusText('Cancelled');
-                        break;
                 }
             }
 

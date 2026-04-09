@@ -18,7 +18,6 @@ import asyncio
 import os
 import logging
 import re
-import uuid
 from schemas.chat import (
     ChatResponsePayload,
     AgentTrace,
@@ -37,7 +36,6 @@ from schemas.chat import (
     ChatIdEvent,
     GuestLimitEvent,
 )
-from schemas.payloads import summarize_payload
 from services.chat_page_config import (
     PageLocation,
     get_context_builder,
@@ -103,42 +101,35 @@ class PendingTurn:
 class ResponseBuilder:
     """Accumulates streaming events and builds the final response.
 
-    Used by stream_chat_message to collect data as it streams from the agent
-    loop, then build the final response for both SSE delivery and DB
-    persistence.  On cancel, provides raw collected content for partial
-    turn persistence.
+    During streaming: collects text deltas, tool markers, and agent results.
+    On normal completion: prepare() sets .message_text/.extras for DB persistence,
+    then complete_event() builds the SSE event.
+    On cancel/error: .message_text falls back to raw text, .extras stays None.
     """
 
     def __init__(self):
-        # ── Raw accumulation (set during streaming) ──
-        self.collected_text: str = ""
+        self.raw_text: str = ""
         self.tool_call_history: list = []
         self.collected_payloads: list = []
         self.trace: Optional[AgentTrace] = None
         self.tool_call_index: int = 0
-
-        # ── DB identity (set by _commit_turn) ──
         self.message_id: Optional[int] = None
 
-        # ── Finalized state (set by finalize()) ──
-        self._finalized = False
-        self._parsed_message: Optional[str] = None
+        # Set by prepare(); cancel path leaves these as-is
+        self._message_text: Optional[str] = None
         self._extras: Optional[Dict[str, Any]] = None
-        self._suggested_values = None
-        self._suggested_actions = None
-        self._custom_payload_obj = None
-        self._tool_history_entries = None
+        # Raw dicts from prepare, converted to Pydantic in complete_event
+        self._parsed: Optional["ParsedResponse"] = None
+        self._merged_payload: Optional[Dict[str, Any]] = None
 
-    # ── Accumulation methods (called during streaming) ──────────────
+    # ── Accumulation (called during streaming) ─────────────────────
 
     def add_text(self, text: str) -> None:
-        """Append a text delta."""
-        self.collected_text += text
+        self.raw_text += text
 
     def add_tool_marker(self) -> str:
-        """Register a tool completion and return the marker string."""
         marker = f"[[tool:{self.tool_call_index}]]"
-        self.collected_text += marker
+        self.raw_text += marker
         self.tool_call_index += 1
         return marker
 
@@ -149,119 +140,76 @@ class ResponseBuilder:
         self.trace = event.trace
 
     def set_trace(self, trace: Optional[AgentTrace]) -> None:
-        """Capture trace (e.g. from AgentError)."""
         self.trace = trace
 
-    # ── Finalize (called on normal completion) ─────────────────────
+    # ── Normal completion ────────���────────────────────────────────
 
-    def finalize(self, parsed: "ParsedResponse") -> None:
-        """Process raw accumulated data into final form for persistence.
+    def prepare(self, parsed: "ParsedResponse") -> None:
+        """Merge payloads and set .message_text/.extras for DB persistence.
 
-        After this call, .content returns the parsed message and .extras
-        returns the full extras dict.  On cancel paths this is never
-        called, so .content returns raw text and .extras returns None.
+        Must be called before _commit_turn on the normal completion path.
         """
-        # ── Merge payloads (tool-emitted take priority over text-parsed) ──
-        all_payloads = list(self.collected_payloads)
-        tool_payload_types = {p.get("type") for p in self.collected_payloads if p}
+        from services._response_parser import merge_payloads
 
-        if parsed.custom_payload:
-            text_payload_type = parsed.custom_payload.get("type")
-            if text_payload_type in tool_payload_types:
-                logger.info(
-                    f"SSE: dropping text-parsed {text_payload_type} payload — "
-                    f"tool already emitted one"
-                )
-            else:
-                all_payloads.append(parsed.custom_payload)
+        payloads = merge_payloads(self.collected_payloads, parsed.custom_payload)
+        self._merged_payload = payloads[-1] if payloads else None
+        self._parsed = parsed
+        self._message_text = parsed.message_text
 
         logger.info(
-            f"SSE complete: collected_payloads={len(self.collected_payloads)}, "
-            f"all_payloads={len(all_payloads)}, "
-            f"types={[p.get('type') for p in all_payloads]}"
+            f"SSE complete: tool_payloads={len(self.collected_payloads)}, "
+            f"merged={len(payloads)}, "
+            f"types={[p.get('type') for p in payloads]}"
         )
-
-        all_payloads = self._merge_same_type_payloads(all_payloads)
-        payloads_with_ids = self._process_payloads(all_payloads)
-        custom_payload = payloads_with_ids[-1] if payloads_with_ids else None
-
-        # ── Suggested values / actions ──
-        suggested_values = None
-        if parsed.suggested_values:
-            suggested_values = [
-                SuggestedValue(text=sv) if isinstance(sv, str) else SuggestedValue(**sv)
-                for sv in parsed.suggested_values
-            ]
-
-        suggested_actions = None
-        if parsed.suggested_actions:
-            suggested_actions = [
-                SuggestedAction(**sa) for sa in parsed.suggested_actions
-            ]
-
-        custom_payload_obj = CustomPayload(**custom_payload) if custom_payload else None
-
-        # ── Tool history ──
-        tool_history_entries = None
-        if self.tool_call_history:
-            tool_history_entries = [
-                ToolHistoryEntry(**th) for th in self.tool_call_history
-            ]
-
-        # ── Attach final response to trace ──
-        if self.trace:
-            self.trace.final_response = FinalResponse(
-                message=parsed.message,
-                raw_response=self.collected_text,
-                suggested_values=suggested_values,
-                suggested_actions=suggested_actions,
-                custom_payload=custom_payload_obj,
-                tool_history=tool_history_entries,
-            )
-
-        # ── Store finalized data ──
-        self._parsed_message = parsed.message
-        self._suggested_values = suggested_values
-        self._suggested_actions = suggested_actions
-        self._custom_payload_obj = custom_payload_obj
-        self._tool_history_entries = tool_history_entries
 
         extras = {
             "tool_history": self.tool_call_history or None,
-            "custom_payload": custom_payload,
-            "payloads": payloads_with_ids or None,
+            "custom_payload": self._merged_payload,
+            "payloads": payloads or None,
             "trace": self.trace.model_dump() if self.trace else None,
-            "suggested_values": (
-                [sv.model_dump() for sv in suggested_values]
-                if suggested_values
-                else None
-            ),
-            "suggested_actions": (
-                [sa.model_dump() for sa in suggested_actions]
-                if suggested_actions
-                else None
-            ),
+            "suggested_values": parsed.suggested_values,
+            "suggested_actions": parsed.suggested_actions,
         }
         extras = {k: v for k, v in extras.items() if v is not None}
         self._extras = extras if extras else None
-        self._finalized = True
 
-    # ── Package for delivery (called after commit) ───────────────
-
-    def to_complete_event(
-        self, conversation_id: int, message_id: int | None = None
+    def complete_event(
+        self, conversation_id: int, message_id: int | None = None,
     ) -> CompleteEvent:
-        """Build the CompleteEvent for SSE delivery.
+        """Build the CompleteEvent for SSE delivery. Call after prepare + commit."""
+        parsed = self._parsed
+        message_text = self._message_text or ""
 
-        Must be called after finalize().  Takes conversation_id and message_id
-        because those are only known after _commit_turn.
-        """
-        if not self._finalized:
-            raise RuntimeError("to_complete_event called before finalize()")
+        # Convert raw dicts → Pydantic objects for the SSE payload
+        suggested_values = (
+            [SuggestedValue(text=sv) if isinstance(sv, str) else SuggestedValue(**sv)
+             for sv in parsed.suggested_values]
+            if parsed and parsed.suggested_values else None
+        )
+        suggested_actions = (
+            [SuggestedAction(**sa) for sa in parsed.suggested_actions]
+            if parsed and parsed.suggested_actions else None
+        )
+        custom_payload_obj = (
+            CustomPayload(**self._merged_payload)
+            if self._merged_payload else None
+        )
+        tool_history = (
+            [ToolHistoryEntry(**th) for th in self.tool_call_history]
+            if self.tool_call_history else None
+        )
 
-        # Update trace with conversation_id now that we have it
-        if self.trace and self.trace.final_response:
-            self.trace.final_response.conversation_id = conversation_id
+        # Attach snapshot to trace for diagnostics panel
+        if self.trace:
+            self.trace.final_response = FinalResponse(
+                message_text=message_text,
+                raw_text=self.raw_text,
+                suggested_values=suggested_values,
+                suggested_actions=suggested_actions,
+                custom_payload=custom_payload_obj,
+                tool_history=tool_history,
+                conversation_id=conversation_id,
+            )
 
         # Context window warning
         context_warning = None
@@ -276,134 +224,34 @@ class ResponseBuilder:
                 f"Consider starting a new conversation to ensure the best response quality."
             )
 
-        payload = ChatResponsePayload(
-            message=self._parsed_message,
-            suggested_values=self._suggested_values,
-            suggested_actions=self._suggested_actions,
-            custom_payload=self._custom_payload_obj,
+        return CompleteEvent(payload=ChatResponsePayload(
+            message_text=message_text,
+            suggested_values=suggested_values,
+            suggested_actions=suggested_actions,
+            custom_payload=custom_payload_obj,
             tool_history=self.tool_call_history or None,
             conversation_id=conversation_id,
             message_id=message_id,
             warning=context_warning,
             diagnostics=self.trace,
-        )
-        return CompleteEvent(payload=payload)
+        ))
 
-    # ── Content access (for persistence) ──────────────────────────────
+    # ── Content access (for DB persistence) ────────────────────────
 
     @property
     def has_content(self) -> bool:
-        """True if the builder has content worth persisting."""
-        return bool(self.collected_text.strip()) or bool(self.tool_call_history)
+        return bool(self.raw_text.strip()) or bool(self.tool_call_history)
 
     @property
-    def content(self) -> str:
-        """Message content for DB persistence.
-
-        After finalize(): the parsed message (payloads/markers stripped).
-        Before finalize() (cancel path): raw collected text.
-        """
-        if self._finalized and self._parsed_message is not None:
-            return self._parsed_message
-        return self.collected_text.strip()
+    def message_text(self) -> str:
+        """After prepare: parsed message. Cancel path: raw text."""
+        if self._message_text is not None:
+            return self._message_text
+        return self.raw_text.strip()
 
     @property
     def extras(self) -> Optional[Dict[str, Any]]:
-        """Extras dict for DB persistence, or None if not built."""
         return self._extras
-
-    # ── Internal helpers ────────────────────────────────────────────
-
-    @staticmethod
-    def _merge_same_type_payloads(
-        payloads: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Merge multiple payloads of the same type into one."""
-        from collections import defaultdict
-
-        groups: dict[str, list[Dict[str, Any]]] = defaultdict(list)
-        order: list[str] = []
-        for p in payloads:
-            if not p:
-                continue
-            t = p.get("type", "")
-            if t not in groups:
-                order.append(t)
-            groups[t].append(p)
-
-        merged: list[Dict[str, Any]] = []
-        for t in order:
-            items = groups[t]
-            if len(items) == 1:
-                merged.append(items[0])
-                continue
-
-            if t == "data_proposal":
-                combined_ops: list = []
-                combined_log: list = []
-                reasoning_parts: list[str] = []
-                for item in items:
-                    data = item.get("data", {})
-                    combined_ops.extend(data.get("operations", []))
-                    combined_log.extend(data.get("research_log", []))
-                    if data.get("reasoning"):
-                        reasoning_parts.append(data["reasoning"])
-                merged.append(
-                    {
-                        "type": "data_proposal",
-                        "data": {
-                            "reasoning": (
-                                " | ".join(reasoning_parts) if reasoning_parts else None
-                            ),
-                            "operations": combined_ops,
-                            "research_log": combined_log if combined_log else None,
-                        },
-                    }
-                )
-            elif t == "schema_proposal":
-                combined_ops = []
-                reasoning_parts = []
-                for item in items:
-                    data = item.get("data", {})
-                    combined_ops.extend(data.get("operations", []))
-                    if data.get("reasoning"):
-                        reasoning_parts.append(data["reasoning"])
-                merged.append(
-                    {
-                        "type": "schema_proposal",
-                        "data": {
-                            "reasoning": (
-                                " | ".join(reasoning_parts) if reasoning_parts else None
-                            ),
-                            "operations": combined_ops,
-                        },
-                    }
-                )
-            else:
-                merged.append(items[-1])
-
-        return merged
-
-    @staticmethod
-    def _process_payloads(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Assign unique IDs and summaries to payloads."""
-        processed = []
-        for payload in payloads:
-            if not payload:
-                continue
-            payload_type = payload.get("type", "unknown")
-            payload_data = payload.get("data", {})
-            payload_id = str(uuid.uuid4())[:8]
-            summary = summarize_payload(payload_type, payload_data)
-            processed.append(
-                {
-                    "payload_id": payload_id,
-                    "type": payload_type,
-                    "data": payload_data,
-                    "summary": summary,
-                }
-            )
-        return processed
 
 
 class ChatStreamService:
@@ -428,7 +276,7 @@ class ChatStreamService:
 
         Reads everything from self._turn: history (conversation state),
         request (the ChatRequest to save as the user turn), and response
-        (.content and .extras for the assistant message).
+        (.message_text and .extras for the assistant message).
 
         Uses a fresh DB session so writes survive cancelled request scopes.
         Idempotent via turn.commit_lock + turn.committed.
@@ -480,7 +328,7 @@ class ChatStreamService:
                     chat_id=chat_id,
                     user_id=self.user_id,
                     role="assistant",
-                    content=turn.response.content,
+                    content=turn.response.message_text,
                     context=turn.request.context,
                     extras=turn.response.extras,
                 )
@@ -506,12 +354,12 @@ class ChatStreamService:
         if not turn.response.has_content:
             logger.info(
                 f"commit_if_needed: no content to commit "
-                f"(text={len(turn.response.collected_text)} chars)"
+                f"(text={len(turn.response.raw_text)} chars)"
             )
             return
         logger.info(
             f"commit_if_needed: committing turn "
-            f"(text={len(turn.response.collected_text)} chars)"
+            f"(text={len(turn.response.raw_text)} chars)"
         )
         try:
             await self._commit_turn()
@@ -638,9 +486,6 @@ class ChatStreamService:
             )
             tools_by_name = get_tools_for_page_dict(page, user_role=user_role)
 
-            # Send initial status
-            yield StatusEvent(message="Thinking...").model_dump_json()
-
             # Get configurable max iterations
             max_iterations = await self._get_max_tool_iterations()
 
@@ -701,7 +546,7 @@ class ChatStreamService:
                     if response.has_content:
                         logger.info(
                             f"Cooperative cancel with content: "
-                            f"text={len(response.collected_text)} chars, "
+                            f"text={len(response.raw_text)} chars, "
                             f"tools={len(response.tool_call_history)}"
                         )
                         chat_id, _ = await self._commit_turn()
@@ -721,15 +566,15 @@ class ChatStreamService:
                         await self._commit_turn()
                     return
 
-            # ── 4. Normal completion: finalize, commit, deliver ─────────
-            parsed = self._parse_llm_response(response.collected_text, page)
-            response.finalize(parsed)
+            # ── 4. Normal completion: prepare, commit, deliver ─────────
+            parsed = self._parse_llm_response(response.raw_text, page)
+            response.prepare(parsed)
             chat_id, msg_id = await self._commit_turn()
             logger.info(
                 f"Stream complete: chat_id={chat_id} "
-                f"text={len(response.collected_text)} chars"
+                f"text={len(response.raw_text)} chars"
             )
-            yield response.to_complete_event(chat_id, msg_id).model_dump_json()
+            yield response.complete_event(chat_id, msg_id).model_dump_json()
 
             if guest_limit_hit:
                 logger.info(
@@ -1274,7 +1119,7 @@ To offer clickable buttons that trigger UI actions. You may ONLY use actions exp
 
     def _parse_llm_response(
         self, response_text: str, page: PageLocation
-    ) -> Dict[str, Any]:
+    ) -> "ParsedResponse":
         """Parse LLM response to extract structured components.
 
         Delegates to the standalone parse_llm_response function.

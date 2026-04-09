@@ -13,9 +13,12 @@ All functions are stateless and have no dependency on ChatStreamService.
 import json
 import logging
 import re
+import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from schemas.payloads import summarize_payload
 from services.chat_page_config import PageLocation, get_all_payloads_for_page
 
 logger = logging.getLogger(__name__)
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParsedResponse:
     """Result of parsing structured markers from LLM response text."""
-    message: str
+    message_text: str
     suggested_values: Optional[List[Dict[str, Any]]] = None
     suggested_actions: Optional[List[Dict[str, Any]]] = None
     custom_payload: Optional[Dict[str, Any]] = None
@@ -34,22 +37,22 @@ def parse_llm_response(
     response_text: str, page: PageLocation
 ) -> ParsedResponse:
     """Parse LLM response to extract structured components."""
-    message = response_text.strip()
-    result = ParsedResponse(message=message)
+    text = response_text.strip()
+    result = ParsedResponse(message_text=text)
 
     # Parse SUGGESTED_VALUES marker
-    message, values = _extract_marker_array(message, "SUGGESTED_VALUES:")
+    text, values = _extract_marker_array(text, "SUGGESTED_VALUES:")
     result.suggested_values = values
 
     # Parse SUGGESTED_ACTIONS marker
-    message, actions = _extract_marker_array(message, "SUGGESTED_ACTIONS:")
+    text, actions = _extract_marker_array(text, "SUGGESTED_ACTIONS:")
     result.suggested_actions = actions
 
     # Parse custom payloads (page-specific structured responses)
-    message, payload = _extract_custom_payload(message, page)
+    text, payload = _extract_custom_payload(text, page)
     result.custom_payload = payload
 
-    result.message = message
+    result.message_text = text
     return result
 
 
@@ -189,3 +192,123 @@ def _extract_balanced(
                 return text[: i + 1]
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Payload processing utilities
+# ---------------------------------------------------------------------------
+
+
+def merge_payloads(
+    tool_payloads: List[Dict[str, Any]],
+    text_payload: Optional[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge tool-emitted and text-parsed payloads, dedup, and assign IDs.
+
+    Tool-emitted payloads take priority.  Same-type payloads are combined
+    (e.g. multiple data_proposal operations become one).  Each result gets
+    a unique payload_id and summary.
+    """
+    all_payloads = list(tool_payloads)
+
+    if text_payload:
+        tool_types = {p.get("type") for p in tool_payloads if p}
+        if text_payload.get("type") not in tool_types:
+            all_payloads.append(text_payload)
+        else:
+            logger.info(
+                f"Dropping text-parsed {text_payload.get('type')} payload — "
+                f"tool already emitted one"
+            )
+
+    merged = _merge_same_type(all_payloads)
+    return _assign_ids(merged)
+
+
+def _merge_same_type(
+    payloads: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge multiple payloads of the same type into one."""
+    groups: dict[str, list[Dict[str, Any]]] = defaultdict(list)
+    order: list[str] = []
+    for p in payloads:
+        if not p:
+            continue
+        t = p.get("type", "")
+        if t not in groups:
+            order.append(t)
+        groups[t].append(p)
+
+    merged: list[Dict[str, Any]] = []
+    for t in order:
+        items = groups[t]
+        if len(items) == 1:
+            merged.append(items[0])
+            continue
+
+        if t == "data_proposal":
+            combined_ops: list = []
+            combined_log: list = []
+            reasoning_parts: list[str] = []
+            for item in items:
+                data = item.get("data", {})
+                combined_ops.extend(data.get("operations", []))
+                combined_log.extend(data.get("research_log", []))
+                if data.get("reasoning"):
+                    reasoning_parts.append(data["reasoning"])
+            merged.append(
+                {
+                    "type": "data_proposal",
+                    "data": {
+                        "reasoning": (
+                            " | ".join(reasoning_parts) if reasoning_parts else None
+                        ),
+                        "operations": combined_ops,
+                        "research_log": combined_log if combined_log else None,
+                    },
+                }
+            )
+        elif t == "schema_proposal":
+            combined_ops = []
+            reasoning_parts = []
+            for item in items:
+                data = item.get("data", {})
+                combined_ops.extend(data.get("operations", []))
+                if data.get("reasoning"):
+                    reasoning_parts.append(data["reasoning"])
+            merged.append(
+                {
+                    "type": "schema_proposal",
+                    "data": {
+                        "reasoning": (
+                            " | ".join(reasoning_parts) if reasoning_parts else None
+                        ),
+                        "operations": combined_ops,
+                    },
+                }
+            )
+        else:
+            merged.append(items[-1])
+
+    return merged
+
+
+def _assign_ids(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Assign unique IDs and summaries to payloads."""
+    processed = []
+    for payload in payloads:
+        if not payload:
+            continue
+        payload_type = payload.get("type", "unknown")
+        payload_data = payload.get("data", {})
+        payload_id = str(uuid.uuid4())[:8]
+        summary = summarize_payload(payload_type, payload_data)
+        processed.append(
+            {
+                "payload_id": payload_id,
+                "type": payload_type,
+                "data": payload_data,
+                "summary": summary,
+            }
+        )
+    return processed

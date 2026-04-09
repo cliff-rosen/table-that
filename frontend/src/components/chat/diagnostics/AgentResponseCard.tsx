@@ -168,7 +168,7 @@ function PayloadView({ payload, onFullscreen }: { payload: CustomPayload; onFull
 
 export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardProps) {
     const hasTools = !!(response.tool_history && response.tool_history.length > 0);
-    const hasRaw = !!response.raw_response;
+    const hasRaw = !!response.raw_text;
 
     const [activeTab, setActiveTab] = useState<Tab>('parsed');
 
@@ -221,7 +221,7 @@ export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardP
                         <div>
                             <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Message</div>
                             <pre className="bg-white dark:bg-gray-900 rounded p-2 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
-                                {response.message}
+                                {response.message_text}
                             </pre>
                         </div>
 
@@ -271,13 +271,13 @@ export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardP
                     <div>
                         <div className="flex items-center justify-between mb-1">
                             <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                Raw LLM Response ({response.raw_response?.length || 0} chars)
+                                Raw LLM Response ({response.raw_text?.length || 0} chars)
                             </div>
                             <button
                                 onClick={() => onFullscreen({
                                     type: 'raw',
                                     title: 'Raw LLM Response',
-                                    content: response.raw_response || ''
+                                    content: response.raw_text || ''
                                 })}
                                 className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                             >
@@ -285,7 +285,7 @@ export function AgentResponseCard({ response, onFullscreen }: AgentResponseCardP
                             </button>
                         </div>
                         <pre className="bg-white dark:bg-gray-900 rounded p-2 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
-                            {response.raw_response}
+                            {response.raw_text}
                         </pre>
                     </div>
                 )}

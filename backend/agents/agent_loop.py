@@ -95,7 +95,7 @@ class AgentToolComplete(AgentEvent):
 @dataclass
 class AgentComplete(AgentEvent):
     """Emitted when the agent loop completes successfully."""
-    text: str
+    raw_text: str
     tool_calls: List[Dict[str, Any]]  # Simplified view for UI
     payloads: List[Dict[str, Any]] = field(default_factory=list)
     trace: Optional[AgentTrace] = None  # Full execution trace
@@ -104,7 +104,7 @@ class AgentComplete(AgentEvent):
 @dataclass
 class AgentCancelled(AgentEvent):
     """Emitted when the agent loop is cancelled."""
-    text: str
+    raw_text: str
     tool_calls: List[Dict[str, Any]]
     payloads: List[Dict[str, Any]] = field(default_factory=list)
     trace: Optional[AgentTrace] = None
@@ -114,7 +114,7 @@ class AgentCancelled(AgentEvent):
 class AgentError(AgentEvent):
     """Emitted when an error occurs."""
     error: str
-    text: str = ""
+    raw_text: str = ""
     tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     payloads: List[Dict[str, Any]] = field(default_factory=list)
     trace: Optional[AgentTrace] = None
@@ -251,7 +251,7 @@ class TraceBuilder:
             tool_calls=tool_calls or [],
         ))
 
-    def build(self, outcome: str, final_text: str, error_message: Optional[str] = None) -> AgentTrace:
+    def build(self, outcome: str, raw_text: str, error_message: Optional[str] = None) -> AgentTrace:
         """Build the final trace object."""
         peak_input = max(
             (it.usage.input_tokens for it in self._iterations),
@@ -268,7 +268,7 @@ class TraceBuilder:
             context=self._context,
             initial_messages=self._initial_messages,
             iterations=self._iterations,
-            final_text=final_text,
+            raw_text=raw_text,
             total_iterations=len(self._iterations),
             outcome=outcome,
             error_message=error_message,
@@ -337,7 +337,7 @@ async def run_agent_loop(
     api_kwargs = _build_api_kwargs(model, max_tokens, temperature, system_prompt, messages, tools)
 
     # Accumulated results for events
-    collected_text = ""
+    raw_text = ""
     tool_call_history: List[Dict[str, Any]] = []
     collected_payloads: List[Dict[str, Any]] = []
 
@@ -345,10 +345,10 @@ async def run_agent_loop(
         for iteration in range(1, max_iterations + 1):
             if cancellation_token.is_cancelled:
                 yield AgentCancelled(
-                    text=collected_text,
+                    raw_text=raw_text,
                     tool_calls=tool_call_history,
                     payloads=collected_payloads,
-                    trace=trace_builder.build("cancelled", collected_text)
+                    trace=trace_builder.build("cancelled", raw_text)
                 )
                 return
 
@@ -365,17 +365,17 @@ async def run_agent_loop(
                 if isinstance(event, _ModelResult):
                     response = event.response
                     model_result = event
-                    collected_text += event.text
+                    raw_text += event.text
                     trace_builder.add_tokens(event.usage)
                 else:
                     yield event
 
             if cancellation_token.is_cancelled:
                 yield AgentCancelled(
-                    text=collected_text,
+                    raw_text=raw_text,
                     tool_calls=tool_call_history,
                     payloads=collected_payloads,
-                    trace=trace_builder.build("cancelled", collected_text)
+                    trace=trace_builder.build("cancelled", raw_text)
                 )
                 return
 
@@ -394,10 +394,10 @@ async def run_agent_loop(
                 )
                 logger.info(f"Agent loop complete after {iteration} iterations")
                 yield AgentComplete(
-                    text=collected_text,
+                    raw_text=raw_text,
                     tool_calls=tool_call_history,
                     payloads=collected_payloads,
-                    trace=trace_builder.build("complete", collected_text)
+                    trace=trace_builder.build("complete", raw_text)
                 )
                 return
 
@@ -430,7 +430,7 @@ async def run_agent_loop(
             api_kwargs["messages"] = messages
 
             if stream_text:
-                collected_text += "\n\n"
+                raw_text += "\n\n"
                 yield AgentTextDelta(text="\n\n")
 
         # Max iterations - final summary call
@@ -444,12 +444,12 @@ async def run_agent_loop(
         final_kwargs = {**api_kwargs, "messages": messages}
         final_kwargs.pop("tools", None)
         messages_to_model = copy.deepcopy(final_kwargs["messages"])
-        collected_text = ""
+        raw_text = ""
 
         model_result = None
         async for event in _call_model(client, final_kwargs, stream_text, cancellation_token):
             if isinstance(event, _ModelResult):
-                collected_text = event.text
+                raw_text = event.text
                 model_result = event
                 trace_builder.add_tokens(event.usage)
             else:
@@ -466,27 +466,27 @@ async def run_agent_loop(
             )
 
         yield AgentComplete(
-            text=collected_text,
+            raw_text=raw_text,
             tool_calls=tool_call_history,
             payloads=collected_payloads,
-            trace=trace_builder.build("max_iterations", collected_text)
+            trace=trace_builder.build("max_iterations", raw_text)
         )
 
     except asyncio.CancelledError:
         yield AgentCancelled(
-            text=collected_text,
+            raw_text=raw_text,
             tool_calls=tool_call_history,
             payloads=collected_payloads,
-            trace=trace_builder.build("cancelled", collected_text)
+            trace=trace_builder.build("cancelled", raw_text)
         )
     except Exception as e:
         logger.error(f"Agent loop error: {e}", exc_info=True)
         yield AgentError(
             error=_format_error_message(e),
-            text=collected_text,
+            raw_text=raw_text,
             tool_calls=tool_call_history,
             payloads=collected_payloads,
-            trace=trace_builder.build("error", collected_text, error_message=str(e))
+            trace=trace_builder.build("error", raw_text, error_message=str(e))
         )
 
 

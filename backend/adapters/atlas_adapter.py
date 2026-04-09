@@ -49,7 +49,7 @@ AgentTrace                               (top-level dict)
         ├ payload: Optional[dict]            (UI-specific — no Atlas equiv)
         ├ progress_events: Optional[List]    (streaming — no Atlas equiv)
         └ execution_ms: int                  (no direct equiv)
-  final_text: str                        → response.alignment_score (vs query)
+  raw_text: str                          → response.alignment_score (vs query)
                                          → grounding.response_length
                                          → grounding.uncertainty_acknowledged
                                          → grounding.expansion_ratio
@@ -247,7 +247,7 @@ class TableThatAdapter(BaseAdapter):
           - tool_calls: List[ToolCall], each with:
               - tool_name, tool_input, output_type, output_to_model,
                 output_from_executor, execution_ms, progress_events
-      - final_text, total_iterations, outcome, error_message
+      - raw_text, total_iterations, outcome, error_message
       - total_input_tokens, total_output_tokens, total_duration_ms
       - peak_input_tokens (context window high-water mark)
     """
@@ -286,7 +286,7 @@ class TableThatAdapter(BaseAdapter):
           AgentTrace.initial_messages[-1]             → query
             The last user message is the query that triggered this agent run.
 
-          AgentTrace.final_text                       → response
+          AgentTrace.raw_text                         → response
             The concatenated assistant response.
         """
         iterations = raw_log.get("iterations", [])
@@ -338,7 +338,7 @@ class TableThatAdapter(BaseAdapter):
 
         return {
             "query": query,
-            "response": raw_log.get("final_text", ""),
+            "response": raw_log.get("raw_text", ""),
             "llm_outputs": llm_outputs,
             "tool_steps": tool_steps,
             "outcome": raw_log.get("outcome", "complete"),
@@ -593,7 +593,7 @@ class TableThatAdapter(BaseAdapter):
         Atlas field: response.alignment_score (float, 0.0–1.0)
         Tier: 2 (heuristic — same algorithm as LangChain adapter)
 
-        Source: query (from initial_messages) vs response (final_text)
+        Source: query (from initial_messages) vs response (raw_text)
 
         Heuristic: word overlap between query and response, with penalties:
           - Topic pivot penalty (0.2x): response addresses a different entity
@@ -711,7 +711,7 @@ class TableThatAdapter(BaseAdapter):
 
           state.output_produced (bool)
             Tier: 1 — did the agent produce a final response?
-            Source: response (final_text) non-empty check
+            Source: response (raw_text) non-empty check
             Used by: premature_termination pattern
 
           state.chain_error_occurred (bool)
@@ -797,12 +797,12 @@ class TableThatAdapter(BaseAdapter):
 
           grounding.uncertainty_acknowledged (bool)
             Tier: 2 — does the response disclose uncertainty?
-            Source: scan final_text for ~30 uncertainty markers
+            Source: scan raw_text for ~30 uncertainty markers
             Same markers as Atlas's LangChain adapter.
 
           grounding.response_length (int)
             Tier: 1 — character count of final response
-            Source: len(final_text)
+            Source: len(raw_text)
 
           grounding.source_data_length (int)
             Tier: 1 — character count of usable tool outputs

@@ -59,7 +59,7 @@ class ToolHistoryEntry(BaseModel):
 
 class ChatResponsePayload(BaseModel):
     """Structured payload for final chat responses"""
-    message: str
+    message_text: str
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
     custom_payload: Optional[CustomPayload] = None
@@ -213,8 +213,8 @@ class AgentIteration(BaseModel):
 
 class FinalResponse(BaseModel):
     """Snapshot of what was sent to the frontend (mirrors ChatResponsePayload minus diagnostics)"""
-    message: str
-    raw_response: Optional[str] = None
+    message_text: str
+    raw_text: Optional[str] = None
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
     custom_payload: Optional[CustomPayload] = None
@@ -249,7 +249,7 @@ class AgentTrace(BaseModel):
     iterations: List[AgentIteration]
 
     # === OUTCOME ===
-    final_text: str  # The concatenated response text
+    raw_text: str  # The concatenated response text
     total_iterations: int
     outcome: Literal["complete", "max_iterations", "cancelled", "error"]
     error_message: Optional[str] = None

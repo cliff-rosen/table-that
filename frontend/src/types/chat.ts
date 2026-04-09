@@ -3,44 +3,18 @@
  *
  * Organized to mirror backend schemas/chat.py for easy cross-reference.
  *
- * This module contains:
- * - Core types: MessageRole, Message, Conversation (matching backend schemas/chat.py)
- * - Interaction types: SuggestedValue, SuggestedAction, etc.
- * - Stream event types for SSE streaming
- * - UI-specific types: ChatMessage (for display)
+ * Sections:
+ * 1. Response component types (SuggestedValue, SuggestedAction, etc.)
+ * 2. Chat response payload (what the frontend receives on stream completion)
+ * 3. Stream event types for SSE streaming
+ * 4. Agent trace types (execution tracing, diagnostics panel)
+ * 5. DB message types (for loading conversation history)
+ * 6. UI types (ChatMessage for display)
  */
 
-// ============================================================================
-// Core Types (matching backend models)
-// ============================================================================
-
-export type MessageRole = 'user' | 'assistant' | 'system';
-
-export interface Conversation {
-    id: number;
-    user_id?: number;
-    title?: string;
-    /**
-     * The entity this conversation is bound to. Each conversation belongs
-     * to exactly one scope, and each scope has at most one active
-     * conversation. Navigating between scopes switches conversations.
-     *
-     * Values:
-     *   "tables_list"  — bound to the tables list page (table creation flow)
-     *   "table:<id>"   — bound to a specific table, e.g. "table:42"
-     *
-     * When a table is created from a tables_list conversation, the scope
-     * is migrated from "tables_list" to "table:<id>" so the creation
-     * context carries over to the new table.
-     */
-    scope?: string;
-    created_at: string;
-    updated_at: string;
-}
-
 
 // ============================================================================
-// Interaction Types
+// Response Component Types
 // ============================================================================
 
 export enum InteractionType {
@@ -68,6 +42,11 @@ export interface CustomPayload {
     resolved?: boolean;
 }
 
+export interface ActionMetadata {
+    action_identifier: string;
+    action_data?: unknown;
+}
+
 export interface ToolHistoryEntry {
     tool_name: string;
     input: Record<string, unknown>;
@@ -76,7 +55,92 @@ export interface ToolHistoryEntry {
 
 
 // ============================================================================
-// Agent Trace Types (comprehensive execution tracing)
+// Chat Response Payload (what the frontend receives on stream completion)
+// ============================================================================
+
+export interface ChatResponsePayload {
+    message_text: string;
+    suggested_values?: SuggestedValue[];
+    suggested_actions?: SuggestedAction[];
+    custom_payload?: CustomPayload;
+    tool_history?: ToolHistoryEntry[];
+    conversation_id?: number;
+    message_id?: number;
+    warning?: string;
+    diagnostics?: AgentTrace;
+}
+
+
+// ============================================================================
+// Stream Event Types (discriminated union with explicit 'type' field)
+// ============================================================================
+
+export interface TextDeltaEvent {
+    type: 'text_delta';
+    text: string;
+}
+
+export interface StatusEvent {
+    type: 'status';
+    message: string;
+}
+
+export interface ToolStartEvent {
+    type: 'tool_start';
+    tool: string;
+    input: unknown;
+    tool_use_id: string;
+}
+
+export interface ToolProgressEvent {
+    type: 'tool_progress';
+    tool: string;
+    stage: string;
+    message: string;
+    progress: number;  // 0.0 to 1.0
+    data?: unknown;
+}
+
+export interface ToolCompleteEvent {
+    type: 'tool_complete';
+    tool: string;
+    index: number;
+}
+
+export interface CompleteEvent {
+    type: 'complete';
+    payload: ChatResponsePayload;
+}
+
+export interface ErrorEvent {
+    type: 'error';
+    message: string;
+}
+
+export interface ChatIdEvent {
+    type: 'chat_id';
+    conversation_id: number;
+}
+
+export interface GuestLimitEvent {
+    type: 'guest_limit';
+    message: string;
+}
+
+export type StreamEvent =
+    | TextDeltaEvent
+    | StatusEvent
+    | ToolStartEvent
+    | ToolProgressEvent
+    | ToolCompleteEvent
+    | CompleteEvent
+    | ErrorEvent
+    | ChatIdEvent
+    | GuestLimitEvent;
+
+
+// ============================================================================
+// Agent Trace Types (execution tracing, diagnostics panel)
 // ============================================================================
 
 export interface ToolDefinition {
@@ -128,8 +192,8 @@ export interface AgentIteration {
 }
 
 export interface FinalResponse {
-    message: string;
-    raw_response?: string;
+    message_text: string;
+    raw_text?: string;
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
@@ -156,7 +220,7 @@ export interface AgentTrace {
     iterations: AgentIteration[];
 
     // Outcome
-    final_text: string;
+    raw_text: string;
     total_iterations: number;
     outcome: 'complete' | 'max_iterations' | 'cancelled' | 'error';
     error_message?: string;
@@ -172,24 +236,18 @@ export interface AgentTrace {
     peak_input_tokens?: number;
 }
 
-/** @deprecated Use AgentTrace instead - kept for backwards compatibility */
-export type ChatDiagnostics = AgentTrace;
-
-export interface ActionMetadata {
-    action_identifier: string;
-    action_data?: unknown;
-}
-
 
 // ============================================================================
-// Message Types (depends on interaction types above)
+// DB Message Types (for loading conversation history via API)
 // ============================================================================
+
+export type MessageRole = 'user' | 'assistant' | 'system';
 
 export interface MessageExtras {
     tool_history?: ToolHistoryEntry[];
     custom_payload?: CustomPayload;
-    trace?: AgentTrace;  // Full execution trace
-    diagnostics?: AgentTrace;  // Alias for backwards compatibility
+    trace?: AgentTrace;
+    diagnostics?: AgentTrace;  // Legacy alias for trace
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
 }
@@ -204,108 +262,27 @@ export interface Message {
     created_at: string;
 }
 
+export interface Conversation {
+    id: number;
+    user_id?: number;
+    title?: string;
+    scope?: string;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface ConversationWithMessages extends Conversation {
     messages: Message[];
 }
 
 
 // ============================================================================
-// Stream Event Types (discriminated union with explicit 'type' field)
-// ============================================================================
-
-export interface TextDeltaEvent {
-    type: 'text_delta';
-    text: string;
-}
-
-export interface StatusEvent {
-    type: 'status';
-    message: string;
-}
-
-export interface ToolStartEvent {
-    type: 'tool_start';
-    tool: string;
-    input: unknown;
-    tool_use_id: string;
-}
-
-export interface ToolProgressEvent {
-    type: 'tool_progress';
-    tool: string;
-    stage: string;
-    message: string;
-    progress: number;  // 0.0 to 1.0
-    data?: unknown;
-}
-
-export interface ToolCompleteEvent {
-    type: 'tool_complete';
-    tool: string;
-    index: number;
-}
-
-export interface CompleteEvent {
-    type: 'complete';
-    payload: ChatResponsePayload;
-}
-
-export interface ErrorEvent {
-    type: 'error';
-    message: string;
-}
-
-export interface CancelledEvent {
-    type: 'cancelled';
-    conversation_id?: number;
-}
-
-export interface ChatIdEvent {
-    type: 'chat_id';
-    conversation_id: number;
-}
-
-export interface GuestLimitEvent {
-    type: 'guest_limit';
-    message: string;
-}
-
-export type StreamEvent =
-    | TextDeltaEvent
-    | StatusEvent
-    | ToolStartEvent
-    | ToolProgressEvent
-    | ToolCompleteEvent
-    | CompleteEvent
-    | ErrorEvent
-    | CancelledEvent
-    | ChatIdEvent
-    | GuestLimitEvent;
-
-
-// ============================================================================
-// Response Payload
-// ============================================================================
-
-export interface ChatResponsePayload {
-    message: string;
-    suggested_values?: SuggestedValue[];
-    suggested_actions?: SuggestedAction[];
-    custom_payload?: CustomPayload;
-    tool_history?: ToolHistoryEntry[];
-    conversation_id?: number;
-    message_id?: number;
-    warning?: string;
-    diagnostics?: ChatDiagnostics;
-}
-
-
-// ============================================================================
-// UI-Specific Types
+// UI Types (for display in chat tray)
 // ============================================================================
 
 /**
- * Chat message for UI display (includes interaction elements)
+ * Chat message for UI display — flattened from ChatResponsePayload for
+ * easy rendering. Built in ChatContext from stream events or loaded history.
  */
 export interface ChatMessage {
     /** Database message ID (present when loaded from history). */
@@ -318,12 +295,5 @@ export interface ChatMessage {
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
     warning?: string;
-    diagnostics?: ChatDiagnostics;
+    diagnostics?: AgentTrace;
 }
-
-// ============================================================================
-// Backwards Compatibility Aliases
-// ============================================================================
-
-/** @deprecated Use ChatMessage instead */
-export type GeneralChatMessage = ChatMessage;
