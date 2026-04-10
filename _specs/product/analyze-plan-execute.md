@@ -1,128 +1,179 @@
 # Analyze-Plan-Execute: The Core Interaction Model
 
-## The Journey
+## Overview
 
-Every conversation has a starting point (the user's initial request) and a destination (the well-defined goal). The system's job is to narrow the distance between them.
+Every table-building conversation follows a two-phase structure:
 
-At any moment, the system knows three things:
+1. **Goal Elicitation** — a one-time upfront activity that establishes what we're building and how we'll know it's done
+2. **Iterative Gap-Closing** — a loop that runs until the goal is achieved, with each iteration narrowing the distance
 
-1. **Where I am** — the current state of play
-2. **Where I'm going** — the goal, once elicited and well-defined
-3. **What I'm working on now** — the current sub-goal that narrows the distance
+## Phase 1: Goal Elicitation
 
-The work is iterative. Early on, the gap is large — we're figuring out what the user actually needs. Later, it's small — we're filling specific cells. But the motion is always the same: assess the gap, pick the next thing that narrows it, do that thing, reassess.
+Before any table work begins, the system must establish the goal. This is not optional — it's the prerequisite for everything else.
 
-## The Three Modes
-
-The system operates in one of three modes at all times:
-
-### Analyzing
-
-Understanding the situation. Asking questions. Surfacing assumptions. Clarifying intent.
-
-The system is curious and questioning. It does not propose solutions or take action. It gathers the information needed to form a plan.
-
-### Planning
-
-Proposing an approach based on current understanding. Presenting it for validation.
-
-The system is propositional. It presents structured proposals (schema designs, enrichment strategies, column configurations) for the user to accept, modify, or reject.
-
-### Executing
-
-Carrying out a validated plan. Acting, not asking.
-
-The system is efficient and progress-oriented. It reports on what it's doing, surfaces issues, and minimizes narration. It does not second-guess the plan unless it encounters a problem.
-
-## Mode Outputs and Handoffs
-
-Each mode produces a structured artifact that becomes the input to the next mode. These are not just conversation prose — they are well-defined schemas.
-
-### Analyzing -> Goal Definition
-
-The output of analyzing is a **Goal Definition**:
+The system asks focused questions to understand what the user is trying to accomplish. The output is a **Goal State**:
 
 ```
-GoalDefinition:
-  objective: string       # What the user wants to accomplish
-  audience: string        # Who will use this table / for what context
-  success_criteria: string  # How we'll know the table is done and useful
-  constraints: string[]   # Budget, time, data source limitations, etc.
+GoalState:
+  goal: string                # What the user wants to accomplish
+  success_factors:             # Concrete, trackable criteria for "done"
+    - string                   # e.g. "Table covers all FDA-approved EGFR TKIs"
+    - string                   # e.g. "Each drug has response rate from pivotal trial"
+    - string                   # e.g. "Safety data includes most common grade 3+ AEs"
+    - ...
 ```
-
-This artifact feeds into planning. The plan is shaped by the goal, not by the literal words of the original request.
 
 **Example:**
-- User says: "I want a table of EGFR inhibitors"
-- After analyzing: `{objective: "Compare approved EGFR inhibitors for first-line NSCLC treatment", audience: "Oncology team evaluating treatment options", success_criteria: "Table covers all FDA-approved EGFR TKIs with efficacy and safety data from pivotal trials", constraints: ["Focus on approved drugs only", "Need response rate and PFS data"]}`
 
-### Planning -> Execution Plan
+User: "I want a table of EGFR inhibitors"
 
-The output of planning is an **Execution Plan**:
-
+After goal elicitation:
 ```
-ExecutionPlan:
-  goal: GoalDefinition          # The goal this plan serves
-  schema: SchemaProposal        # Table structure (columns, types)
-  data_strategy: DataStrategy   # How to populate the table
-    sources: string[]           # Where data comes from
-    enrichment_order: string[]  # Which columns to fill first
-    strategies_by_column: map   # Column -> enrichment strategy
-  estimated_scope: string       # How many rows, how much work
+goal: "Compare approved EGFR inhibitors for first-line NSCLC treatment selection"
+success_factors:
+  - "All FDA-approved EGFR TKIs for NSCLC are included"
+  - "Each drug has indication and line of therapy"
+  - "Response rate (ORR) from pivotal trial for each drug"
+  - "Median PFS from pivotal trial for each drug"
+  - "Key grade 3+ adverse events listed for each drug"
+  - "Approval year and pivotal trial name included"
 ```
 
-This artifact feeds into executing. The execution phase follows the plan, doesn't reinvent it.
+The success factors are the contract. They define done. Everything that follows is measured against them.
 
-**Example:**
-- Schema: 7 columns (Drug Name, Target, Indication, Line of Therapy, ORR, PFS, Key Toxicities)
-- Strategy: Drug Name and Target via quick_lookup. ORR and PFS via deep_research from pivotal trial publications. Key Toxicities via extraction.
-- Scope: ~8 approved EGFR TKIs
+### When Goal Elicitation Can Be Light
 
-### Executing -> Results
+Not every conversation needs deep goal elicitation. If the user says "make me a table with these exact columns: name, dose, route" — the goal is self-evident. The system should recognize when the request is already specific enough and not force unnecessary questioning.
 
-The output of executing is the **populated table**, verifiable against the goal definition and execution plan.
+The user can also override: skip goal elicitation entirely and go straight to building. The system adapts, but it knows there's no goal state to measure against.
 
-During execution, the system also produces progress artifacts:
+## Phase 2: Iterative Gap-Closing
+
+Once the goal state exists, the system enters a loop. Each iteration follows the analyze-plan-execute cycle, but "analyze" now has a specific job: **compare current state against the success factors and determine what to do next.**
+
+### The Loop
 
 ```
-ExecutionProgress:
-  plan: ExecutionPlan           # The plan being executed
-  completed_steps: string[]     # What's done
-  current_step: string          # What's in progress
-  issues: Issue[]               # Problems encountered
-  results_summary: string       # Current state of the table
+┌─────────────────────────────────────────────────────┐
+│                                                     │
+│  ANALYZE: Check success factors against current     │
+│  state. Which factors are achieved? Which aren't?   │
+│  What type of work closes the next gap?             │
+│       │                                             │
+│       ▼                                             │
+│  PLAN: Propose the specific work for this hop       │
+│  (schema change, row addition, enrichment)          │
+│       │                                             │
+│       ▼                                             │
+│  EXECUTE: Do the work, report progress              │
+│       │                                             │
+│       ▼                                             │
+│  Loop back to ANALYZE                               │
+│       │                                             │
+│  All success factors achieved? ──► Done             │
+│                                                     │
+└─────────────────────────────────────────────────────┘
 ```
+
+### Analysis Within the Loop
+
+During goal elicitation, analysis is open-ended — exploring what the user needs. During the loop, analysis is focused triage. The system looks at the table, compares against the success factors, and asks:
+
+| Question | If Yes → Work Type |
+|----------|--------------------|
+| Does the table lack columns needed for a success factor? | Schema activity (add/modify columns) |
+| Does the table lack rows it should have? | Row population (search, import) |
+| Do existing rows have empty cells for required columns? | Enrichment (fill gaps) |
+| Are filled cells low-quality or unverified? | Re-enrichment or validation |
+| Are all success factors satisfied? | Done |
+
+The success factor delta drives everything. The system doesn't do work speculatively — it does the work that closes the most important remaining gap.
+
+### Success Factor Tracking
+
+At each analysis step, the system evaluates each success factor:
+
+```
+Success Factor Status:
+  ✓ "All FDA-approved EGFR TKIs for NSCLC are included"     — achieved (8 drugs found)
+  ✓ "Each drug has indication and line of therapy"            — achieved (all rows filled)
+  ✗ "Response rate (ORR) from pivotal trial for each drug"   — 3 of 8 filled
+  ✗ "Median PFS from pivotal trial for each drug"            — 0 of 8 filled
+  ✗ "Key grade 3+ adverse events listed for each drug"       — 0 of 8 filled
+  ✓ "Approval year and pivotal trial name included"          — achieved
+```
+
+This status drives the next hop: "ORR is partially filled, PFS and AEs are empty. Next hop: enrich the ORR column for the remaining 5 drugs, then move to PFS."
 
 ## Mode Management
 
 ### State
 
-The conversation carries two fields:
+The conversation carries:
 
-- **`mode`**: `"analyzing"` | `"planning"` | `"executing"`
-- **`mode_locked`**: `boolean`
+```
+mode: "analyzing" | "planning" | "executing"
+mode_locked: boolean
+goal_state: GoalState | null
+```
 
-### Default behavior (mode_locked = false)
+### Default Behavior (mode_locked = false)
 
 The current mode is passed to the LLM in the system prompt. The LLM is instructed to declare the current mode as part of its structured response. The system updates the mode based on the LLM's declaration.
 
-The LLM transitions modes based on what's happening:
-- When it has enough information to propose a plan, it transitions from analyzing to planning
-- When the user accepts a plan, it transitions from planning to executing
-- When it encounters something that needs rethinking, it transitions back to analyzing
+Any transition is valid in any direction. The LLM transitions based on what's happening:
+- When it has enough information to propose, it moves from analyzing to planning
+- When the user accepts a plan, it moves from planning to executing
+- When it encounters something that needs rethinking, it moves back to analyzing
+- When execution completes a hop, it moves back to analyzing (loop iteration)
 
-Any transition is valid in any direction. There is no enforced sequence.
+### User Override (mode_locked = true)
 
-### User override (mode_locked = true)
-
-The user can set the mode explicitly via the UI. When they do, `mode_locked` becomes true. The LLM still sees the mode in its prompt and adapts its behavior accordingly, but it cannot change the mode. The mode changes only when:
-
-- The user sets a different mode
-- The user removes the lock (mode_locked returns to false, LLM resumes managing transitions)
+The user can set the mode explicitly via the UI. When they do, `mode_locked` becomes true. The LLM sees the mode and adapts, but cannot change it. The lock is released when the user sets a different mode or explicitly unlocks.
 
 ### Visibility
 
 The current mode is always visible in the UI. The user can see what posture the system is in and change it at any time.
+
+## Mode Outputs and Handoffs
+
+Each mode produces a structured artifact that feeds forward.
+
+### Analyzing Output
+
+**During Goal Elicitation (no goal state yet):**
+
+Produces a `GoalState` — the goal and success factors.
+
+**During the Loop (goal state exists):**
+
+Produces a **Gap Assessment** — which success factors are met, which aren't, and what type of work is needed next.
+
+```
+GapAssessment:
+  achieved: string[]           # Success factors that are met
+  remaining: string[]          # Success factors not yet met
+  next_work_type: "schema" | "rows" | "enrichment" | "validation"
+  rationale: string            # Why this is the right next hop
+```
+
+### Planning Output
+
+Produces an **Execution Plan** scoped to the current hop:
+
+```
+ExecutionPlan:
+  targets: string[]            # Which success factors this hop addresses
+  work_type: "schema" | "rows" | "enrichment" | "validation"
+  steps: Step[]                # Concrete steps
+  expected_outcome: string     # What the table looks like after this hop
+```
+
+The plan is scoped — it doesn't try to solve everything at once. It addresses one or a few success factors per hop.
+
+### Executing Output
+
+Produces **results** — the actual changes to the table. After execution completes, the system loops back to analyzing, which re-evaluates the success factors.
 
 ## How Mode Affects the Chat Config Layers
 
@@ -130,7 +181,8 @@ The current mode is always visible in the UI. The user can see what posture the 
 
 | Mode | Tone | Initiative |
 |------|------|------------|
-| Analyzing | Curious, questioning | Understand before acting |
+| Analyzing (goal elicitation) | Curious, focused | Understand the goal, don't propose yet |
+| Analyzing (in loop) | Diagnostic, evaluative | Assess gaps, categorize next work |
 | Planning | Propositional, structured | Propose and validate |
 | Executing | Efficient, progress-oriented | Act and report |
 
@@ -140,13 +192,13 @@ The current mode is always visible in the UI. The user can see what posture the 
 |------|----------------|
 | Analyzing | Read-only: search, get_rows, describe schema. No mutations. |
 | Planning | Proposal tools: schema_proposal, enrichment preview. Nothing applied. |
-| Executing | Mutation tools: enrich_column, modify_schema, create rows. Action-oriented. |
+| Executing | Mutation tools: enrich_column, modify_schema, create rows. |
 
 ### Payloads
 
 | Mode | Payload Types |
 |------|--------------|
-| Analyzing | Informational: summaries, previews, options to consider |
+| Analyzing | Informational: gap assessments, data previews, options |
 | Planning | Proposals: schema_proposal, data_proposal. Accept/dismiss. |
 | Executing | Progress/results: enrichment progress, completion reports |
 
@@ -154,32 +206,39 @@ The current mode is always visible in the UI. The user can see what posture the 
 
 | Mode | Context Emphasis |
 |------|-----------------|
-| Analyzing | High-level: what tables exist, user history, broad data landscape |
-| Planning | Detailed: current schema, sample data, available sources, constraints |
-| Executing | Operational: row counts, progress, errors, remaining work |
+| Analyzing | Goal state, success factor status, table overview |
+| Planning | Current schema, sample data, available sources, constraints |
+| Executing | Row counts, progress, errors, remaining work |
 
 ### Client Actions
 
 | Mode | Available Actions |
 |------|------------------|
-| Analyzing | "Show me examples", "What are my options", "Tell me more" |
-| Planning | "Accept", "Dismiss", "Modify", "Start over" |
-| Executing | "Cancel", "Pause", "Skip this row", "Show progress" |
+| Analyzing | "Show me examples", "What are my options" |
+| Planning | "Accept", "Dismiss", "Modify" |
+| Executing | "Cancel", "Pause", "Skip" |
 
-## The Missing Piece Today
+## What Changes
 
-The current system skips the analyzing phase entirely. A user says "I want a table of EGFR inhibitors" and immediately gets a schema proposal. The schema is shaped by the literal words, not by the user's underlying goal.
+### Immediate
 
-The first implementation step is adding the top-level analyzing phase: before proposing anything, establish what the user is trying to accomplish, who it's for, and what success looks like. This doesn't require new infrastructure — it's a persona/prompt change plus the mode state on the conversation. But it fundamentally changes the quality of everything downstream, because every plan is now shaped by a well-understood goal.
+The most impactful change is adding goal elicitation. When a user starts a new table conversation:
 
-## Transition Gates
+1. Don't immediately propose a schema
+2. Ask focused questions to establish the goal and success factors
+3. Use the success factors to drive every subsequent decision
 
-While any transition is valid (the user can always override), the system should be aware of what's missing:
+This is primarily a persona/prompt change plus storing the goal state on the conversation.
 
-| Transition | Natural gate |
-|------------|-------------|
-| Analyzing -> Planning | Goal definition exists |
-| Planning -> Executing | Execution plan exists and user has accepted it |
-| Executing -> complete | Results satisfy the goal's success criteria |
+### Medium-term
 
-If the user skips ahead (e.g., goes straight to executing without a plan), the system adapts — but it knows there's no plan artifact and can flag that if issues arise.
+- Mode state on the conversation (`mode`, `mode_locked`, `goal_state`)
+- Mode-aware tool filtering and persona adjustment
+- Success factor tracking and gap assessment
+- Mode visibility and override in the UI
+
+### Longer-term
+
+- Automated success factor evaluation (system checks factors against actual table state)
+- Smart hop selection (prioritize the highest-value remaining gap)
+- Cross-conversation learning (goals and patterns from past tables inform new ones)
