@@ -112,28 +112,41 @@ This status drives the next hop: "ORR is partially filled, PFS and AEs are empty
 The conversation carries:
 
 ```
+phase: "goal_elicitation" | "building"
 mode: "analyzing" | "planning" | "executing"
 mode_locked: boolean
 goal_state: GoalState | null
 ```
 
-### Default Behavior (mode_locked = false)
+### Phase 1: Goal Elicitation
+
+During goal elicitation, mode management does not apply. The system is always in a single posture: understanding what the user wants. There is no planning or executing — the only work is establishing the goal and success factors.
+
+The phase transitions from `goal_elicitation` to `building` when a `GoalState` is established (either through conversation or because the user's request was specific enough to derive one immediately).
+
+The user can skip goal elicitation entirely, in which case the system enters `building` without a goal state. It adapts, but it has no success factors to measure against.
+
+### Phase 2: Building (mode cycles)
+
+Once in the building phase, the analyze/plan/execute mode cycle is active. This is where mode management applies.
+
+**Default Behavior (mode_locked = false):**
 
 The current mode is passed to the LLM in the system prompt. The LLM is instructed to declare the current mode as part of its structured response. The system updates the mode based on the LLM's declaration.
 
 Any transition is valid in any direction. The LLM transitions based on what's happening:
-- When it has enough information to propose, it moves from analyzing to planning
+- When it has assessed the gap and knows what to do, it moves from analyzing to planning
 - When the user accepts a plan, it moves from planning to executing
 - When it encounters something that needs rethinking, it moves back to analyzing
 - When execution completes a hop, it moves back to analyzing (loop iteration)
 
-### User Override (mode_locked = true)
+**User Override (mode_locked = true):**
 
 The user can set the mode explicitly via the UI. When they do, `mode_locked` becomes true. The LLM sees the mode and adapts, but cannot change it. The lock is released when the user sets a different mode or explicitly unlocks.
 
 ### Visibility
 
-The current mode is always visible in the UI. The user can see what posture the system is in and change it at any time.
+The current phase and mode are always visible in the UI. During goal elicitation, the UI shows that the system is establishing the goal. During building, the UI shows the current mode (analyzing/planning/executing). The user can override at any time.
 
 ## Mode Outputs and Handoffs
 
