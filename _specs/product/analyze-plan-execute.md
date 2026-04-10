@@ -172,21 +172,23 @@ GapAssessment:
 
 ### Planning Output
 
-Produces an **Execution Plan** scoped to the current hop:
+Produces a **Hop Decision** — what type of work to do next and why. This is strategy, not specifics. Planning does not touch the table.
 
 ```
-ExecutionPlan:
+HopDecision:
   targets: string[]            # Which success factors this hop addresses
   work_type: "schema" | "rows" | "enrichment" | "validation"
-  steps: Step[]                # Concrete steps
-  expected_outcome: string     # What the table looks like after this hop
+  rationale: string            # Why this is the right next hop
+  approach: string             # High-level approach (e.g. "add columns for safety data", "enrich ORR via deep research on pivotal trials")
 ```
 
-The plan is scoped — it doesn't try to solve everything at once. It addresses one or a few success factors per hop.
+The hop decision is scoped — it doesn't try to solve everything at once. It addresses one or a few success factors per hop.
 
 ### Executing Output
 
-Produces **results** — the actual changes to the table. After execution completes, the system loops back to analyzing, which re-evaluates the success factors.
+Executing is where the actual work happens. This includes proposing specific changes (schema proposals, data proposals), getting user acceptance, and applying them. Proposals are execution artifacts — they are the work, not the plan.
+
+After execution completes, the system loops back to analyzing, which re-evaluates the success factors.
 
 ## How Mode Affects the Chat Config Layers
 
@@ -196,40 +198,40 @@ Produces **results** — the actual changes to the table. After execution comple
 |------|------|------------|
 | Analyzing (goal elicitation) | Curious, focused | Understand the goal, don't propose yet |
 | Analyzing (in loop) | Diagnostic, evaluative | Assess gaps, categorize next work |
-| Planning | Propositional, structured | Propose and validate |
-| Executing | Efficient, progress-oriented | Act and report |
+| Planning | Strategic, deliberative | Decide what to do next, not how to do it |
+| Executing | Efficient, progress-oriented | Propose specifics, act, report |
 
 ### Tools
 
 | Mode | Available Tools |
 |------|----------------|
 | Analyzing | Read-only: search, get_rows, describe schema. No mutations. |
-| Planning | Proposal tools: schema_proposal, enrichment preview. Nothing applied. |
-| Executing | Mutation tools: enrich_column, modify_schema, create rows. |
+| Planning | Read-only: same as analyzing. Planning is a decision, not an action. |
+| Executing | All tools: schema_proposal, data_proposal, enrich_column, modify_schema, create rows. This is where proposals are made and work is done. |
 
 ### Payloads
 
 | Mode | Payload Types |
 |------|--------------|
-| Analyzing | Informational: gap assessments, data previews, options |
-| Planning | Proposals: schema_proposal, data_proposal. Accept/dismiss. |
-| Executing | Progress/results: enrichment progress, completion reports |
+| Analyzing | Informational: gap assessments, data previews |
+| Planning | None — planning produces a hop decision, not a payload |
+| Executing | Proposals and results: schema_proposal, data_proposal, enrichment progress, completion reports |
 
 ### Context Builder
 
 | Mode | Context Emphasis |
 |------|-----------------|
 | Analyzing | Goal state, success factor status, table overview |
-| Planning | Current schema, sample data, available sources, constraints |
-| Executing | Row counts, progress, errors, remaining work |
+| Planning | Gap assessment from analysis, available approaches, constraints |
+| Executing | Current schema, row data, progress, errors |
 
 ### Client Actions
 
 | Mode | Available Actions |
 |------|------------------|
 | Analyzing | "Show me examples", "What are my options" |
-| Planning | "Accept", "Dismiss", "Modify" |
-| Executing | "Cancel", "Pause", "Skip" |
+| Planning | "Sounds good", "Try a different approach", "Let me decide" |
+| Executing | "Accept", "Dismiss", "Cancel", "Pause", "Skip" |
 
 ## What Changes
 
